@@ -1328,7 +1328,7 @@ function itemFor(
     consequence = spec.consequenceWhenIndependentUnavailable ??
       "CMeng has not established an independent comparison for this metric. Available submitted evidence is retained; no agreement or discrepancy is concluded.";
     action = spec.actionWhenIndependentUnavailable ??
-      "Establish the independent calculation and its evidence basis, then rerun the comparison.";
+      "Establish the independent calculation and its evidence basis, then run the comparison again.";
   } else if (
     submitted.state ===
       "not_submitted"
@@ -1375,7 +1375,7 @@ function itemFor(
   }
   if(reconciliationState==='independent_unavailable'){
     const dependency=independent.diagnostics.find(d=>d.startsWith('COMPARISON_INPUT_REQUIRED:'))?.slice('COMPARISON_INPUT_REQUIRED:'.length);
-    if(dependency){consequence=dependency;action='Supply or confirm this specific evidence basis, then rerun the comparison. Retain each available source value on its own stated scope.';}
+    if(dependency){consequence=dependency;action='Supply or confirm this specific evidence basis, then run the comparison again. Retain each available source value on its own stated scope.';}
     if(independent.diagnostics.includes('SOURCE_AUTHORITY_ONLY')){consequence='An official award is a source authority; CMeng does not manufacture an independent official award.';action='Confirm the determination authority and amendment overlap. Keep the source award separate from analytical time impact.';}
   }
 

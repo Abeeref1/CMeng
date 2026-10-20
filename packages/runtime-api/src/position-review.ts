@@ -5,7 +5,7 @@ import type { ControlIssueAssessment } from '../../truth-kernel/src';
 export const STATUS_LABELS: Record<string,string> = {
   system_defect:'System failure',source_conflict:'Records disagree',data_quality:'Record needs correction',
   missing_information:'Information needed',comparison_difference:'Positions differ',governance_review:'Review required',
-  verification_pending:'Check pending',checked:'Checked',established:'Confirmed',not_established:'Not established',
+  verification_pending:'Checks not yet complete',checked:'Checked',established:'Confirmed',not_established:'Not established',
   candidate:'Needs review',governed:'Confirmed',governed_source:'Reported forecast',source:'Reported',source_current:'Current record',source_report:'Reported',unknown:'Not known',partial:'Partly confirmed',
   reported_source_value:'Reported amount',cmeng_policy_default:'Default rule',conditions_present_status_register_missing:'Conditions present; permit status needed',validation_failed:'Records need correction',
   unavailable:'Not available',not_checked:'Not checked',review_required:'Review needed',conflicted:'Records disagree',
@@ -108,10 +108,11 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   // first issue to a different page headline.
   // Findings qualify the result in supporting details. An arbitrary first finding
   // is never a substitute for the question this page answers.
-  if(!nextAction)nextAction=blockedBy==='missing_input'?'Provide the missing inputs listed in Information & Actions.':'Review the figures for this page.';
+  // W8: no generic 'review the figures' line; the page lists its own actions.
+  if(!nextAction&&blockedBy==='missing_input')nextAction='Provide the missing inputs listed in Information & Actions.';
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
   return {schemaVersion:'1.0',facts,specific,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
-    nextAction,owner:assignTo,assignTo,
+    nextAction:nextAction??'',owner:assignTo,assignTo,
     basis:'Red: a reported target is exceeded or a calculation check failed. Amber: information or review is incomplete. Green: the stated target and listed checks pass. These colours do not represent an overall project risk score.'};
 }
 export function withPositionVerdict(result:ModuleRuntimeResult):ModuleRuntimeResult {
