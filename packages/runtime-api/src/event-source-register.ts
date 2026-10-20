@@ -281,7 +281,7 @@ export function linkStatedNotices(notices: readonly CanonicalNoticeRecord[], eve
     const target = source.statedEventId ? (eventIds.has(source.statedEventId) ? source.statedEventId : null) : titleMatch;
     const reason = !notice.actualIssuedAt ? 'The notice does not state its date.'
       : target ? null
-        : source.statedEventId ? 'The event it names (' + source.statedEventId + ') is not in the event population.'
+        : source.statedEventId ? 'The event it names (' + source.statedEventId + ') is not in the event records.'
           : 'The notice names no event (no event id and no exact event title).';
     return { ...notice, eventId: reason ? null : target,
       noticeSource: { ...source, linkBasis: reason ? 'not_linked' : source.statedEventId ? 'event_id' : 'exact_event_title', unlinkedReason: reason } };

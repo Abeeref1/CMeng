@@ -46,7 +46,7 @@ test('T05 all affected screen sites use the audited source-preserving count rule
  assert.match(script,/\["Approved by Data Date",governedDisplayCount\(variationPopulationEstablished,vo\.approvedCount\)/);
  assert.match(script,/\["Rejected",governedDisplayCount\(variationPopulationEstablished,vo\.rejectedCount\)/);
  assert.match(script,/\["Certificate periods by Data Date",governedDisplayCount\(paymentPopulationEstablished,paymentRegister\.asOfRecordCount\)/);
- assert.match(script,/\["Future \/ undated records",fmt\(vo\.futureRecordCount\?\?"Not established"\)/);
+ assert.match(script,/\["Future \/ undated records",unknownPairText\(fmt\(vo\.futureRecordCount\?\?"Not established"\)/);
 });
 
 test('T05/N2/N3 unknown schedule variance and float coverage cannot display fabricated zeros or a percent unit',()=>{
@@ -56,7 +56,7 @@ test('T05/N2/N3 unknown schedule variance and float coverage cannot display fabr
  assert.match(band([['Late',null,'danger'],['On time',null,'success']]),/not confirmed/i,
   'unestablished variance is not a proven empty distribution');
  assert.doesNotMatch(band([['Late',null,'danger'],['On time',null,'success']]),/0/);
- assert.match(band([['Late',0,'danger'],['On time',0,'success']]),/established population is zero/i,
+ assert.match(band([['Late',0,'danger'],['On time',0,'success']]),/confirmed record count is zero/i,
   'genuine established zero remains distinguished from missing evidence');
  assert.match(script,/variance\.lateActivities\?\?null/);
  assert.match(script,/variance\.onTimeActivities\?\?null/);
@@ -191,11 +191,11 @@ test('T05/T10 missing system checks and action register may never announce no fa
  const decisions=runInNewContext(originalFunction('renderDashboardDecisions')+';renderDashboardDecisions',{
   managementPanel:(_title:string,_intro:string,body:string)=>body,fmt:String,
  }) as (data:any)=>string;
- assert.match(decisions({}),/Source decision population is not established/);
+ assert.match(decisions({}),/The full set of source decisions is not established/);
  assert.doesNotMatch(decisions({}),/No source confirmation is awaiting action/);
  const exceptions=runInNewContext(originalFunction('renderDashboardExceptions')+';renderDashboardExceptions',{
   managementPanel:(_title:string,_intro:string,body:string)=>body,fmt:String,
  }) as (data:any)=>string;
- assert.match(exceptions({}),/Project action population is not established/);
+ assert.match(exceptions({}),/The full set of project actions is not established/);
  assert.doesNotMatch(exceptions({}),/No current project actions are identified/);
 });

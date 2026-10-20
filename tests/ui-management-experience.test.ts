@@ -115,7 +115,7 @@ test('S-41 unmapped internal identifiers never reach reader-facing text',()=>{
  assert.equal(runInNewContext(code+";readerReference('boqitem_abcdef123456')",ctx),'1.2.3');
  assert.equal(runInNewContext(code+";readerReference('delivery:1234567890abcdef')",{currentModuleResult:{data:{sourceLabels:{}}}}),'Source record (reference in details)');
  assert.equal(runInNewContext(code+";readerReference('quantityitem_deadbeef123456')",{currentModuleResult:{data:{sourceLabels:{}}}}),'BOQ item (source reference in details)');
- assert.equal(runInNewContext(code+";readerReference('population:abcdef123456')",{currentModuleResult:{data:{sourceLabels:{}}}}),'Reporting population (source reference in details)');
+ assert.equal(runInNewContext(code+";readerReference('population:abcdef123456')",{currentModuleResult:{data:{sourceLabels:{}}}}),'Record group (source reference in details)');
 });
 test('Ask tables translate retained revision references and internal states without changing stored identities',()=>{
  const labels={schedrev_abcdef123456:'August update',evidence_abcdef123456:'Risk register.csv'};
@@ -665,7 +665,7 @@ test('Financial Claims renders full accepted source counts even when none are da
  const html=runInNewContext(functions(['renderCommercialVisual'])+';renderCommercialVisual("commercial-claims-notices",data)',ctx);
  assert.match(html,/Accepted: 14/);assert.match(html,/including future and undated records/);
  assert.match(html,/does not by itself establish a formal determination or award/);
- assert.doesNotMatch(html,/Unknown: 14/);assert.doesNotMatch(html,/No confirmed claim lifecycle population/);
+ assert.doesNotMatch(html,/Unknown: 14/);assert.doesNotMatch(html,/No confirmed set of claims with lifecycle stages/);
 });
 
 test('Milestones offers a source-bound review route and labels a reviewed absence separately from original types',()=>{

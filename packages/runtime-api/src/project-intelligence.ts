@@ -422,7 +422,7 @@ function requestedFacts(question: string, projectId: string): AnswerFact[] {
     add('command-center.sourceInterpretation.hse.metrics.manHours','Reported exposure hours · period and coverage require reconciliation',h?.metrics?.manHours,{authority:'source',dataDateIso:h?.periodEndIso});
     add('command-center.sourceInterpretation.hse.rates.recordableCasesFromLtiAndMedical','Supplied recordable cases · '+(h?.rates?.recordablePopulationComplete?'all reported case types':'minimum; restricted-work cases unresolved'),h?.rates?.recordableCasesFromLtiAndMedical,{authority:'calculated'});
     for(const [i,r] of (h?.rates?.comparisons??[]).entries())add('command-center.sourceInterpretation.hse.rates.comparisons['+i+'].fromReportedCases','Rate from supplied cases per '+r.basisHours+' hours · '+(r.comparisonBasis??'definition not assumed'),r.fromReportedCases,{authority:'calculated'});
-    add('command-center.sourceInterpretation.hse.laborComparison.approvedLaborHoursToDataDate','Approved labor hours through DD · different source population',h?.laborComparison?.approvedLaborHoursToDataDate,{authority:'calculated'});
+    add('command-center.sourceInterpretation.hse.laborComparison.approvedLaborHoursToDataDate','Approved labor hours through DD · different source records',h?.laborComparison?.approvedLaborHoursToDataDate,{authority:'calculated'});
   }
   return facts;
 }

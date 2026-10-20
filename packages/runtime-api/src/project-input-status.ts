@@ -207,7 +207,7 @@ export interface RiskRowInputStatus {
  * this same total and label their own subset. No row is dropped. */
 export function riskRowInputStatus(risk:{sourceRecordCount:number;currentRecordCount:number;futureRecordCount:number;undatedRecordCount:number;current:ReadonlyArray<{status:string}>}|null|undefined):RiskRowInputStatus{
   if(!risk||!risk.sourceRecordCount)return {state:'missing',sourceRowCount:null,currentRowCount:null,openCount:null,closedCount:null,unclearStatusCount:null,
-    afterDataDateCount:null,undatedCount:null,registerLabel:'No risk register rows read.',deliveryLabel:'No risk register rows read.',basis:'No risk register rows are read; the population is unknown.'};
+    afterDataDateCount:null,undatedCount:null,registerLabel:'No risk register rows read.',deliveryLabel:'No risk register rows read.',basis:'No risk register rows are read; the full set of risks is unknown.'};
   const open=risk.current.filter(r=>r.status==='open').length,closed=risk.current.filter(r=>r.status==='closed').length;
   const unclear=risk.current.length-open-closed,current=risk.currentRecordCount,total=risk.sourceRecordCount;
   const after=risk.futureRecordCount,undated=risk.undatedRecordCount;
@@ -258,7 +258,7 @@ export function quantityInputStatus(selection:{state:string}|null|undefined,item
   if(!items){
     const sourceState=selection?.state==='unreadable'?'unreadable' as const:'missing' as const;
     return {state:'missing',sourceState,boqItemCount:null,readableQuantityItemCount:null,unitItemCount:null,readableItemCount:null,unreadableItemCount:null,basis,
-      reason:sourceState==='unreadable'?'The BOQ source did not yield a readable item population; quantities are unknown.':'No BOQ is supplied; quantities are unknown.'};
+      reason:sourceState==='unreadable'?'No readable BOQ items were found in the BOQ source; quantities are unknown.':'No BOQ is supplied; quantities are unknown.'};
   }
   const sourceState=selection?.state==='candidate'?'candidate' as const:'source' as const;
   const quantity=items.filter(readableQuantity).length,unit=items.filter(statedUnit).length;
@@ -299,7 +299,7 @@ export function installedQuantityInputStatus(quantities:QuantityInputStatus,mode
   const review=model?.measurementReview??null;
   const rows={sourceRowCount:review?.sourceRowCount??null,matchedRowCount:review?.matchedRowCount??null,unresolvedRowCount:review?.currentUnresolvedRowCount??null,futureRowCount:review?.futureRowCount??null};
   const unknown=(reason:string):InstalledQuantityInputStatus=>({state:'missing',boqItemCount:quantities.boqItemCount,measuredItemCount:null,unmeasuredItemCount:null,itemCoveragePercent:null,...rows,basis,reason});
-  if(!model||quantities.boqItemCount===null)return unknown('No readable BOQ item population, so installed quantities cannot be matched.');
+  if(!model||quantities.boqItemCount===null)return unknown('No readable BOQ items, so installed quantities cannot be matched.');
   if(!review&&!model.installedSnapshots.length)return unknown('No installed measurement records are supplied; installed quantities are unknown.');
   const dataDate=dataDateIso?.slice(0,10)??null;
   if(!dataDate)return unknown('The programme Data Date is not established, so dated measurements cannot be placed at the reporting position.');

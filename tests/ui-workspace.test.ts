@@ -320,7 +320,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
       "Needs review before current",
       "Adds to current record",
       "Reference only",
-      "Scenario only",
+      "What-if version only",
       "Reading result",
       "Full OCR required",
       "Missing submitted values",
@@ -927,7 +927,7 @@ test("CMeng workspace keeps the active module primary and browser script parseab
   );
   assert.equal(
     html.includes(
-      "No confirmed claim lifecycle population is established. Lifecycle counts are not confirmed.",
+      "No confirmed set of claims with lifecycle stages is established. Lifecycle counts are not confirmed.",
     ),
     true,
     "Commercial Claims must not render an all-zero lifecycle chart when no confirmed claim population exists",
@@ -947,8 +947,8 @@ test("CMeng workspace keeps the active module primary and browser script parseab
     "Cash Flow source summary must describe an absent payment basis instead of presenting it as zero",
   );
   for (const disclosure of [
-    "complete confirmed population is available through Download Excel / Download data",
-    "complete population is available through Download Excel / Download data",
+    "All confirmed changed activities are available through Download Excel / Download data",
+    "All records are available through Download Excel / Download data",
   ]) {
     assert.equal(
       html.includes(disclosure),

@@ -1840,7 +1840,7 @@ export function buildDeliveryChallengeProjection(
       evidenceBasis: [
         "Current programme relationships",
         "Current/forecast activity dates",
-        "Execution activity population",
+        "Execution activities",
       ],
       milestoneConsequence:
         (fronts.activityCount ?? 0) > 0
@@ -1850,7 +1850,7 @@ export function buildDeliveryChallengeProjection(
         fronts.activityCount === null
           ? "Re-date the open activities whose finish is already past the Data Date, or supply their remaining duration and working calendar, before assessing concurrency."
           : fronts.activityCount === 0
-          ? "Establish the execution activity/workfront population before assessing sequencing."
+          ? "Establish the full set of execution activities and workfronts before assessing sequencing."
           : "Confirm that access, interfaces, procurement and shared resources support the concurrent work fronts before relying on the submitted sequence.",
     }),
   );

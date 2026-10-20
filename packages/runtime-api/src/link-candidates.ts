@@ -84,7 +84,7 @@ export async function linkCandidatesRequest(req:IncomingMessage,res:ServerRespon
    try{runtimeProjects.touch(state);}catch(e){if(before===undefined)delete state.linkCandidateReviews;else state.linkCandidateReviews=before;throw e;}
    send(res,200,{projectVersion:state.version,record:state.linkCandidateReviews.find(r=>r.id===input.id),quantitiesChanged:false,amountsChanged:false});return true;
   }
-  if(!allowed){send(res,403,{error:'paid_ai_owner_permission_required',message:'Activate owner access to request paid AI proposals. Existing deterministic links remain available.'});return true;}
+  if(!allowed){send(res,403,{error:'paid_ai_owner_permission_required',message:'Activate owner access to request paid AI proposals. Existing rule-based links remain available.'});return true;}
   const kind=input.kind as LinkKind;if(!['boq_activity','payment_certificate'].includes(kind))throw Error('LINK_KIND_INVALID');
   const dataset=linkDataset(state,kind),source=dataset.sources.find(r=>r.id===input.sourceId);if(!source)throw Error('LINK_SOURCE_NOT_FOUND');
   const cutoff=projectDataDate(state)?.slice(0,10)??null;

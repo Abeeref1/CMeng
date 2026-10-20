@@ -175,7 +175,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
       costBasis:'Marginal overtime, workweek premiums and supervision/plant cost have not been established.',
       implementationDate:dataDateIso,
       constraints:['Confirm the governing source calendar and permitted sixth day.','Verify approved resource capacity and actual productivity on the driving chain.','Confirm workfront/material/HSE/legal readiness.','Recalculate the entire network before claiming recovered project days.'],
-      risks:['Additional-day labour and supplier availability may differ from normal shifts.','Calendar changes can move downstream interfaces and the near-critical population.'],
+      risks:['Additional-day labour and supplier availability may differ from normal shifts.','Calendar changes can move downstream interfaces and the near-critical activities.'],
       diminishingReturn:'Do not assume linear weekly improvement where workfront congestion, shared crews or approvals constrain production.',
       authority:'scenario'});
   }
@@ -269,8 +269,8 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     : scenarios.length
       ? 'No recovery option on the CPM path to completion is established.'+lateWorkNote+(completionPath.pathNotEstablishedCount?' '+completionPath.pathNotEstablishedCount+' item(s) have no established path to completion.':'')
       : !supportingBasisAvailable
-        ? 'No supporting recovery basis is established. Supply current quantity/productivity/resource evidence and applicable procurement/workfront records or confirm their absence through the existing population review.'
-        : 'No eligible scenario has been established from the available evidence. '+feasibilityChecks.length+' linked activity feasibility position(s), '+packageTimingAssessed.length+' package timing position(s) and '+permissionAssessed.length+' explicit governed workfront permission(s) were checked.'+(!crewAssessmentComplete||!packageAssessmentComplete||!workfrontAssessmentComplete?' Eligibility remains incomplete; missing domains and unresolved inputs are not assessed zeros.':' No eligible scenario basis was found in these checked populations.');
+        ? 'No supporting recovery basis is established. Supply current quantity/productivity/resource evidence and applicable procurement/workfront records or confirm their absence through the existing register review.'
+        : 'No eligible scenario has been established from the available evidence. '+feasibilityChecks.length+' linked activity feasibility position(s), '+packageTimingAssessed.length+' package timing position(s) and '+permissionAssessed.length+' explicit governed workfront permission(s) were checked.'+(!crewAssessmentComplete||!packageAssessmentComplete||!workfrontAssessmentComplete?' Eligibility remains incomplete; missing domains and unresolved inputs are not assessed zeros.':' No eligible scenario basis was found in these checked records.');
   return {schemaVersion:'1.0',projectionKey:'recovery_acceleration',projectId:state.projectId,projectVersion:state.version,dataDateIso,programmeRevisionId:programme?.sourceRevisionId??null,scenarios,recoveryTargets,drivingChainShortfall,
     calculatedScenarioCount:calculated.length,assumptionRequiredCount:recoveryOptions.length-calculated.length,scenarioState,eligibility,
     recoveryOptionCount:completionPath.recoveryOptionCount,lateWorkCount:completionPath.lateWorkCount,pathNotEstablishedCount:completionPath.pathNotEstablishedCount,

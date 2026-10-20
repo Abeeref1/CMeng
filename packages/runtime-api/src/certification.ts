@@ -431,17 +431,17 @@ export function certifyCrossModuleConsistency(
     }
   }
   for (const [name, values] of families) {
-    checks.push(requiredEqualityCheck("POPULATION_ID_" + name.toUpperCase(), "The same named population must have the same members and exclusions in every consumer.", values));
+    checks.push(requiredEqualityCheck("POPULATION_ID_" + name.toUpperCase(), "The same named record set must have the same members and exclusions on every page that uses it.", values));
   }
   checks.push(booleanCheck("POPULATION_DENOMINATOR_AUTHORITY_CONTRACT", invalidContracts.length === 0,
-    "Population denominators, exclusions, Data Dates and metric authorities must reconcile.", [{ source: "invalid_contracts", value: invalidContracts.join(",") }]));
+    "Record-set denominators, exclusions, Data Dates and metric authorities must reconcile.", [{ source: "invalid_contracts", value: invalidContracts.join(",") }]));
 
   const expectedModuleCount = scheduleModules.filter(module=>!module.onDemand).length + commercialModules.filter(module=>!module.onDemand).length;
   checks.push(
     booleanCheck(
       "MODULE_COUNT_REGISTRY",
       modules.size === expectedModuleCount,
-      "The runtime module population must match the controlled Schedule and Commercial registry.",
+      "The set of runtime pages must match the controlled Schedule and Commercial registry.",
       [
         { source: "runtime.modules", value: modules.size },
         { source: "registry.expected", value: expectedModuleCount },
@@ -491,7 +491,7 @@ export function certifyCrossModuleConsistency(
   checks.push(
     requiredEqualityCheck(
       "SOURCE_ACTIVITY_POPULATION_CONSISTENCY",
-      "All schedule/activity/progress/PMO consumers must agree on the all-source activity population.",
+      "All schedule/activity/progress/PMO consumers must agree on the same set of activities from all sources.",
       [
         {
           source: "schedule-analytics",
@@ -525,7 +525,7 @@ export function certifyCrossModuleConsistency(
   checks.push(
     requiredEqualityCheck(
       "EXECUTABLE_ACTIVITY_POPULATION_CONSISTENCY",
-      "Execution-status metrics must use the same executable activity population everywhere.",
+      "Execution-status metrics must use the same executable activities everywhere.",
       [
         {
           source: "schedule-analytics",
@@ -580,7 +580,7 @@ export function certifyCrossModuleConsistency(
   checks.push(
     equalityCheck(
       "EXECUTION_STATUS_RECONCILIATION",
-      "Completed, in-progress, not-started and unknown execution states must reconcile exactly to the executable population.",
+      "Completed, in-progress, not-started and unknown execution states must reconcile exactly to the executable activities.",
       [
         {
           source:
@@ -626,7 +626,7 @@ export function certifyCrossModuleConsistency(
   checks.push(
     requiredEqualityCheck(
       "RESOURCE_COUNT_CONSISTENCY",
-      "PMO and Resources must use the same distinct-resource population.",
+      "PMO and Resources must use the same set of distinct resources.",
       [
         {
           source: "resource-utilization",

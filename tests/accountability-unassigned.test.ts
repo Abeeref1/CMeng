@@ -116,6 +116,6 @@ test('Accountability browser retains unknown totals beside their confirmed subse
  const {runInNewContext}=await import('./browser-context');
  const {state}=fixture();state.controls.ncrs.push({...ncr('UNKNOWN','Quality Engineer'),dueIso:null,linkedActivityId:null});state.version++;
  const data=crossDomainAccountability(state),html=runInNewContext('renderAccountabilityVisual(data)',{data,currentModuleResult:{key:'cross-domain-accountability',data}});
- assert.match(html,/Not established<br><small>0 confirmed in retained records/);assert.match(html,/Not established<br><small>0 linked activities recorded/);assert.match(html,/incomplete domain populations/);
+ assert.match(html,/Not established<br><small>0 confirmed in retained records/);assert.match(html,/Not established<br><small>0 linked activities recorded/);assert.match(html,/incomplete domain records/);
  assert.doesNotMatch(html,/NaN|undefined/);
 });

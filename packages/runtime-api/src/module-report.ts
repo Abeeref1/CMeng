@@ -426,7 +426,7 @@ export async function buildModuleWorkbook(
     // the download carries the same values. Unknown stays unknown, never blank.
     ["Data date",reportDataDate(result)??"Not established"],
     ["Programme revision",reportProgrammeRevision(result)??"Not established"],
-    ["Scope","Project "+projectId+" · "+titleForModule(moduleKey)+" · complete population (no screen paging)"],
+    ["Scope","Project "+projectId+" · "+titleForModule(moduleKey)+" · all records (no screen paging)"],
   ];
 
   for (
@@ -708,7 +708,7 @@ function reportMetricBasis(contract:any){
   if(!contract)return 'Same canonical module result used by the live page.';
   const parts=[
     contract.qualification||contract.dateBasis||'Canonical module fact',
-    contract.populationId?(contract.denominator===null?'Population retained':'Population '+String(contract.denominator)+(contract.excludedCount?' · excluded '+String(contract.excludedCount):'')):'Population not separately established',
+    contract.populationId?(contract.denominator===null?'Records retained':'Records '+String(contract.denominator)+(contract.excludedCount?' · excluded '+String(contract.excludedCount):'')):'Record count not separately established',
     contract.dataDateIso?'Data Date '+String(contract.dataDateIso).slice(0,10):'Data Date not established',
     'Authority '+String(contract.authority??'calculated')
   ];
@@ -724,7 +724,7 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
   const flat=flattenRecord(data),metricRows=Object.entries(flat).filter(([key,v])=>!key.startsWith('reportingContract.')&&(v===null||['string','number','boolean'].includes(typeof v)));
   const metricTraces=metricRows.map(([key])=>{
     const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);
-    return {id:'module:metric:'+key,authorityId:'summary',projectId,module:moduleKey,path:key,sourceRefs:[],dataDate:contract?.dataDateIso??dataDate,basis:reportMetricBasis(contract),exclusions:contract?.excludedCount?['Reporting population excludes '+String(contract.excludedCount)+' record(s); see '+String(contract.exclusionsRef??'the reporting contract')+'.']:[],state};
+    return {id:'module:metric:'+key,authorityId:'summary',projectId,module:moduleKey,path:key,sourceRefs:[],dataDate:contract?.dataDateIso??dataDate,basis:reportMetricBasis(contract),exclusions:contract?.excludedCount?['Reporting records exclude '+String(contract.excludedCount)+' record(s); see '+String(contract.exclusionsRef??'the reporting contract')+'.']:[],state};
   });
   sections.push({authorityId:'summary',title:titleForModule(moduleKey)+' · Key facts',state:authorityState,explanation:result.reason??'Current CMeng module position.',
     metrics:metricRows.map(([key,value],i)=>{const contract=reportMetricContract(data,key),state=reportEvidenceState(contract?.state,authorityState);return {id:'module.'+key,label:readablePathLabel(key),value:value as Cell,unit:contract?.unit??null,state,classification:['source','submitted','official'].includes(String(contract?.authority))?'project_fact':'calculated_intelligence',traceId:'module:metric:'+key,basis:reportMetricBasis(contract)};}),
@@ -732,7 +732,7 @@ function moduleAnalysis(projectId:string,moduleKey:string,result:ModuleRuntimeRe
   arrays.forEach((section,index)=>{const flatRows=Array.from(reportArrayRows(section),flatArrayRow),columns=analysisColumns(flatRows,recordFieldHeadings(reportArrayRows(section))),tableId='module-table-'+index;
     const category=columns.find(column=>column.dimension),numeric=columns.filter(column=>column.type==='number'&&flatRows.some(row=>typeof row[column.key]==='number')).slice(0,3);
     const charts:AnalysisChart[]=!section.nested&&category&&numeric.length&&flatRows.length?[{id:'module-chart-'+index,title:readablePathLabel(section.path),type:category.type==='date'?'line':'bar',tableId,category:category.key,series:numeric.map(column=>column.key),unit:'value',basis:'Chart of the same retained '+readablePathLabel(section.path)+' table rows; no independent report calculation.',population:flatRows.length,dataDate}]:[];
-    sections.push({authorityId:'table-'+index,title:readablePathLabel(section.path),state:authorityState,explanation:'Same retained module population at '+readablePathLabel(section.path)+'.',metrics:[],tables:[{id:tableId,title:section.path,authorityId:'table-'+index,columns,rows:flatRows as Record<string,Cell>[],population:flatRows.length,excluded:0,state:authorityState,basis:'Canonical module array '+readablePathLabel(section.path)+' after the saved/current scope definition is applied.',traceId:'module:table:'+index}],charts,findings:[],traces:[{id:'module:table:'+index,authorityId:'table-'+index,projectId,module:moduleKey,path:section.path,sourceRefs:[],dataDate,basis:'Canonical module population; no independent export calculation.',exclusions:[],state:authorityState}]});
+    sections.push({authorityId:'table-'+index,title:readablePathLabel(section.path),state:authorityState,explanation:'Same retained page records at '+readablePathLabel(section.path)+'.',metrics:[],tables:[{id:tableId,title:section.path,authorityId:'table-'+index,columns,rows:flatRows as Record<string,Cell>[],population:flatRows.length,excluded:0,state:authorityState,basis:'Canonical module array '+readablePathLabel(section.path)+' after the saved/current scope definition is applied.',traceId:'module:table:'+index}],charts,findings:[],traces:[{id:'module:table:'+index,authorityId:'table-'+index,projectId,module:moduleKey,path:section.path,sourceRefs:[],dataDate,basis:'Same page records; no independent export calculation.',exclusions:[],state:authorityState}]});
   });
   const projectVersion=Number((data as any)?.projectVersion??(data as any)?.reportingContract?.projectVersion??0),programmeRevision=(data as any)?.programmeRevisionId??(data as any)?.reportingContract?.programmeRevisionId??null;
   const snapshotHash=createHash('sha256').update(JSON.stringify({projectId,moduleKey,projectVersion,dataDate,data})).digest('hex');

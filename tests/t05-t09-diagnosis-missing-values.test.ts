@@ -62,8 +62,10 @@ test('T05 sourced workfront/previous-revision unknown counts do not render as ze
   'real zero negative-float count remains zero but unknown critical count is withheld');
  assert.match(html,/Not established<\/td><\/tr>/,
   'independent driving network must not invent a missing driving activity count');
- assert.match(html,/Not established activities changed, 0 were added and Not established removed/,
+ // N3: an unknown count is not followed by its noun; the real zero stays zero.
+ assert.match(html,/Since the previous revision: changed activities Not established, added 0, removed Not established\./,
   'missing revision counts must not be displayed as zero');
+ assert.doesNotMatch(html,/Not established activities/,'no unit after an unknown word');
  assert.equal(JSON.stringify(diagnosis),copy,'display can never alter exact source record or decision');
 });
 

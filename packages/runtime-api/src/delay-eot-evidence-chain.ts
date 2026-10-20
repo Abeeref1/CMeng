@@ -45,6 +45,11 @@ export interface DelayProgrammeContext {
   knownDelayedActivityCount:number;
   knownNegativeFloatActivityCount:number;
   knownPressuredMilestoneCount:number;
+  /** S1: activities whose state could not be decided (no baseline or finish date,
+   * no float, or no clear status), so the full count above is not established. */
+  unresolvedDelayedActivityCount?:number;
+  unresolvedNegativeFloatActivityCount?:number;
+  unresolvedPressuredMilestoneCount?:number;
   milestonePopulationState:'established'|'partial';
   pressureRows: DelayProgrammePressureRow[];
   basis: "contextual_programme_intelligence_not_contractual_delay_event";
@@ -192,6 +197,7 @@ export function buildDelayEotEvidenceChain(input:{
       projectCompletionMovementBasis:input.windows.projectCompletionMovementBasis,revisionCount:input.windows.revisionCount,
       windowCount:input.windows.windowCount,delayedActivityCount,negativeFloatActivityCount,pressuredMilestoneCount,pressureRows,
       knownDelayedActivityCount:delayed.knownCount!,knownNegativeFloatActivityCount:negative.knownCount!,knownPressuredMilestoneCount:milestonePressure.knownCount!,
+      unresolvedDelayedActivityCount:delayed.unresolvedCount!,unresolvedNegativeFloatActivityCount:negative.unresolvedCount!,unresolvedPressuredMilestoneCount:milestonePressure.unresolvedCount!,
       milestonePopulationState:milestonePopulationEstablished?'established':'partial',
       basis:"contextual_programme_intelligence_not_contractual_delay_event"},
     linkOrder,basis:"event_notice_activity_window_impact_responsibility_eot_determination",

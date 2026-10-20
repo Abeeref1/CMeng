@@ -30,6 +30,14 @@ export function withRequestAudit<T>(req:IncomingMessage,res:ServerResponse,run:(
   const operation=(req.method??'GET')+' '+new URL(req.url??'/', 'http://localhost').pathname;
   return context.run({actor:{id,kind:'anonymous_session',label:'Session '+id.slice(0,8)+' (identity unverified)',identityVerified:false},requestId,operation},run);
 }
+/** W2: the reader-facing name of an audit actor. A named user keeps their name and the
+ * CMeng background process its label; an unnamed browser session is shown as an upload
+ * session, never with its internal session id. The stored actor and label are unchanged. */
+export function auditActorDisplayName(actor:Pick<AuditActor,'kind'|'label'|'identityVerified'>|null|undefined):string|null{
+  if(!actor)return null;
+  if(actor.kind==='anonymous_session'||(!actor.identityVerified&&actor.kind!=='system'))return 'Upload session';
+  return actor.label;
+}
 export function appendAuditEvent(state:{version:number;auditHistory?:AuditEvent[]},previousVersion:number|null) {
   const c=auditContext();(state.auditHistory??=[]).push({eventId:randomUUID(),occurredAt:new Date().toISOString(),...c,projectVersion:state.version,previousVersion});
 }

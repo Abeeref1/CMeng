@@ -1638,7 +1638,7 @@ function liquidatedDamages(
                       ),
                     ),
                   consequence:
-                    "Uncapped LD is a commercial exposure scenario only.",
+                    "Uncapped LD shows a possible commercial exposure only; it is not a forecast.",
                   action:
                     termsCandidate
                       ? "Promote the governing LD term before treating this as contractual exposure."

@@ -33,7 +33,7 @@ test('SW-32: with no risk register the risk position and counts are unknown; BOQ
  assert.equal(data.metrics.some((m:any)=>/BOQ/i.test(m.label)),false,'no BOQ candidate count is shown as a risk figure');
  assert.equal(data.population.knownRecordCount,null);assert.equal(data.population.denominator,null);
  assert.equal(result.status,'blocked','nothing read: no risk position to show');
- assert.match(data.managementPosition,/^No risk register read\./);assert.match(String(result.reason),/risk population, counts and position are unknown/);
+ assert.match(data.managementPosition,/^No risk register read\./);assert.match(String(result.reason),/full set of risks, counts and position are unknown/);
  const candidates=(data.derivedRiskCandidates??[]).filter((r:any)=>r.candidateGroup===BOQ_GROUP);
  assert.ok(candidates.length>0,'BOQ-derived items stay visible in their own labelled list');
  assert.ok(candidates.every((r:any)=>r.status==='Candidate'&&/not a risk/.test(r.currentStatus)));
