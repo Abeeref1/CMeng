@@ -1412,12 +1412,12 @@ function renderVisualBars(items,unit=""){
     '<div class="visual-bars">'+supplied.map(item=>{
     const present=known(item.value),width=present?Math.min(100,Math.max(0,(item.value/max)*100)):0;
     const tone=present?(item.tone||"accent"):"neutral";
-    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track">'+(present?'<div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div>':'')+'</div><div class="visual-bar-value">'+escapeHtml(present?(unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+countUnit(item.value,unit):""):"Not established")+'</div></div>';
+    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track">'+(present?'<div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div>':'')+'</div><div class="visual-bar-value">'+escapeHtml(present?(unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+(typeof countUnit==="function"?countUnit(item.value,unit):unit):""):"Not established")+'</div></div>';
   }).join("")+'</div>';
 }
 function lookZeroChartReason(rows,unit=""){
   // Every value is zero, so bars would be drawn with no length. Show the reason and keep each value readable.
-  const text=value=>(unit.trim()==="%"?percent2(value):fmt(value))+(unit?" "+countUnit(value,unit):"");
+  const text=value=>(unit.trim()==="%"?percent2(value):fmt(value))+(unit?" "+(typeof countUnit==="function"?countUnit(value,unit):unit):"");
   return '<div class="empty-visual" data-chart-state="all-zero">Every value in this chart is zero, so no bars are drawn.</div><ul class="look-zero-values">'+rows.map(item=>'<li><span>'+escapeHtml(item.label)+'</span> <b>'+escapeHtml(text(item.value))+'</b></li>').join("")+'</ul>';
 }
 function renderWaterfallChart(items,unit=""){
@@ -2920,7 +2920,7 @@ function moduleBarList(items,tone="accent",unit=""){
   const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value));
   if(!rows.length)return '<div class="empty-visual">No comparable values are established for this chart.</div>';
   const max=unit.trim()==="%"?100:Math.max(1,...rows.map(item=>Math.max(0,item.value)));
-  return '<div class="module-bar-list">'+rows.map(item=>'<div class="module-bar-row"><span title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</span><div><i class="'+escapeHtml(item.tone||tone)+'" style="width:'+Math.min(100,Math.max(0,(Math.max(0,item.value)/max)*100)).toFixed(2)+'%"></i></div><b>'+escapeHtml((unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+countUnit(item.value,unit):""))+'</b></div>').join("")+'</div>';
+  return '<div class="module-bar-list">'+rows.map(item=>'<div class="module-bar-row"><span title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</span><div><i class="'+escapeHtml(item.tone||tone)+'" style="width:'+Math.min(100,Math.max(0,(Math.max(0,item.value)/max)*100)).toFixed(2)+'%"></i></div><b>'+escapeHtml((unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+(typeof countUnit==="function"?countUnit(item.value,unit):unit):""))+'</b></div>').join("")+'</div>';
 }
 function progressBasisDisplay(key,basis){
   if(key==="baselinePlanned")return "Baseline planned";
@@ -3615,7 +3615,7 @@ function renderProgressBreakdownVisual(data){
       '</tr>';
     }).join("");
     const table=available
-      ? '<div class="progress-breakdown-toolbar"><label>Find group<input type="search" data-progress-filter placeholder="WBS, zone, level, work front or CBS"></label><label>Show<select data-progress-attention><option value="all">All groups</option><option value="open">Groups with open work</option><option value="critical">Groups with critical activities</option><option value="negative">Groups with negative float</option><option value="unclassified">Unclassified only</option></select></label><span class="register-search-count" data-progress-count data-progress-total="'+responseListPopulation(view.rows).total+'">'+escapeHtml(fmt(view.rows.length))+' of '+countText(responseListPopulation(view.rows).total,'group',undefined,fmt)+' loaded</span></div>'+sourcePopulationControl(view.rows,'Browse all groups')+
+      ? '<div class="progress-breakdown-toolbar"><label>Find group<input type="search" data-progress-filter placeholder="WBS, zone, level, work front or CBS"></label><label>Show<select data-progress-attention><option value="all">All groups</option><option value="open">Groups with open work</option><option value="critical">Groups with critical activities</option><option value="negative">Groups with negative float</option><option value="unclassified">Unclassified only</option></select></label><span class="register-search-count" data-progress-count data-progress-total="'+responseListPopulation(view.rows).total+'">'+escapeHtml(fmt(view.rows.length))+' of '+(typeof countText==='function'?countText(responseListPopulation(view.rows).total,'group',undefined,fmt):fmt(responseListPopulation(view.rows).total)+' groups')+' loaded</span></div>'+sourcePopulationControl(view.rows,'Browse all groups')+
         '<div class="table-wrap"><table><thead><tr><th>'+escapeHtml(view.label.replace(/^By /,""))+'</th><th>Activities</th><th>Complete</th><th>Open</th><th>Schedule progress</th><th>Known progress weight share</th><th>Progress contribution</th><th>Critical</th><th>Negative float</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
       : '<div class="notice info"><b>'+escapeHtml(view.label)+' is not available from the current programme.</b><p>'+escapeHtml(view.basis)+'</p></div>';
     return '<section class="planning-panel progress-breakdown-view" data-progress-breakdown-view="'+escapeHtml(view.dimension)+'" '+(view.dimension===initial?"":"hidden")+'><div class="planning-panel-head"><div><h4>'+escapeHtml(view.label)+'</h4><p>'+escapeHtml(view.basis)+'</p></div><span class="badge">'+escapeHtml(fmt(view.classifiedPopulation))+' classified · '+escapeHtml(fmt(view.unclassifiedPopulation))+' unclassified</span></div><div class="planning-panel-body">'+table+'</div></section>';
@@ -7448,7 +7448,7 @@ function applyProgressBreakdownFilters(root){
     row.hidden=Boolean((query&&!text.includes(query))||!modeMatch);
     if(!row.hidden)visible++;
   });
-  const count=panel.querySelector('[data-progress-count]');if(count){const total=Number(count.dataset.progressTotal||visible);count.textContent=visible+' of '+countText(total,'group')+' shown'+(total>panel.querySelectorAll('[data-progress-row]').length?' · filters apply to loaded rows':'');}
+  const count=panel.querySelector('[data-progress-count]');if(count){const total=Number(count.dataset.progressTotal||visible);count.textContent=visible+' of '+(typeof countText==='function'?countText(total,'group'):total+' groups')+' shown'+(total>panel.querySelectorAll('[data-progress-row]').length?' · filters apply to loaded rows':'');}
 }
 document.addEventListener("click",event=>{
   const button=event.target.closest?.("[data-progress-dimension]");if(!button)return;

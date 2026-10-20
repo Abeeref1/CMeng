@@ -42,6 +42,8 @@ function input(key:string,data:any):ModuleRuntimeResult{
  return {key,status:'ready',engineState:'ready',evidenceState:'partial',professionalState:'defensible',reason:'partial',dependencies:[],
   data:{systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[{metric:'population',passed:true}]},challenge:{reconciliationState:'within_tolerance'},...data}} as any;
 }
+const PLAIN_SCOPE='Each type is counted on its own. Records that disagree, a missing input or a difference between the submitted and independent positions do not by themselves mean a software fault. A passed check covers only what it checks; project performance is reported separately.';
+const EARLIER_SCOPE='Categories are independent. A source conflict, missing input or difference between submitted and independent positions is not proof of a software defect. Passed checks certify only their stated scope; project performance remains separate.';
 export function walkParityDigest(assess:typeof assessModuleIssues):{digest:string;issues:number}{
  const pass={state:'pass' as const,failedCheckIds:[],checkCount:8};
  const hash=createHash('sha256');let issues=0;
@@ -54,6 +56,11 @@ export function walkParityDigest(assess:typeof assessModuleIssues):{digest:strin
    // on its own and left out of the walk digest, so the digest still proves identical issues, paths and order.
    assert.equal(assessed.checksRunCount,1);
    const walked:Record<string,unknown>={...assessed};delete walked.checksRunCount;
+   // R15 C1: the fixed issue-type scope sentence is now in plain words (it no longer reads
+   // "A source conflict, ..." on every page). It is one constant, not part of the walk: it is
+   // checked on its own and the digest is taken with the earlier sentence, so it still proves
+   // identical issues, paths and order.
+   assert.equal(assessed.scope,PLAIN_SCOPE);walked.scope=EARLIER_SCOPE;
    issues+=assessed.issues.length;hash.update(JSON.stringify(walked));hash.update('\n');
   }
  }

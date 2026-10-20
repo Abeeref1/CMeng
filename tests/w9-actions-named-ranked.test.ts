@@ -36,7 +36,7 @@ test('F54 owner group actions name their records, not only a count',()=>{
   // Before: "Design records requiring attention (2 records)".
   assert.match(design.issue,/\(2 records\): RFI-06[68]0, RFI-06[68]0$/);
   const quality=p.actions.find(a=>a.owningModule==='delivery-quality')!;
-  assert.match(quality.issue,/\(1 records\): NCR-0259$/);
+  assert.match(quality.issue,/\(1 record\): NCR-0259$/);
 });
 
 test('F51 one action per owner/register chain and every member stays reachable through its group',()=>{
