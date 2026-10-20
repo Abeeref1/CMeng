@@ -4,15 +4,18 @@ export const systemReviewStyles=String.raw`
 
 .nav-review-totals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;font-size:10px}.nav-review-totals div{padding:9px;background:#f1f5fa;border-radius:7px}.nav-review-totals b{display:block;font-size:18px;color:#284967}.position-verdict{border:1px solid #cfdae7;border-left:5px solid #b57922;border-radius:8px;padding:12px 16px;margin:0 0 12px;background:#fff}.position-verdict.red{border-left-color:#b4483e}.position-verdict.green{border-left-color:#2c7a57}.position-verdict.unknown{border-left-color:#7c8998}.position-verdict h4{margin:0 0 8px;font-size:14px}.position-verdict p{margin:6px 0}.position-verdict small{color:#566c81}.position-verdict details{margin-top:9px;font-size:12px}.nav-counts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.nav-counts .nav-count{font-size:9px;padding:2px 4px}.source-scope-summary{font-size:12px;margin-bottom:18px;padding:8px 12px;background:#f7f9fc;border-radius:7px}.source-scope-summary summary{cursor:pointer;font-weight:650}.source-quality-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.source-quality-counts div{padding:16px;background:#f4f7fb;border:1px solid #dce5ef;border-radius:8px}.source-quality-counts b{display:block;font-size:25px}.decision-list{display:grid;gap:10px}.decision-list article{padding:15px;border:1px solid #dce5ef;border-radius:8px}.decision-list p{margin:5px 0}.decision-list small{display:block;margin-top:6px;color:#536c85}.future-register-note{margin:8px 0}.single-axis-caption{font-size:14px;font-weight:650;margin:18px 0 0}
 `;
-export const systemReviewScript=String.raw`
+import {countTextSource} from './count-text';
+export const systemReviewScript=String.raw`${countTextSource()}
 function renderPositionVerdict(data,includeGeneral=false){
   const v=data?.positionVerdict;if(!v)return '';
   const issue=(data.issueAssessment?.issues||[]).find(i=>i.action===v.nextAction);
   const request=issue?readerIssue(issue):null;
-  const next='<p><b>Next step:</b> '+escapeHtml(request?.action||readerText(v.nextAction))+'</p><p><b>Responsible role:</b> '+escapeHtml(request?.assignTo||v.assignTo||'Project Controls')+'</p>';
+  const next='<p><b>Next step:</b> '+escapeHtml(reviewSentence(request?.action||readerText(v.nextAction)))+'</p><p><b>Responsible role:</b> '+escapeHtml(reviewSentence(request?.assignTo||v.assignTo||'Project Controls'))+'</p>';
   if(v.specific===false)return includeGeneral?'<details class="page-review-summary"><summary>About this view</summary><p>'+escapeHtml(readerText(v.text))+'</p>'+next+'</details>':'';
   return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p><b>Current finding:</b> '+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(v):v.owner)||'Not assigned')+'</p></details></section>';
 }
+/** W5: each label/value line ends as a sentence, so page text never runs into the next block. */
+function reviewSentence(value){const text=String(value??'').trim();return !text||/[.!?:]$/.test(text)?text:text+'.';}
 function readerText(value){
  const raw=readerReference(value);
  // Preserve source text in saved data. Apply the shared PMC terms only to display.
@@ -224,8 +227,8 @@ function renderRegisterScope(data,includeComplete=false){
   const row=p=>{const counts=reportingExclusionCounts(p);return '<tr><td>'+escapeHtml(humanizeKey(p.name))+'</td><td>'+fmt(p.denominator)+' / '+fmt(p.sourceCount)+'</td><td>'+fmt(counts.future)+'</td><td>'+fmt(counts.undated)+'</td><td>'+escapeHtml(humanizeKey(p.dateBasis))+'</td></tr>'};
   const exclusions=unique.map(p=>({p,...reportingExclusionCounts(p)})).filter(r=>r.future===null||r.undated===null||r.future||r.undated);
   if(!exclusions.length&&!includeComplete)return '';
-  if(!includeComplete&&['master_dashboard','command_center','master_control_programme'].includes(data.projectionKey))return '<p class="source-scope-summary">'+(data.registerDateReview?.message||fmt(exclusions.length)+' record groups need date review.')+' '+managementModuleLink('source-quality','Review register dates')+'</p>';
-  const disclosure=exclusions.length?fmt(exclusions.length)+' record groups include later or missing dates. Open counts.':'Records included through '+planningShortDate(contract.dataDateIso);
+  if(!includeComplete&&['master_dashboard','command_center','master_control_programme'].includes(data.projectionKey))return '<p class="source-scope-summary">'+(data.registerDateReview?.message||countText(exclusions.length,'record group',undefined,fmt)+' '+(exclusions.length===1?'needs':'need')+' date review.')+' '+managementModuleLink('source-quality','Review register dates')+'</p>';
+  const disclosure=exclusions.length?countText(exclusions.length,'record group',undefined,fmt)+' '+(exclusions.length===1?'includes':'include')+' later or missing dates. Open counts.':'Records included through '+planningShortDate(contract.dataDateIso);
   return '<details class="source-scope-summary"><summary>'+disclosure+'</summary><p>Reporting date: '+planningShortDate(contract.dataDateIso)+'. Counts are per group and may overlap. Future work remains in the plan. Later actual events are excluded from current totals. A zero means no records were excluded on this date rule; other dates may still be missing.</p><div class="table-wrap"><table><thead><tr><th>Register</th><th>Included / all records</th><th>Future excluded</th><th>Date missing / invalid</th><th>Date used</th></tr></thead><tbody>'+unique.map(row).join('')+'</tbody></table></div></details>';
 }
 function readerModuleSummary(reason){

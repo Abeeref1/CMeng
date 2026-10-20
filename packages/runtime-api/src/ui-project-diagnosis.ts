@@ -1,7 +1,8 @@
 export const projectDiagnosisStyles=String.raw`
 .project-diagnosis{margin-bottom:24px}.diagnosis-heading h3{margin:0;font-size:22px}.diagnosis-heading p{color:var(--muted);margin:5px 0 16px}.diagnosis-summary{font-size:17px;line-height:1.65;margin:18px 0}.diagnosis-section{background:white;border:1px solid var(--line);border-radius:10px;padding:18px;margin:18px 0}.diagnosis-section h4{font-size:18px;margin:0 0 8px}.diagnosis-section p{line-height:1.6}.diagnosis-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}.diagnosis-table{overflow-x:auto}.diagnosis-table table{font-size:12px;min-width:720px}.diagnosis-table td{max-width:340px;white-space:normal;overflow-wrap:anywhere}.diagnosis-note{font-size:13px;color:var(--muted)}.diagnosis-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}.diagnosis-action{padding:14px;background:#f8fbfe;border:1px solid var(--line);border-radius:8px}.diagnosis-action h5{margin:0 0 7px;font-size:15px}.diagnosis-action p{font-size:13px;margin:6px 0}.brief-management-conclusion{border-left:3px solid #75899c}.management-brief-support{margin-top:20px}.management-brief .planning-kpi-grid{margin:10px 0 18px}.management-brief .diagnosis-section p{margin:9px 0}
 `;
-export const projectDiagnosisScript=String.raw`
+import {countTextSource} from './count-text';
+export const projectDiagnosisScript=String.raw`${countTextSource()}
 let diagnosisTableSeq=0;const diagnosisTables=new Map();
 function diagnosisCell(value){return fmtForField('diagnosis',value);}
 function diagnosisTableHtml(t){
@@ -47,7 +48,7 @@ function renderProjectPrioritySummary(register){
   (decisions.length?'<p><b>'+(decisionTotal===null?fmt(decisions.length)+' source decision'+(decisions.length===1?'':'s')+' among the '+fmt(actions.length)+' of '+screenCountText(listTotal(actions))+' ranked actions received here.':fmt(decisionTotal)+' source decision'+(decisionTotal===1?'':'s')+' included in the ranked register.')+'</b> Confirm only after reviewing the original evidence.</p>':'')+
   '<h5>Highest-ranked delegated follow-ups</h5>'+
   (grouped?'<ol>'+grouped+'</ol>':'<p>No team follow-up is currently ranked from the available source records.</p>')+
-  (team.length>3?'<p>'+(teamTotal===null?'More ranked groups remain':fmt(teamTotal-3)+' other ranked groups remain')+' in Accountability, with the full individual records.</p>':'');
+  (team.length>3?'<p>'+(teamTotal===null?'More ranked groups remain':countText(teamTotal-3,'other ranked group',undefined,fmt)+(teamTotal-3===1?' remains':' remain'))+' in Accountability, with the full individual records.</p>':'');
 }
 function renderProjectDashboardSummary(d){
  if(!d)return '';

@@ -26,6 +26,7 @@ import {boqNumericReviewScript,boqNumericReviewStyles} from './ui-boq-numeric-re
 import {basisReviewScript} from './ui-basis-review';
 import {paymentDueBasisLabel,sumBasisLabel} from './commercial-sum-basis';
 import { experienceStyles, experienceScript } from './ui-experience';
+import {countTextSource} from './count-text';
 
 export function cmengUatHtml(): string {
   return String.raw`<!doctype html>
@@ -634,7 +635,7 @@ ${conditionalNotice.toString()}
 ${paymentDueBasisLabel.toString()}
 ${sumBasisLabel.toString()}
 ${managementNumber.toString()}
-${managementDate.toString()}
+${countTextSource()}${managementDate.toString()}
 ${managementValue.toString()}
 ${managementText.toString()}
 ${pmcRoleOwner.toString()}
@@ -6287,11 +6288,11 @@ function renderModuleResult(result){
       const pageKey=result.legacyKey||result.key;
       const topics=tables.map(table=>pageKey===SUMMARY_PAGE?null:pagedRecordTopic(pageKey,table.pointer));
       const own=tables.map((_,index)=>index).filter(index=>!topics[index]);
-      let groupsHtml=own.length?groupPanel('Additional source records · '+fmt(own.length)+' groups',own):'';
+      let groupsHtml=own.length?groupPanel('Additional source records · '+countText(own.length,'group',undefined,fmt),own):'';
       for(const topic of [...new Set(topics.filter(Boolean))]){
         const indexes=tables.map((_,index)=>index).filter(index=>topics[index]===topic);
         const figure=pagedRecordFigure(indexes.map(index=>tables[index]));
-        groupsHtml+=ownsBlock(topic,pageKey)?markOwnedBlock(groupPanel(escapeHtml(blockOwnerEntry(topic).heading)+' · '+fmt(indexes.length)+' groups',indexes),topic,figure):ownerLinkPanel(topic,figure);
+        groupsHtml+=ownsBlock(topic,pageKey)?markOwnedBlock(groupPanel(escapeHtml(blockOwnerEntry(topic).heading)+' · '+countText(indexes.length,'group',undefined,fmt),indexes),topic,figure):ownerLinkPanel(topic,figure);
       }
       container.insertAdjacentHTML('beforeend',groupsHtml);
       container.querySelectorAll('[data-paged-detail]').forEach(button=>button.onclick=async()=>{

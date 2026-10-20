@@ -50,7 +50,7 @@ test('item browser pages and searches the full population, retains histories and
  assert.match(target.innerHTML,/Showing 26–50 of 61/);
  runInNewContext('selectQuantityItemCurve(24)',context);assert.equal(curve.innerHTML,'Q49:31');assert.deepEqual(charts.at(-1).points,points);
  await runInNewContext('loadQuantityCurvePage(50)',context);assert.match(target.innerHTML,/Showing 51–61 of 61/);
- input.value='Scope item 60';await runInNewContext('searchQuantityCurves()',context);assert.match(target.innerHTML,/of 1 matching items; 61/);assert.equal(charts.at(-1).quantityItemId,'Q60');
+ input.value='Scope item 60';await runInNewContext('searchQuantityCurves()',context);assert.match(target.innerHTML,/of 1 matching item; 61/);assert.equal(charts.at(-1).quantityItemId,'Q60');
  const original=target.innerHTML;context.api=async()=>{throw Error('offline');};await runInNewContext('loadQuantityCurvePage(0)',context);assert.equal(target.innerHTML,original);assert.match(feedback.textContent,/Previous values are retained/);
  let finish!:(value:any)=>void;context.api=()=>new Promise(r=>{finish=r;});
  const pending=runInNewContext('loadQuantityCurvePage(0)',context);context.currentModuleResult={key:'other'};finish({rows:source.data.series.slice(0,25),offset:0,total:61,sourceTotal:61,projectVersion:7});await pending;assert.equal(target.innerHTML,original);

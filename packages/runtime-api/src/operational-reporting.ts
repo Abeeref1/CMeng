@@ -1,3 +1,4 @@
+import {countText} from './count-text';
 import {riskReviewBasis} from './source-review-decisions';
 import {cell,registerBusinessStatusFields,dateValue,norm,numberValue,partitionAsOf,sourceTables,sourceCandidateHold,type SourceRow} from '../../truth-kernel/src';
 import type {NcrRecord,RfiRecord} from '../../project-director/src';
@@ -190,9 +191,9 @@ export function operationalControlsAsOf(state:ProjectRuntimeState,date:string|nu
     sourceRefs:scoreRows.flatMap(r=>r.sourceRefs),
     diagnostics:[...(scoreConflictRows.length?['RISK_SOURCE_SCORE_CONFLICT']:[]),...(ratingConflictsUnresolved?['RISK_RATING_SCORE_CONFLICT']:[])],
     sourceDiagnostics:[...(scoreConflictRows.length?['RISK_SOURCE_SCORE_CONFLICT']:[]),...(ratingInconsistencyGroups.length?['RISK_RATING_SCORE_CONFLICT']:[])],
-    explanation:risks.length+' risk records are present. '+(scoreConflictRows.length?scoreConflictRows.length+' supplied Score value(s) differ from probability × impact. ':'')+(ratingInconsistencyGroups.length?ratingInconsistencyGroups.length+' equal score values have inconsistent supplied ratings. ':'')+
-      (missingProbabilityCount||missingImpactCount?'Risk score validation is unresolved: probability is missing or unreadable in '+missingProbabilityCount+' rows; impact is missing or unreadable in '+missingImpactCount+' rows. Provide those source values to assess the scores. ':'')+
-      risk.undatedRecordCount+' records lack an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
+    explanation:countText(risks.length,'risk record')+(risks.length===1?' is':' are')+' present. '+(scoreConflictRows.length?scoreConflictRows.length+' supplied Score value(s) differ from probability × impact. ':'')+(ratingInconsistencyGroups.length?ratingInconsistencyGroups.length+' equal score values have inconsistent supplied ratings. ':'')+
+      (missingProbabilityCount||missingImpactCount?'Risk score validation is unresolved: probability is missing or unreadable in '+countText(missingProbabilityCount,'row')+'; impact is missing or unreadable in '+countText(missingImpactCount,'row')+'. Provide those source values to assess the scores. ':'')+
+      countText(risk.undatedRecordCount,'record')+(risk.undatedRecordCount===1?' lacks':' lack')+' an identified/status-as-of date. Action due dates do not establish when the risk was open.'};
   const severityKnown=quality.current.every(r=>r.status!=='open'||r.severity!=='unknown');
   const dueKnown=rfi.current.every(r=>r.status!=='open'||r.dueIso!==null);
   const ncrDueKnown=quality.current.every(r=>r.status!=='open'||r.dueIso!==null);

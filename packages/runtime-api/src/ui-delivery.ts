@@ -3,7 +3,8 @@ import {commonDeliveryFields,deliveryFields} from '../../delivery-core/src/field
 import {deliveryKinds,deliveryLabels,lifecycleExamples} from '../../delivery-core/src/types';
 import {canonicalHeader} from '../../truth-kernel/src';
 import {STATUS_LABELS} from './position-review';
-export function deliveryScript():string{return `${managementNumber.toString()}\n${managementDate.toString()}\nconst deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
+import {countTextSource} from './count-text';
+export function deliveryScript():string{return `${managementNumber.toString()}\n${countTextSource()}${managementDate.toString()}\nconst deliveryUnknownText=${JSON.stringify(STATUS_LABELS.not_established)};const deliveryFieldDefinitions=${JSON.stringify(Object.fromEntries(Object.entries(deliveryFields).map(([k,v])=>[k,[...new Set(v.map(h=>canonicalHeader(h)))]])))};const deliveryCommonFields=${JSON.stringify(commonDeliveryFields.map(h=>canonicalHeader(h)))};const deliveryKindLabels=${JSON.stringify(deliveryLabels)};const deliveryRecordKinds=${JSON.stringify(deliveryKinds)};const deliveryTemplateExamples=${JSON.stringify(lifecycleExamples)};`+String.raw`
 let deliveryTables={},deliveryEditorContext=null,deliverySourceContext=null,deliveryBatchContext=null,deliveryDetailViews={},deliveryDetailSequence=0,deliveryResponsePaging=null;
 const deliveryNumberFormat=new Intl.NumberFormat('en-GB',{maximumFractionDigits:2});
 const deliveryDateFormat=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
@@ -135,15 +136,15 @@ function deliveryEvidencePage(id){
   return view.value.map((value,index)=>value&&typeof value==='object'?
     deliveryDetailNode('Record '+(start+index+1)+' · '+deliveryValue(value.reference||value.stage||value.label||value.dateIso||value.recordId||value.riskId||'Detail'),value):
     '<p>'+deliveryText(value)+'</p>').join('')+
-    (!view.value.length?'<p>No matching records. Clear the search to restore this set.</p>':'')+
-    '<div class="delivery-toolbar"><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="-1" '+(view.page===0?'disabled':'')+'>Previous evidence</button><span role="status">'+
-    (total?(start+1)+'–'+Math.min(start+view.value.length,total):'0')+' of '+total+
-    ' matching items · '+view.server.total+' source records</span><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="1" '+(start+view.value.length>=total?'disabled':'')+'>Next evidence</button></div>';
+    (!view.value.length?(view.server.total?'<p>No matching records. Clear the search to restore this set.</p>':'<p>None in this set.</p>'):'')+
+    (!view.server.total?'':'<div class="delivery-toolbar"><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="-1" '+(view.page===0?'disabled':'')+'>Previous evidence</button><span role="status">'+
+    (total?(start+1)+'–'+Math.min(start+view.value.length,total):'0')+' of '+countText(total,'matching item')+
+    ' · '+countText(view.server.total,'source record')+'</span><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="1" '+(start+view.value.length>=total?'disabled':'')+'>Next evidence</button></div>');
  }
  const query=view.query.toLowerCase();if(view.lastQuery!==query){view.matches=[];view.value.forEach((value,index)=>{if(!query||JSON.stringify(value).toLowerCase().includes(query))view.matches.push(index);});view.lastQuery=query;}
  const matches=view.matches,pages=Math.max(1,Math.ceil(matches.length/25));view.page=Math.max(0,Math.min(view.page,pages-1));
  const start=view.page*25,shown=matches.slice(start,start+25);
- return shown.map(index=>{const value=view.value[index];return value&&typeof value==='object'?deliveryDetailNode('Record '+(index+1)+' · '+deliveryValue(value.reference||value.stage||value.label||value.dateIso||value.recordId||value.riskId||'Detail'),value):'<p>'+deliveryText(value)+'</p>';}).join('')+(shown.length?'':'<p>No matching records. Clear the search to restore this set.</p>')+'<div class="delivery-toolbar"><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="-1" '+(view.page===0?'disabled':'')+'>Previous evidence</button><span role="status">'+(matches.length?(start+1)+'–'+Math.min(start+25,matches.length):'0')+' of '+matches.length+' matching items · '+view.value.length+' records retained in this response</span><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="1" '+(view.page>=pages-1?'disabled':'')+'>Next evidence</button></div>';
+ return shown.map(index=>{const value=view.value[index];return value&&typeof value==='object'?deliveryDetailNode('Record '+(index+1)+' · '+deliveryValue(value.reference||value.stage||value.label||value.dateIso||value.recordId||value.riskId||'Detail'),value):'<p>'+deliveryText(value)+'</p>';}).join('')+(shown.length?'':(view.value.length?'<p>No matching records. Clear the search to restore this set.</p>':'<p>None in this set.</p>'))+(!view.value.length?'':'<div class="delivery-toolbar"><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="-1" '+(view.page===0?'disabled':'')+'>Previous evidence</button><span role="status">'+(matches.length?(start+1)+'–'+Math.min(start+25,matches.length):'0')+' of '+countText(matches.length,'matching item')+' · '+countText(view.value.length,'record')+' retained in this response</span><button class="btn small" data-delivery-evidence-page="'+id+'" data-step="1" '+(view.page>=pages-1?'disabled':'')+'>Next evidence</button></div>');
 }
 function deliveryEvidenceOwned(view){return view&&(typeof project!=='function'||view.projectId===project());}
 function deliveryExpandEvidence(event){

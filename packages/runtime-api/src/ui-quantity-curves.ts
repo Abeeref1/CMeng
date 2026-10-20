@@ -1,6 +1,7 @@
 /** Independent item curves share no additive quantity authority. Browse the
  * complete item population, retaining the full time history for each selection. */
-export const quantityCurvesScript=String.raw`
+import {countTextSource} from './count-text';
+export const quantityCurvesScript=String.raw`${countTextSource()}
 let quantityCurveBrowserState=null;
 function quantityCurveContextActive(s){
  return s===quantityCurveBrowserState&&s.result===(typeof currentModuleResult==='undefined'?null:currentModuleResult)&&
@@ -12,7 +13,7 @@ function quantityCurveBrowserHtml(s){
  const row=rows[s.selected];
  const curve=row?(row.points?.length?quantityItemCurve(row,s.projection):'<p>No dated curve is established for this item. Its source quantity and mapping basis remain available below.</p>'):'';
  const navigation=s.offset>0||more?'<div class="actions"><button class="btn small" '+(s.offset===0?'disabled ':'')+'onclick="loadQuantityCurvePage('+Math.max(0,s.offset-25)+')">Previous items</button><button class="btn small" '+(more?'':'disabled ')+'onclick="loadQuantityCurvePage('+end+')">Next items</button></div>':'';
- return '<p>Showing '+fmt(start)+'–'+fmt(end)+' of '+fmt(s.total)+(s.query?' matching items; '+fmt(s.sourceTotal)+' BOQ item curves in total.': ' BOQ item curves.')+' Each item keeps its own unit and full date history.</p>'+selection+'<div id="quantityItemCurve">'+curve+'</div>'+navigation+'<p id="quantityCurveFeedback" role="status"></p>';
+ return '<p>Showing '+fmt(start)+'–'+fmt(end)+' of '+fmt(s.total)+(s.query?' '+countNoun(s.total,'matching item')+'; '+fmt(s.sourceTotal)+' BOQ item curves in total.': ' BOQ item curves.')+' Each item keeps its own unit and full date history.</p>'+selection+'<div id="quantityItemCurve">'+curve+'</div>'+navigation+'<p id="quantityCurveFeedback" role="status"></p>';
 }
 function renderQuantityCurveBrowser(p){
  const population=responseListPopulation(p.series),result=typeof currentModuleResult==='undefined'?null:currentModuleResult;
