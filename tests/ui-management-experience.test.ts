@@ -426,7 +426,7 @@ test('source quality and date scope preserve record evidence behind concise disc
  assert.match(html,/Identical requests are counted once/);assert.match(html,/<details class="source-request">/);assert.match(html,/<li>A:1<\/li><li>A:2/);
  const populations=Object.fromEntries(Array.from({length:8},(_,n)=>[n,{populationId:'P'+n,name:'Register '+n,entity:'record',denominator:2,sourceCount:3,exclusions:[{reason:'after_data_date'}],dateBasis:'Actual date'}]));
  const scope=runInNewContext(render+';renderRegisterScope(data)',{...ctx,data:{reportingContract:{populations,dataDateIso:'2031-06-30'}}});
- assert.match(scope,/<summary>8 record groups include later or missing dates/);assert.equal((scope.match(/<tr><td>Register /g)||[]).length,8);
+ assert.match(scope,/<summary>8 groups of records include later or missing dates/);assert.equal((scope.match(/<tr><td>Register /g)||[]).length,8);
 });
 
 test('navigation does not multiply information warnings across page links; calculation failures remain explicit',()=>{

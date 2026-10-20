@@ -175,7 +175,7 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
    submittedTotalFloatHours,independentTotalFloatHours,submittedCriticality,independentCriticality,floatDifferenceHours,
    workingDayHours:dayHours,submittedTotalFloatWorkingDays,independentTotalFloatWorkingDays,floatDifferenceWorkingDays,
    floatDaysBasis:completed?'not_applicable_completed':dayHours===null?'calendar_working_day_not_established':'source_activity_calendar',
-   floatReconciliationState:state,floatReviewLabel:state==='material_difference'?'Disputed / under review':state==='matched'&&floatDifferenceHours!==null&&Math.abs(floatDifferenceHours)>0.000001?'Classification matched; numeric difference retained in planner detail':state==='matched'?'Reconciled':state==='not_applicable_completed'?'Not applicable · completed':state==='submitted_not_established'?'Submitted float missing':'Independent CPM not established',
+   floatReconciliationState:state,floatReviewLabel:state==='material_difference'?'Disputed / under review':state==='matched'&&floatDifferenceHours!==null&&Math.abs(floatDifferenceHours)>0.000001?'Float differs; classification unchanged':state==='matched'?'Reconciled':state==='not_applicable_completed'?'Not applicable · completed':state==='submitted_not_established'?'Submitted float missing':'Independent CPM not established',
    independentCpmAuthority:authority,sourceRefs:[...activity.sourceRefs]};
  });
  const byActivityId=new Map(rows.map(row=>[row.activityId,row]));

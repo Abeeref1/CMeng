@@ -71,6 +71,16 @@ function lookSortTable(table,columnIndex,direction){
  Array.from(header.cells).forEach((cell,index)=>{if(cell.querySelector('.th-sort'))cell.setAttribute('aria-sort',index===columnIndex?direction:'none');});
  return true;
 }
+// W5: the full reason is said once per page; later empty tables on the same page
+// say it short. The page root is the topmost element the table sits in.
+function lookPageRoot(node){
+ let root=node;while(root&&root.parentNode&&root.parentNode.nodeType===1)root=root.parentNode;
+ return root!==node&&root&&root.querySelectorAll?root:null;
+}
+function lookSaidOnPage(node,selector,text){
+ const root=lookPageRoot(node);
+ return root?Array.from(root.querySelectorAll(selector)).some(item=>(item.textContent||'').trim()===text):false;
+}
 function lookEmptyReason(table){
  const owner=table.closest?table.closest('[data-empty-reason]'):null;
  const stated=table.getAttribute('data-empty-reason')||(owner?owner.getAttribute('data-empty-reason'):'');
@@ -79,7 +89,7 @@ function lookEmptyReason(table){
  const filters=scope?Array.from(scope.querySelectorAll('select,input[type=search],input[type=text]')).filter(control=>control.value&&!/^all\b/i.test(control.options&&control.selectedIndex>=0?control.options[control.selectedIndex].text:'')):[];
  return filters.length
   ?'No rows match the selected filters. Clear or change the filters to see more rows.'
-  :'No records of this kind are in the current project documents for this view.';
+  :lookSaidOnPage(table,'.look-empty-row','No records of this kind are in the current project documents for this view.')?'No records of this kind.':'No records of this kind are in the current project documents for this view.';
 }
 function lookMarkEmptyTable(table){
  const rows=lookBodyRows(table);
@@ -128,7 +138,7 @@ function lookCheckFilter(select){
   select.disabled=true;select.setAttribute('data-look-no-choice','true');select.classList.add('look-filter-single');
   select.title='No other values in this data to filter by';
   if(!select.nextElementSibling||!select.nextElementSibling.classList.contains('look-filter-note')){
-   const note=select.ownerDocument.createElement('small');note.className='look-filter-note';note.textContent='No other values in this data to filter by.';
+   const note=select.ownerDocument.createElement('small');note.className='look-filter-note';note.textContent=lookSaidOnPage(select,'.look-filter-note','No other values in this data to filter by.')?'No other values.':'No other values in this data to filter by.';
    select.insertAdjacentElement('afterend',note);
   }
  }else if(!noChoice&&select.getAttribute('data-look-no-choice')==='true'){

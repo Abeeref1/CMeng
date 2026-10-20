@@ -402,7 +402,7 @@ function buildAlerts(
           : gap.state ===
               "conflicted"
             ? "Current evidence sources disagree and cannot be silently reconciled."
-            : "The current management position is less certain because required evidence is not fully established.",
+            : gap.label + ": the management position is less certain until this evidence is established.",
       action: gap.action,
       owningModule:
         gap.owningModule,

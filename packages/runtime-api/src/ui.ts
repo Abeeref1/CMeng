@@ -947,13 +947,20 @@ function renderUniversalChallenge(challenge){
     ...conflictedItems.map(item=>({kind:"Conflicting submitted values",item})),
     ...varianceItems.map(item=>({kind:challengeValueFromSubmission(item.independent)?"Variance between submitted values":"Variance to CMeng check",item}))
   ];
+  // W5: an action sentence shared by several metrics is said once, under the list;
+  // each row keeps its own part of the action.
+  const sentencesOf=text=>String(text||'').split(/(?<=[.!?])\s+/).map(part=>part.trim()).filter(Boolean);
+  const actionOf=item=>item.action?readerAuditAction(item.action):'';
+  const actionTally={};attentionItems.forEach(entry=>new Set(sentencesOf(actionOf(entry.item||{}))).forEach(sentence=>{actionTally[sentence]=(actionTally[sentence]||0)+1;}));
+  const commonActions=Object.keys(actionTally).filter(sentence=>actionTally[sentence]>1&&sentence.split(/\s+/).length>=8);
+  const rowAction=item=>sentencesOf(actionOf(item)).filter(sentence=>!commonActions.includes(sentence)).join(' ');
   const attentionHtml=attentionItems.length
     ?'<div class="challenge-attention"><div class="challenge-attention-head"><strong>What needs attention</strong><span>These are the specific metrics behind the count above. "Missing" means a comparable submitted value was not found; it does not mean the whole document is missing.</span></div>'+attentionItems.map(entry=>{
       const item=entry.item||{};
       const independent=item.independent||{};
       const independentText=independent.value===null||independent.value===undefined?"Not derivable":withUnit(independent.value,independent.unit);
-      return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>'+(challengeValueFromSubmission(independent)?'From submitted records: ':'CMeng check: ')+escapeHtml(independentText)+(item.action?'<br>Action: '+escapeHtml(readerAuditAction(item.action)):'')+'</span></div>';
-    }).join("")+'</div>'
+      return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>'+(challengeValueFromSubmission(independent)?'From submitted records: ':'CMeng check: ')+escapeHtml(independentText)+(rowAction(item)?'<br>Action: '+escapeHtml(rowAction(item)):'')+'</span></div>';
+    }).join("")+(commonActions.length?'<p class="challenge-attention-common">For the items above: '+escapeHtml(commonActions.join(' '))+'</p>':'')+'</div>'
     :"";
   const reviewStateLabels={derived:"Calculated",calculated:"Calculated",partial:"Partial",complete:"Complete",established:"Confirmed",missing:"Missing",not_submitted:"Not provided"};
   const submittedState=reviewStateLabels[challenge.submittedEvidenceState]||humanizeKey(challenge.submittedEvidenceState);
@@ -1405,12 +1412,12 @@ function renderVisualBars(items,unit=""){
     '<div class="visual-bars">'+supplied.map(item=>{
     const present=known(item.value),width=present?Math.min(100,Math.max(0,(item.value/max)*100)):0;
     const tone=present?(item.tone||"accent"):"neutral";
-    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track">'+(present?'<div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div>':'')+'</div><div class="visual-bar-value">'+escapeHtml(present?(unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+unit:""):"Not established")+'</div></div>';
+    return '<div class="visual-bar-row"><div class="visual-bar-label" title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</div><div class="visual-bar-track">'+(present?'<div class="visual-bar-fill '+escapeHtml(tone)+'" style="width:'+width.toFixed(2)+'%"></div>':'')+'</div><div class="visual-bar-value">'+escapeHtml(present?(unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+countUnit(item.value,unit):""):"Not established")+'</div></div>';
   }).join("")+'</div>';
 }
 function lookZeroChartReason(rows,unit=""){
   // Every value is zero, so bars would be drawn with no length. Show the reason and keep each value readable.
-  const text=value=>(unit.trim()==="%"?percent2(value):fmt(value))+(unit?" "+unit:"");
+  const text=value=>(unit.trim()==="%"?percent2(value):fmt(value))+(unit?" "+countUnit(value,unit):"");
   return '<div class="empty-visual" data-chart-state="all-zero">Every value in this chart is zero, so no bars are drawn.</div><ul class="look-zero-values">'+rows.map(item=>'<li><span>'+escapeHtml(item.label)+'</span> <b>'+escapeHtml(text(item.value))+'</b></li>').join("")+'</ul>';
 }
 function renderWaterfallChart(items,unit=""){
@@ -1765,7 +1772,7 @@ function renderLookAheadVisual(data){
   const resourceTradeById=new Map((p.sourceResourceTrades||[]).map(t=>[t.resourceId,t]));
   const resourceHoursLine=h=>{const t=resourceTradeById.get(h.resourceId)||{};const planned=t.registerPlannedDemand,latest=t.registerLatestRecorded;return (h.trade||t.trade||h.resourceId)+': '+(planned===null||planned===undefined?'window plan not established':fmt(planned)+' h planned in window')+' · '+(!latest?'not recorded':'last recorded '+fmt(latest.hours)+' h (week of '+planningShortDate(latest.weekStartIso)+')');};
   const resourceHoursSummary=row=>Array.isArray(row.resourceHours)&&row.resourceHours.length?'<br><small class="resource-hours">'+escapeHtml(row.resourceHours.map(resourceHoursLine).join('; '))+'</small>':p.resourceHoursBasis?'<br><small class="resource-hours">No labour assigned</small>':'';
-  const resourceHoursDetail=row=>Array.isArray(row.resourceHours)&&row.resourceHours.length?'<ul>'+row.resourceHours.map(h=>{const t=resourceTradeById.get(h.resourceId)||{};return '<li><b>'+escapeHtml(h.trade||h.resourceId)+'</b> · this activity: '+escapeHtml(h.activityRemainingHours===null||h.activityRemainingHours===undefined?'remaining hours not stated':fmt(h.activityRemainingHours)+' h remaining')+' · '+escapeHtml(resourceHoursLine(h))+(t.registerPlannedReason&&t.registerPlannedReason!==t.registerActualReason?' · '+escapeHtml(t.registerPlannedReason):'')+(t.registerActualReason?' · Not recorded: '+escapeHtml(t.registerActualReason):'')+'</li>';}).join('')+'</ul>':p.resourceHoursBasis?'<p>'+escapeHtml(p.resourceHoursNoAssignmentReason||'The programme assigns no labour resource to this activity.')+'</p>':'';
+  const resourceHoursDetail=row=>Array.isArray(row.resourceHours)&&row.resourceHours.length?'<ul>'+row.resourceHours.map(h=>{const t=resourceTradeById.get(h.resourceId)||{};return '<li><b>'+escapeHtml(h.trade||h.resourceId)+'</b> · this activity: '+escapeHtml(h.activityRemainingHours===null||h.activityRemainingHours===undefined?'remaining hours not stated':fmt(h.activityRemainingHours)+' h remaining')+' · '+escapeHtml(resourceHoursLine(h))+(t.registerPlannedReason&&t.registerPlannedReason!==t.registerActualReason?' · '+escapeHtml(t.registerPlannedReason):'')+(t.registerActualReason?' · Not recorded: '+escapeHtml(t.registerActualReason):'')+'</li>';}).join('')+'</ul>':p.resourceHoursBasis?'<p>'+escapeHtml(p.resourceHoursNoAssignmentReason==='The programme assigns no labour resource to this activity.'||!p.resourceHoursNoAssignmentReason?'No labour resource assigned to this activity.':p.resourceHoursNoAssignmentReason)+'</p>':'';
   const rows=watch.map(row=>{
     const map=new Map((row.readiness?.dimensions||[]).map(d=>[d.key,d]));
     const hasLinkedEvidence=(row.readiness?.dimensions||[]).some(dim=>dim.key!=="predecessor"&&(dim.sourceRefs||[]).length>0);
@@ -1918,7 +1925,7 @@ function renderForecastVisual(data){
     ["P50 duration sensitivity",planningShortDate(rawProb.p50CompletionIso)],
     ["P80 duration sensitivity",planningShortDate(rawProb.p80CompletionIso)],
     ["P90 duration sensitivity",planningShortDate(rawProb.p90CompletionIso)]
-  ].map(row=>'<div class="position-card"><div class="position-label">'+escapeHtml(row[0])+'</div><div class="position-value">'+escapeHtml(row[1])+'</div><div class="position-sub">Non-official duration-factor sensitivity; not one of the six forecast authorities.</div></div>').join("")+'</div>':'<div class="notice info">P50, P80 and P90 are withheld because the calculation basis is incomplete.</div>';
+  ].map(row=>'<div class="position-card"><div class="position-label">'+escapeHtml(row[0])+'</div><div class="position-value">'+escapeHtml(row[1])+'</div><div class="position-sub">Duration-factor sensitivity; not an official forecast</div></div>').join("")+'</div>':'<div class="notice info">P50, P80 and P90 are withheld because the calculation basis is incomplete.</div>';
   const reviewWarning=review?'<div class="notice warn"><b>Forecast differences require review; available calculations remain visible with their assumptions.</b><p>'+escapeHtml(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.")+'</p></div>':'';
   return '<section class="planning-view independent-forecast-view">'+reviewWarning+kpis+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast taxonomy</h4><p>The six forecast positions remain separate. CMeng CPM/network recalculation is schedule-only and never implies BOQ, productivity, manpower or procurement evidence it does not use.</p></div></div><div class="planning-panel-body">'+taxonomyTable+dateLadder+'</div></section>'+
@@ -2153,10 +2160,17 @@ function planningStateLabel(value){
 function planningKpis(items){
   const state=item=>managementValueState(item[1]);
   const available=items.filter(item=>state(item)==='value'),missing=items.filter(item=>state(item)!=='value');
-  const card=item=>'<div class="planning-kpi '+escapeHtml(item[3]||'')+'"><span>'+escapeHtml(item[0])+'</span><strong>'+escapeHtml(managementValue(item[1]))+'</strong>'+(item[2]?'<small>'+escapeHtml(humanizeIsoText(item[2]))+'</small>':'')+'</div>';
+  // W5: a long note (a sentence of 8 or more words) shared by several known tiles is
+  // said once under the tiles. An unknown tile keeps its own note: it is the reason.
+  const longNote=note=>typeof note==='string'&&note.trim().split(/\s+/).length>=8;
+  const noteUses={};available.forEach(item=>{if(longNote(item[2]))(noteUses[item[2]]=noteUses[item[2]]||[]).push(item[0]);});
+  const shared=Object.keys(noteUses).filter(note=>noteUses[note].length>1);
+  const card=item=>{const note=state(item)==='value'&&shared.includes(item[2])?'':item[2];return '<div class="planning-kpi '+escapeHtml(item[3]||'')+'"><span>'+escapeHtml(item[0])+'</span><strong>'+escapeHtml(managementValue(item[1]))+'</strong>'+(note?'<small>'+escapeHtml(humanizeIsoText(note))+'</small>':'')+'</div>';};
   const primary=available.length?available:missing.slice(0,4),rest=available.length?missing:missing.slice(4);
   const more=rest.length?'<details class="planning-missing-kpis"><summary>'+rest.length+' additional measure'+(rest.length===1?' needs':'s need')+' more information</summary><div class="planning-missing-grid">'+rest.map(card).join('')+'</div></details>':'';
-  return '<div class="planning-kpi-grid">'+primary.map(card).join('')+'</div>'+more;
+  const labels=list=>list.length>1?list.slice(0,-1).join(', ')+' and '+list[list.length-1]:list.join('');
+  const sharedNotes=shared.map(note=>'<p class="planning-kpi-shared-note">'+escapeHtml(labels(noteUses[note])+': '+humanizeIsoText(note))+'</p>').join('');
+  return '<div class="planning-kpi-grid">'+primary.map(card).join('')+'</div>'+sharedNotes+more;
 }
 
 function planningStatusBand(items){
@@ -2906,7 +2920,7 @@ function moduleBarList(items,tone="accent",unit=""){
   const rows=(items||[]).filter(item=>typeof item.value==="number"&&Number.isFinite(item.value));
   if(!rows.length)return '<div class="empty-visual">No comparable values are established for this chart.</div>';
   const max=unit.trim()==="%"?100:Math.max(1,...rows.map(item=>Math.max(0,item.value)));
-  return '<div class="module-bar-list">'+rows.map(item=>'<div class="module-bar-row"><span title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</span><div><i class="'+escapeHtml(item.tone||tone)+'" style="width:'+Math.min(100,Math.max(0,(Math.max(0,item.value)/max)*100)).toFixed(2)+'%"></i></div><b>'+escapeHtml((unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+unit:""))+'</b></div>').join("")+'</div>';
+  return '<div class="module-bar-list">'+rows.map(item=>'<div class="module-bar-row"><span title="'+escapeHtml(item.label)+'">'+escapeHtml(item.label)+'</span><div><i class="'+escapeHtml(item.tone||tone)+'" style="width:'+Math.min(100,Math.max(0,(Math.max(0,item.value)/max)*100)).toFixed(2)+'%"></i></div><b>'+escapeHtml((unit.trim()==="%"?percent2(item.value):fmt(item.value))+(unit?" "+countUnit(item.value,unit):""))+'</b></div>').join("")+'</div>';
 }
 function progressBasisDisplay(key,basis){
   if(key==="baselinePlanned")return "Baseline planned";
@@ -3601,7 +3615,7 @@ function renderProgressBreakdownVisual(data){
       '</tr>';
     }).join("");
     const table=available
-      ? '<div class="progress-breakdown-toolbar"><label>Find group<input type="search" data-progress-filter placeholder="WBS, zone, level, work front or CBS"></label><label>Show<select data-progress-attention><option value="all">All groups</option><option value="open">Groups with open work</option><option value="critical">Groups with critical activities</option><option value="negative">Groups with negative float</option><option value="unclassified">Unclassified only</option></select></label><span class="register-search-count" data-progress-count data-progress-total="'+responseListPopulation(view.rows).total+'">'+escapeHtml(fmt(view.rows.length))+' of '+fmt(responseListPopulation(view.rows).total)+' groups loaded</span></div>'+sourcePopulationControl(view.rows,'Browse all groups')+
+      ? '<div class="progress-breakdown-toolbar"><label>Find group<input type="search" data-progress-filter placeholder="WBS, zone, level, work front or CBS"></label><label>Show<select data-progress-attention><option value="all">All groups</option><option value="open">Groups with open work</option><option value="critical">Groups with critical activities</option><option value="negative">Groups with negative float</option><option value="unclassified">Unclassified only</option></select></label><span class="register-search-count" data-progress-count data-progress-total="'+responseListPopulation(view.rows).total+'">'+escapeHtml(fmt(view.rows.length))+' of '+countText(responseListPopulation(view.rows).total,'group',undefined,fmt)+' loaded</span></div>'+sourcePopulationControl(view.rows,'Browse all groups')+
         '<div class="table-wrap"><table><thead><tr><th>'+escapeHtml(view.label.replace(/^By /,""))+'</th><th>Activities</th><th>Complete</th><th>Open</th><th>Schedule progress</th><th>Known progress weight share</th><th>Progress contribution</th><th>Critical</th><th>Negative float</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
       : '<div class="notice info"><b>'+escapeHtml(view.label)+' is not available from the current programme.</b><p>'+escapeHtml(view.basis)+'</p></div>';
     return '<section class="planning-panel progress-breakdown-view" data-progress-breakdown-view="'+escapeHtml(view.dimension)+'" '+(view.dimension===initial?"":"hidden")+'><div class="planning-panel-head"><div><h4>'+escapeHtml(view.label)+'</h4><p>'+escapeHtml(view.basis)+'</p></div><span class="badge">'+escapeHtml(fmt(view.classifiedPopulation))+' classified · '+escapeHtml(fmt(view.unclassifiedPopulation))+' unclassified</span></div><div class="planning-panel-body">'+table+'</div></section>';
@@ -4071,7 +4085,7 @@ function renderNoticesClaimsVisual(data){
   const eventRows=table(["Event","Event start","Notice date","Required days","Elapsed days","Assessment"],p.events.map(e=>[e.eventId,planningShortDate(e.eventStartIso),planningShortDate(e.noticeIssuedAt),fmt(e.requiredNoticeDays),e.elapsedNoticeDays===null||e.elapsedNoticeDays===undefined?fmt(e.elapsedNoticeDays):fmt(e.elapsedNoticeDays)+" · "+sumBasisLabel({records:"notice "+String(e.noticeIssuedAt||"").slice(0,10)+" minus "+(e.elapsedFromBasis==="awareness"?"awareness date ":"event start ")+(e.elapsedFromIso?String(e.elapsedFromIso).slice(0,10):"not established")+", calendar days",asOf:null}),humanizeKey(e.noticeTimeliness)]));
   return '<section class="planning-view notices-view">'+summary+integrityWarning+notAssessableNotice+evidenceChainHtml+(populationEstablished?'<details class="source-scope"><summary>Review '+fmt(responseListPopulation(p.events).total)+' notice assessments</summary><p>Showing '+fmt(p.events.length)+' of '+fmt(responseListPopulation(p.events).total)+' assessments.</p>'+eventRows+sourcePopulationControl(p.events,'Browse all notice assessments')+'</details>':'')+'</section>';
 }
-function commercialMetricHtml(metric,currency="",asOf=null){
+function commercialMetricHtml(metric,currency="",asOf=null,sharedBasis=""){
   if(!metric)return'<span class="muted">Not established</span>';
   const state=commercialSourceState(metric);
   const value=metric.value===null||metric.value===undefined
@@ -4079,9 +4093,9 @@ function commercialMetricHtml(metric,currency="",asOf=null){
     : (typeof metric.value==="number"?fmt(metric.value)+(currency?" "+currency:""):planningShortDate(metric.value));
   // F27: every displayed money sum states its basis through the one shared label.
   const refs=Array.isArray(metric.sourceRefs)?metric.sourceRefs.length:0;
-  const basis=currency&&typeof metric.value==="number"
-    ? '<br><span class="muted">'+escapeHtml(sumBasisLabel({records:refs?fmt(refs)+" source record"+(refs===1?"":"s"):null,currency,taxBasis:metric.taxBasis,asOf}))+'</span>'
-    : "";
+  const label=currency&&typeof metric.value==="number"?sumBasisLabel({records:refs?fmt(refs)+" source record"+(refs===1?"":"s"):null,currency,taxBasis:metric.taxBasis,asOf}):"";
+  // W5: a basis shared by the other figures of the same card is stated once under the card.
+  const basis=label&&label!==sharedBasis?'<br><span class="muted">'+escapeHtml(label)+'</span>':"";
   return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>'+basis;
 }
 function commercialRegisterCoverage(rows,label){
@@ -4102,10 +4116,12 @@ function renderCommercialLedgerVisual(data,scoped=false){
       cohorts={asOf:cohort(current),future:cohort(future),undated:cohort(undated)};
     }
     if(!cohorts)return '<div class="notice info">This retained source preview cannot establish complete dated groups. Browse all source records below; dated group totals are not established in this response.</div>'+renderCommercialLedgerVisual({...p,scope:'source_preview',summary:{recordCount:responseListPopulation(rows).total}},true);
-    const render=(cohort,scope)=>renderCommercialLedgerVisual({...p,rows:cohort.rows,scope,summary:{...p.summary,...cohort.summary,effectiveRecordCount:scope==='as_of'?cohort.summary.recordCount:0}},true);
-    const group=(label,cohort,scope)=>'<details class="source-scope"><summary>'+escapeHtml(label)+' · '+fmt(cohort.summary.recordCount)+' source records</summary>'+render(cohort,scope)+'</details>';
+    // W5: the later and undated groups sit inside the same section as the current
+    // group, so the register basis and panel notes are said once, in the current group.
+    const render=(cohort,scope,part=false)=>renderCommercialLedgerVisual({...p,rows:cohort.rows,scope,cohortPart:part,summary:{...p.summary,...cohort.summary,effectiveRecordCount:scope==='as_of'?cohort.summary.recordCount:0}},true);
+    const group=(label,cohort,scope,part=false)=>'<details class="source-scope"><summary>'+escapeHtml(label)+' · '+countText(cohort.summary.recordCount,'source record',undefined,fmt)+'</summary>'+render(cohort,scope,part)+'</details>';
     if(!p.dataDateIso)return '<div class="notice info">The reporting Data Date is not established. Current and future source cohorts cannot be stated.</div>'+group("Outside a dated position",cohorts.undated,"undated");
-    return render(cohorts.asOf,'as_of')+group("After Data Date, excluded from current totals",cohorts.future,"future")+group("Date not confirmed, excluded from current totals",cohorts.undated,"undated");
+    return render(cohorts.asOf,'as_of')+group("After Data Date, excluded from current totals",cohorts.future,"future",true)+group("Date not confirmed, excluded from current totals",cohorts.undated,"undated",true);
   }
   const fullRows=p.summary?.recordCount??responseListPopulation(rows).total;
   const subsetCount=(key,predicate)=>typeof p.summary?.[key]==='number'?p.summary[key]:fullRows===rows.length?rows.filter(predicate).length:null;
@@ -4114,15 +4130,15 @@ function renderCommercialLedgerVisual(data,scoped=false){
   const period=d=>escapeHtml(planningShortDate(d))+(d&&p.dataDateIso&&d>p.dataDateIso?'<br><span class="state-pill review">After Data Date</span>':"");
   const table=(heads,body)=>'<div class="table-wrap"><table><thead><tr>'+heads.map(h=>'<th>'+escapeHtml(h)+'</th>').join("")+'</tr></thead><tbody>'+body.map(r=>'<tr>'+r.map(v=>'<td>'+v+'</td>').join("")+'</tr>').join("")+'</tbody></table></div>';
   const evidence=list=>'<details><summary>Source evidence ('+(list||[]).length+')</summary>'+table(["Document","Location","Revision / hash","Basis"],(list||[]).map(r=>[escapeHtml(r.documentId),escapeHtml(r.locator),escapeHtml(r.revision||r.sourceHash),escapeHtml(r.basisState)]))+'</details>';
-  const panel=(title,description,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
+  const panel=(title,description,body)=>'<section class="planning-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4>'+(p.cohortPart||!description?'':'<p>'+escapeHtml(description)+'</p>')+'</div></div><div class="planning-panel-body">'+body+'</div></section>';
   let content="";
   if(key==="commercial-cost-position"){
-    content=rows.map(r=>{
+    content=rows.map((r,index)=>{
       const v=r.values||{}, money=k=>v[k]==null?"Not established":num(v[k])+" "+r.currency;
       const metrics=planningKpis([["Control budget / BAC",money("bac"),"source control budget"],["Source EAC",money("eac"),"source forecast, not CPI scenario"],["Variance at completion",money("calculated vac"),"BAC minus source EAC",v["calculated vac"]<0?"danger":""],["SPI",num(v.spi),"EV / PV"],["CPI",num(v.cpi),"EV / AC"],["CPI scenario EAC",money("cpi scenario eac"),"separate scenario; BAC / CPI"]]);
       const bars=moduleBarList([["PV · planned value","pv"],["EV · earned value","ev"],["AC · actual cost","ac"]].map(([label,k])=>({label,value:v[k]})),"accent",r.currency);
       const changes=planningSignedBars([["Schedule variance","calculated sv"],["Cost variance","calculated cv"],["Variance at completion","calculated vac"]].map(([label,k])=>({label,value:v[k]})),r.currency);
-      return panel(r.currency+" · "+planningShortDate(r.asOf),"Tax basis: "+r.taxBasis+". Values from this reporting period only.",metrics+'<div class="planning-primary-grid">'+panel("Earned value position","Comparable values in one currency and tax basis.",bars)+panel("Variance position","Negative values are adverse; missing values are not zero.",changes)+'</div>'+table(["Original contract","Approved variations","Current contract","Remaining cost / ETC"],[[money("original contract value"),money("approved variations"),money("current contract value"),money("etc")]])+(r.diagnostics?.length?'<div class="notice warn">'+escapeHtml(r.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+evidence(r.receipts));
+      return panel(r.currency+" · "+planningShortDate(r.asOf),"Tax basis: "+r.taxBasis+". Values from this reporting period only.",metrics+'<div class="planning-primary-grid">'+panel("Earned value position",index?"":"Comparable values in one currency and tax basis.",bars)+panel("Variance position",index?"":"Negative values are adverse; missing values are not zero.",changes)+'</div>'+table(["Original contract","Approved variations","Current contract","Remaining cost / ETC"],[[money("original contract value"),money("approved variations"),money("current contract value"),money("etc")]])+(r.diagnostics?.length?'<div class="notice warn">'+escapeHtml(r.diagnostics.map(humanizeKey).join("; "))+'</div>':"")+evidence(r.receipts));
     }).join("");
   } else if(key==="commercial-cost-register"){
     content=panel("Cost evidence register","Source values retain their reporting period, tax basis, approval description and provenance.",table(["Metric","Value","As of","Tax basis","Source status","CBS / WBS","Evidence"],rows.map(r=>[escapeHtml(r.metric),amount(r.amount),period(r.amount.asOf),escapeHtml(r.amount.taxBasis),escapeHtml(r.sourceStatus||"Not established"),escapeHtml([r.cbsId,r.wbsId].filter(Boolean).join(" / ")||"Not allocated"),evidence(r.amount.receipts)])));
@@ -4138,9 +4154,9 @@ function renderCommercialLedgerVisual(data,scoped=false){
   } else {
     content=panel("Commercial reconciliation","Source comparisons do not substitute for approval workflows, allocations or receipts.",table(["Record","Reporting period","State","Findings","Evidence"],rows.map(r=>[escapeHtml(r.paymentId||r.currency||"Source"),period(r.asOf),escapeHtml(humanizeKey(r.state)),escapeHtml((r.diagnostics||[]).map(humanizeKey).join("; ")||"No conflict in the checked fields"),evidence(r.receipts||[r.receipt].filter(Boolean))])))+'<div class="notice warn">'+escapeHtml((p.summary?.gaps||[]).join(" "))+'</div>';
   }
-  if(!rows.length)content='<div class="notice warn">No source rows are displayed in this reporting group. Missing approvals, allocation records and receipts are not treated as zero.</div>'+content;
+  if(!rows.length)content='<div class="notice warn">'+(p.cohortPart?'No source rows in this group; missing records are not treated as zero.':'No source rows are displayed in this reporting group. Missing approvals, allocation records and receipts are not treated as zero.')+'</div>'+content;
   const ledgerName={"commercial-cost-position":"Cost position","commercial-cost-register":"Cost register","commercial-payment-register":"Certificate register","commercial-variations":"Variation register","commercial-amendments":"Amendments and determinations"}[key]||"Commercial reconciliation";
-  return '<section class="planning-view commercial-view"><div class="notice info"><b>'+escapeHtml(ledgerName)+' · Data Date: '+escapeHtml(planningShortDate(p.dataDateIso))+'</b><br>Currency, tax basis and reporting period are kept separate. Source forecasts and calculated scenarios remain distinct.</div><p>Showing '+fmt(rows.length)+' of '+fmt(fullRows)+' source records.</p>'+content+sourcePopulationControl(rows,'Browse all records in this source group')+'</section>';
+  return '<section class="planning-view commercial-view">'+(p.cohortPart?'':'<div class="notice info"><b>'+escapeHtml(ledgerName)+' · Data Date: '+escapeHtml(planningShortDate(p.dataDateIso))+'</b><br>Currency, tax basis and reporting period are kept separate. Source forecasts and calculated scenarios remain distinct.</div>')+'<p>Showing '+fmt(rows.length)+' of '+countText(fullRows,'source record',undefined,fmt)+'.</p>'+content+sourcePopulationControl(rows,'Browse all records in this source group')+'</section>';
 }
 
 function renderCommercialTemporalPosition(ledger){
@@ -4149,7 +4165,7 @@ function renderCommercialTemporalPosition(ledger){
   return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Reporting scope and source reconciliation</h4><p>Data Date '+escapeHtml(planningShortDate(ledger.dataDateIso))+'. Source sums retain their own currency and tax basis. They do not prove a held balance or a reconciled contract value.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Certificate periods by Data Date",p.payments.asOfCount,p.payments.futureCount+' future · '+p.payments.undatedCount+' undated'],
     ["Approvals by Data Date",p.variations.asOfApprovedCount,p.variations.futureApprovalCount+' future · '+p.variations.undatedApprovalCount+' undated'],
-  ])+'<div class="table-wrap"><table><thead><tr><th>Source measure</th><th>Currency / tax</th><th>By Data Date</th><th>Future dated</th><th>Full register</th><th>Undated records</th></tr></thead><tbody>'+p.money.map(row=>'<tr><td>'+escapeHtml(row.kind)+'</td><td>'+escapeHtml(row.currency+' / '+taxBasisLabel(row.taxBasis))+'</td><td>'+escapeHtml(money(row.asOfValue))+'<br><small>'+escapeHtml(row.asOfCount)+' records</small></td><td>'+escapeHtml(money(row.futureValue))+'<br><small>'+escapeHtml(row.futureCount)+' records</small></td><td>'+escapeHtml(money(row.fullValue))+'</td><td>'+escapeHtml(row.undatedCount)+'</td></tr>').join('')+'</tbody></table></div></div></section>';
+  ])+'<div class="table-wrap"><table><thead><tr><th>Source measure</th><th>Currency / tax</th><th>By Data Date</th><th>Future dated</th><th>Full register</th><th>Undated records</th></tr></thead><tbody>'+p.money.map(row=>'<tr><td>'+escapeHtml(row.kind)+'</td><td>'+escapeHtml(row.currency+' / '+taxBasisLabel(row.taxBasis))+'</td><td>'+escapeHtml(money(row.asOfValue))+'<br><small>'+escapeHtml(countText(row.asOfCount,'record'))+'</small></td><td>'+escapeHtml(money(row.futureValue))+'<br><small>'+escapeHtml(countText(row.futureCount,'record'))+'</small></td><td>'+escapeHtml(money(row.fullValue))+'</td><td>'+escapeHtml(row.undatedCount)+'</td></tr>').join('')+'</tbody></table></div></div></section>';
 }
 function renderCommercialVisual(key,data){
   const p=projectionFor(data,data?.projectionKey||"");
@@ -4159,7 +4175,7 @@ function renderCommercialVisual(key,data){
   const knownCount=value=>typeof value==="number"&&Number.isFinite(value)&&value>=0;
   const countPosition=(_state,count,noun)=>{
     if(!knownCount(count))return "Not established";
-    return fmt(count)+" "+noun;
+    return fmt(count)+" "+countUnit(count,noun);
   };
   const t=position.timeExposure||{};
   const timeTiles=planningKpis([
@@ -4195,8 +4211,15 @@ function renderCommercialVisual(key,data){
   const chartFields=chartFieldsByKey[key]||chartFieldsByKey["commercial-overview"];
   const cards=position.currencies.length
     ? position.currencies.map(row=>{
-        const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(commercialFieldLabel(row,field,label))+'</span><strong>'+commercialMetricHtml(row[field],["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency,data?.reportingContract?.dataDateIso||null)+'</strong></div>').join("");
-        return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+'</div>';
+        const asOf=data?.reportingContract?.dataDateIso||null,lineCurrency=field=>["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency;
+        // W5: the same F27 basis label (sumBasisLabel, as in commercialMetricHtml) shared by
+        // several figures of this card is said once, under the card.
+        const basisOf=(metric,currency)=>metric&&currency&&typeof metric.value==="number"?sumBasisLabel({records:(Array.isArray(metric.sourceRefs)&&metric.sourceRefs.length)?fmt(metric.sourceRefs.length)+" source record"+(metric.sourceRefs.length===1?"":"s"):null,currency,taxBasis:metric.taxBasis,asOf}):"";
+        const labels=cols.map(([,field])=>basisOf(row[field],lineCurrency(field)));
+        const shared=labels.find((label,index)=>label&&labels.indexOf(label)!==labels.lastIndexOf(label))||"";
+        const own=labels.some(label=>label&&label!==shared);
+        const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(commercialFieldLabel(row,field,label))+'</span><strong>'+commercialMetricHtml(row[field],lineCurrency(field),asOf,shared)+'</strong></div>').join("");
+        return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+(shared?'<p class="muted currency-shared-basis">'+escapeHtml((own?'Figures above without their own basis · ':'')+shared)+'</p>':'')+'</div>';
       }).join("")
     : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
   const commercialCharts=position.currencies.length
@@ -4343,7 +4366,7 @@ function renderCommercialVisual(key,data){
         '</div></section>';
     }
     if(key==="contract-particulars-bonds"){
-      const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+fmt(row.occurrenceCount??1)+" source sections</summary><p>"+escapeHtml(row.textPreview||"")+"</p><p>"+escapeHtml(readerReference((row.sourceRefs||[row.sourceRef]).join("; ")))+"</p></details>"+'</td></tr>');
+      const clauseRows=(terms.clauses||[]).map(row=>'<tr><td><b>'+escapeHtml(row.identifier?"Clause "+row.identifier:(row.referencedClauseIdentifiers||[]).length?"References clause "+row.referencedClauseIdentifiers.join(", "):"Source section; clause not identified")+'</b></td><td>'+escapeHtml(row.heading||"")+'</td><td>'+escapeHtml(row.documentRole)+'</td><td>'+escapeHtml(humanizeKey(row.governanceState))+'</td><td>'+escapeHtml(row.startPage||"—")+'</td><td>'+"<details><summary>Read complete wording · "+countText(row.occurrenceCount??1,'source section',undefined,fmt)+"</summary><p>"+escapeHtml(row.textPreview||"")+"</p><p>"+escapeHtml(readerReference((row.sourceRefs||[row.sourceRef]).join("; ")))+"</p></details>"+'</td></tr>');
       const amendmentRows=(terms.amendments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.documentId)+'</b></td><td>'+escapeHtml(planningShortDate(row.effectiveDate))+'</td><td>'+escapeHtml(planningShortDate(row.completionIso))+'</td><td>'+escapeHtml(amendmentEotManagementDisplay(row.incorporatedEotDays,data.projectFacts?.time))+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml((row.actions||[]).map(a=>a.action+" "+a.targetIdentifier).join("; ")||"No parsed clause actions")+'</td></tr>');
       foundationDetail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Commercial Terms</h4><p>Contract facts, clauses, amendments and candidate terms remain source-backed and are Separate from the current programme.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
@@ -5663,7 +5686,7 @@ function renderMcpProgrammeControl(data){
      :"";
    const owners=(stage.owners||[]).join("; ")||"Not recorded";
    const actions=(stage.actions||[]).slice(0,3).join("; ")||"No stage-specific action recorded";
-   return '<tr><td><b>'+escapeHtml(stage.label)+'</b><br><span class="muted">'+escapeHtml(fmt(stage.openActivityCount))+' open / '+escapeHtml(fmt(stage.activityCount))+' activities</span></td>'+
+   return '<tr><td><b>'+escapeHtml(stage.label)+'</b><br><span class="muted">'+escapeHtml(fmt(stage.openActivityCount))+' open of '+escapeHtml(countText(stage.activityCount,'activity','activities',fmt))+'</span></td>'+
      '<td>'+escapeHtml(packages||"Observed package/WBS not established")+'</td>'+
      '<td>'+escapeHtml(milestones)+'</td>'+
      '<td>'+escapeHtml(dependencies)+'</td>'+
@@ -5764,7 +5787,18 @@ function renderManagementControlVisual(key,data){
     const candidates=Array.isArray(data.candidateInbox)?data.candidateInbox:[];
     const history=Array.isArray(data.controlHistory)?data.controlHistory:[];
     const positionSeverity=p=>{const counts=p.issueAssessment?.counts;if(!counts)return {label:'Checks not established',tone:'review'};const keys=['system_defect','source_conflict','data_quality','missing_information','comparison_difference','governance_review','verification_pending'];if(keys.some(key=>knownScreenCount(counts[key])===null))return {label:'Checks not established',tone:'review'};if(sumKnownScreenCounts(counts,['system_defect','source_conflict','data_quality'])>0)return {label:'Material issue',tone:'blocked'};if(sumKnownScreenCounts(counts,['missing_information','comparison_difference'])>0)return {label:'Qualified',tone:'review'};if(sumKnownScreenCounts(counts,['governance_review','verification_pending'])>0)return {label:'Routine follow-up',tone:'not_applicable'};return {label:'Current',tone:'ready'};}
-    const positionRows=positions.map(p=>{const severity=positionSeverity(p);return '<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(names[p.key]||p.label)+'</td><td><span class="state-pill '+severity.tone+'">'+severity.label+'</span><br>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(readerModuleSummary(p.reason))+(p.reason?'<details><summary>Calculation notes</summary>'+escapeHtml(p.reason)+'</details>':'')+'</td><td>'+managementModuleLink(p.key,"Open page")+'</td></tr>';}).join("");
+    // W5: a reason sentence already given for an earlier page in this table is not
+    // repeated; the row names that page instead. Calculation notes are shown only
+    // when they add to the reason shown in the row.
+    const reasonSaid=new Map();
+    const rowReason=p=>{
+      const summary=readerModuleSummary(p.reason),name=names[p.key]||p.label;
+      if(!p.reason)return summary;
+      const sentences=summary.split(/(?<=[.!?])\s+/).filter(Boolean),earlier=[];
+      const kept=sentences.filter(sentence=>{const first=reasonSaid.get(sentence);if(first&&first!==name){if(!earlier.includes(first))earlier.push(first);return false;}reasonSaid.set(sentence,name);return true;});
+      return kept.join(' ')+(earlier.length?(kept.length?' ':'')+(kept.length?'Other reasons as for ':'Same reason as ')+earlier.join(' and ')+'.':'');
+    };
+    const positionRows=positions.map(p=>{const severity=positionSeverity(p),summary=readerModuleSummary(p.reason);return '<tr><td><b>'+escapeHtml(p.group)+'</b></td><td>'+escapeHtml(names[p.key]||p.label)+'</td><td><span class="state-pill '+severity.tone+'">'+severity.label+'</span><br>'+issueBadge(p.issueAssessment)+'</td><td>'+escapeHtml(rowReason(p))+(p.reason&&String(p.reason).trim()!==summary.trim()?'<details><summary>Calculation notes</summary>'+escapeHtml(p.reason)+'</details>':'')+'</td><td>'+managementModuleLink(p.key,"Open page")+'</td></tr>';}).join("");
     const candidateRows=candidates.map(item=>'<tr><td><b>'+escapeHtml(readerText(item.label))+'</b></td><td>'+escapeHtml(humanizeKey(item.type))+'</td><td>'+managementAuthorityBadge(item.status)+'</td><td>'+escapeHtml(readerReference(item.sourceRef))+'</td><td>'+managementModuleLink(candidateOwnerModule(item),"Open owner")+'</td></tr>').join("");
     const historyRows=history.map(item=>'<tr><td>'+escapeHtml(formatDocumentTime(item.occurredAt))+'</td><td><b>'+escapeHtml(readerReference(item.entity))+'</b></td><td>'+escapeHtml(readerAuditAction(item.action))+'</td><td>'+escapeHtml(item.actor||"System / not recorded")+'</td><td>'+managementAuthorityBadge(item.state)+'</td><td>'+escapeHtml(readerReference(item.sourceRef||"—"))+'</td></tr>').join("");
     return '<div class="planning-view management-view master-control-view">'+
@@ -5864,7 +5898,7 @@ function renderInterfaceIntelligenceVisual(data){
   const rows=(p.rows||[]).map(r=>'<tr><td><b>'+escapeHtml(interfaceDisplay(r.interfaceId,'Interface'))+'</b><br><span class="state-pill '+(r.authority==='confirmed'?(r.state==='blocked'||r.state==='overdue'?'blocked':r.state==='closed'?'ready':'review'):'not_applicable')+'">'+escapeHtml(r.authority==='confirmed'?humanizeKey(r.state):r.authority==='source'?'From register · '+humanizeKey(r.state):'Calculated link · review acceptance')+'</span></td><td>'+escapeHtml(interfaceDisplay(r.givingParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.receivingParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.package))+'</td><td>'+escapeHtml(interfaceDisplay(r.discipline))+'</td><td>'+escapeHtml(interfaceDisplay(r.system))+'</td><td>'+escapeHtml(interfaceDisplay(r.location))+'</td><td>'+escapeHtml(interfaceDisplay(r.requiredDeliverable,'Not established'))+'</td><td>'+escapeHtml(r.requiredDate?planningShortDate(r.requiredDate):'Not established')+'</td><td>'+escapeHtml(interfaceDisplay(r.responsibleParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedActivity))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedRfi))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedSubmittal))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedRisk))+'</td><td>'+escapeHtml(interfaceDisplay(r.consequence))+'</td><td>'+escapeHtml(interfaceDisplay(r.escalation))+'</td></tr>').join('');
   return '<section class="planning-view interface-view"><div class="notice '+((p.knownBlockerCount??p.blockerCount)>0?'warn':'info')+'"><h4>Interface position</h4><p>'+escapeHtml(p.managementPosition)+'</p>'+upload+'</div>'+planningKpis([
     ["Interfaces from registers",(p.knownCount??p.confirmedCount)>0?p.knownCount??p.confirmedCount:population.state==="established"?0:"Not established","known source and reviewed records"],["Blocked / overdue",count(p.blockerCount,p.knownBlockerCount),"source or reviewed interfaces requiring action"],["Candidate interfaces",p.candidateCount??null,"derived for review, not confirmed"],["Linked activities",count(p.linkedActivityCount,p.knownLinkedActivityCount),"verified programme links in register records and contract-stated links; package-pair candidates are not counted"]
-  ])+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Interface register & candidates</h4><p>Source records, reviewed interfaces and derived candidates retain their own authority. Showing '+fmt(sourceRows.length)+' of '+fmt(responseListPopulation(sourceRows).total)+' rows.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Interface ID</th><th>Giving party</th><th>Receiving party</th><th>Package</th><th>Discipline</th><th>System</th><th>Location</th><th>Required deliverable</th><th>Required date</th><th>Responsible party</th><th>Activity</th><th>RFI</th><th>Submittal</th><th>Risk</th><th>Consequence</th><th>Escalation</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+sourcePopulationControl(sourceRows,'Browse all interfaces and candidates')+'</div></section><details class="source-scope"><summary>Interface derivation basis</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
+  ])+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Interface register & candidates</h4><p>Source records, reviewed interfaces and derived candidates retain their own authority. Showing '+fmt(sourceRows.length)+' of '+countText(responseListPopulation(sourceRows).total,'row',undefined,fmt)+'.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Interface ID</th><th>Giving party</th><th>Receiving party</th><th>Package</th><th>Discipline</th><th>System</th><th>Location</th><th>Required deliverable</th><th>Required date</th><th>Responsible party</th><th>Activity</th><th>RFI</th><th>Submittal</th><th>Risk</th><th>Consequence</th><th>Escalation</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+sourcePopulationControl(sourceRows,'Browse all interfaces and candidates')+'</div></section><details class="source-scope"><summary>Interface derivation basis</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
 }
 let accountabilityDetailsView=null,accountabilityDetailsTicket=0;
 function accountabilityEvidenceLink(row){
@@ -5937,7 +5971,7 @@ function accountabilityOwnerGroups(data){
    overdue:list.some(g=>g.overdueRecordCount==null)?null:list.reduce((n,g)=>n+g.overdueRecordCount,0)}));
  const blocks=ownerSummaries.map(({list,records,known,overdue})=>{
   const name=(typeof apiOwnerText==='function'?apiOwnerText(list[0]):list[0].owner)||list[0].owner;
-  return '<tbody class="accountability-owner-block"><tr class="owner-block-head"><th colspan="8">'+escapeHtml(name)+' · '+fmt(records)+' records · overdue '+accountabilityCount(overdue,known,'confirmed overdue')+'</th></tr>'+list.map(row).join('')+'</tbody>';
+  return '<tbody class="accountability-owner-block"><tr class="owner-block-head"><th colspan="8">'+escapeHtml(name)+' · '+countText(records,'record',undefined,fmt)+' · overdue '+accountabilityCount(overdue,known,'confirmed overdue')+'</th></tr>'+list.map(row).join('')+'</tbody>';
  }).join('');
  const ownerPopulation=serverBlocks&&typeof responseListPopulation==='function'?responseListPopulation(data.ownerBlocks):null;
  const ownerTotal=ownerPopulation?ownerPopulation.total:owners.size;
@@ -6058,7 +6092,20 @@ function renderIssueAssessment(a,management=false){
   if(!a)return '<p>Review classification is not yet available.</p>';
   const descriptions={system_defect:"A CMeng calculation or same-basis check failed.",source_conflict:"Supplied sources make incompatible assertions.",data_quality:"A supplied field or link needs correction.",missing_information:"An input required for this conclusion is unavailable.",comparison_difference:"Two positions differ on the stated comparison basis.",governance_review:"An approval or authority is not confirmed.",verification_pending:"CMeng verification coverage is incomplete."};
   const counts=management?a.affectedModuleCounts:a.counts;
-  const countRows=Object.entries(descriptions).map(([kind,description])=>'<tr><td>'+issueBadge({primaryKind:kind})+'</td><td>'+screenCountText(counts?.[kind])+'</td><td>'+escapeHtml(description)+'</td></tr>').join('');
+  const known=n=>typeof n==='number'&&Number.isFinite(n);
+  // A3/F10: what each type means is said once, on the owner page of the shared
+  // Actions required list (and the summary page). Other pages show their own
+  // counts with a link to that list.
+  const ownerPage=typeof ownsBlock!=='function'||ownsBlock('review-items');
+  // C1: records that disagree come with the decision place beside this page
+  // (pick a source value or enter your own); a zero count says none were found.
+  const conflicts=counts?.source_conflict;
+  const chooseControl=known(conflicts)&&conflicts>0?' <button class="btn small" type="button" data-choose-source-value onclick="openProjectActions(true)">Choose the value to use</button>':'';
+  const countRows=Object.entries(descriptions).map(([kind,description])=>'<tr><td>'+issueBadge({primaryKind:kind})+'</td><td>'+screenCountText(counts?.[kind])+'</td><td>'+escapeHtml(kind==='source_conflict'&&conflicts===0?'None found by the listed checks.':description)+(kind==='source_conflict'?chooseControl:'')+'</td></tr>').join('');
+  const typed=Object.keys(descriptions).filter(kind=>known(counts?.[kind])&&counts[kind]>0).map(kind=>issueLabel(kind)+' '+fmt(counts[kind]));
+  const uncounted=Object.keys(descriptions).filter(kind=>!known(counts?.[kind])).length;
+  const countFigure=(typed.length?(management?'Pages affected, by type: ':'On this page: ')+typed.join(' · ')+(uncounted?'; '+countText(uncounted,'type')+' not counted':''):uncounted?'Follow-up counts by type are not established for this '+(management?'project':'page'):'Follow-up items '+(management?'across the project':'on this page')+': none')+'.';
+  const classification=ownerPage?experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>'):(typeof ownerLinkPanel==='function'?ownerLinkPanel('review-items',countFigure,'',true).replace(/<[/]section>$/,chooseControl+'</section>'):'<p>'+escapeHtml(countFigure)+'</p>'+chooseControl);
   // F30: a missing-information item is listed once, in Actions and Data gaps, with
   // the upload or control that supplies it. A page links to that list instead of
   // repeating each item; items are counted once by raw field identity.
@@ -6066,10 +6113,18 @@ function renderIssueAssessment(a,management=false){
   const missingIds=[...new Set(missingIssues.map(i=>i.field||(i.code+'|'+i.summary)))];
   const missingTitles=[...new Set(missingIssues.map(i=>readerIssue(i).title))];
   const missingRow=missingIssues.length?'<tr><td>'+issueBadge({primaryKind:'missing_information'})+'</td><td><b>'+escapeHtml(fmt(missingIds.length)+' information item'+(missingIds.length===1?'':'s')+' used by this page')+'</b><details><summary>Items</summary>'+escapeHtml(missingTitles.join('; '))+'</details></td><td colspan="2">Each item is listed once in Actions and Data gaps with the upload or control that supplies it. <button class="btn small" type="button" onclick="openProjectActions()">Open Actions and Data gaps</button></td></tr>':'';
-  const rows=(a.issues||[]).filter(i=>i.kind!=='missing_information').map(i=>{const r=readerIssue(i);return '<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(r.title)+'</b></td><td>'+escapeHtml(r.owner)+'<br>'+escapeHtml(r.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml(readerText([i.summary,i.detail,...(i.sourceRefs||[])].join(' · ')))+'</details></td></tr>';}).join('')+missingRow;
+  // A3: a management page lists the whole project's findings; each one is kept in
+  // full on its owner page (Actions required) and on the pages it affects. Here
+  // the management page counts them by type, names them and links to that list.
+  const others=(a.issues||[]).filter(i=>i.kind!=='missing_information');
+  const foldOthers=management&&!ownerPage&&others.length>0;
+  const otherTitles=[...new Set(others.map(i=>readerIssue(i).title))];
+  const otherKinds=Object.keys(descriptions).map(kind=>[kind,others.filter(i=>i.kind===kind).length]).filter(([,n])=>n>0);
+  const foldedRow=foldOthers?'<tr><td>'+otherKinds.map(([kind])=>issueBadge({primaryKind:kind})).join(' ')+'</td><td><b>'+escapeHtml(countText(others.length,'project finding')+' listed here: '+otherKinds.map(([kind,n])=>issueLabel(kind)+' '+fmt(n)).join(' · '))+'</b><details><summary>Findings</summary>'+escapeHtml(otherTitles.join('; '))+'</details></td><td colspan="2">Each finding is kept in full, with its owner and next step, in Actions required and on the pages it affects. <button class="btn small" type="button" onclick="openProjectActions()">Open Actions required</button></td></tr>':'';
+  const rows=(foldOthers?foldedRow:others.map(i=>{const r=readerIssue(i);return '<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(r.title)+'</b></td><td>'+escapeHtml(r.owner)+'<br>'+escapeHtml(r.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml(readerText([i.summary,i.detail,...(i.sourceRefs||[])].join(' · ')))+'</details></td></tr>';}).join(''))+missingRow;
   // SW-46: "The listed checks passed" only when the check state says so; a missing state is not a pass.
   const scope=a.systemCheckState==='failed'?'Calculation failures require correction before reliance.':a.systemCheckState==='unverified'?'Verification coverage is incomplete.':conditionalNotice(a.systemCheckState==='listed_checks_passed'?true:null,'The listed checks passed. Other calculations may remain outside their scope.','','The result of the listed calculation checks is not established.');
-  return '<section class="issue-assessment"><h4>Review findings</h4><p>'+escapeHtml(scope)+'</p><p>'+escapeHtml(management?'A page may have more than one type of follow-up.':'Each item below has its own action and supporting records.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding</th><th>Owner and next step</th><th>Source</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No issues identified by the listed checks.</p>')+experienceDisclosure('Classification counts','<div class="table-wrap"><table><thead><tr><th>Type</th><th>Count</th><th>Meaning</th></tr></thead><tbody>'+countRows+'</tbody></table></div>')+'<small>'+escapeHtml(a.scope||'')+'</small></section>';
+  return '<section class="issue-assessment"><h4>Review findings</h4><p>'+escapeHtml(scope)+'</p><p>'+escapeHtml(management?'A page may have more than one type of follow-up.':'Each item below has its own action and supporting records.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding</th><th>Owner and next step</th><th>Source</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No issues identified by the listed checks.</p>')+classification+'<small>'+escapeHtml(a.scope||'')+'</small></section>';
 }
 function renderModuleReadiness(data,reason=''){
   const r=data?.moduleReadiness;
@@ -6283,7 +6338,7 @@ function renderModuleResult(result){
   if(['challenge-contract','material-tracking'].includes(result.legacyKey||result.key))insertAfterPageAnswer(container,'<div class="actions"><button class="btn primary" onclick="openBoqLinkEditor()">Create BOQ links</button>'+((result.legacyKey||result.key)==='challenge-contract'?'<button class="btn" onclick="openRecoveryScenario()">Enter or edit recovery assumptions</button>':'')+'</div>');
   const mapping=result.data?.boqProgrammeLinks;
   if(mapping){
-   const text=fmt(mapping.linkedItemCount)+' of '+fmt(mapping.itemCount)+' BOQ items linked · '+(mapping.coveragePercent==null?'Coverage not calculable':fmt(mapping.coveragePercent)+'%');
+   const text=typeof mapping.itemCount==='number'?fmt(mapping.linkedItemCount)+' of '+countText(mapping.itemCount,'BOQ item',undefined,fmt)+' linked · '+(mapping.coveragePercent==null?'Coverage not calculable':fmt(mapping.coveragePercent)+'%'):'Not calculable, because no BOQ quantities are read from the current project documents';
    if((result.legacyKey||result.key)==='quantity-scurve')container.insertAdjacentHTML('beforeend','<section class="planning-panel"><div class="planning-panel-head"><h4>BOQ links to programme scope</h4></div><div class="planning-panel-body"><p><b>'+escapeHtml(text)+'</b></p><p>'+escapeHtml(mapping.basis)+'</p><p>Approved quantity allocation: '+fmt(mapping.approvedAllocatedItemCount)+' items. Scope links do not invent quantity distribution or approval.</p></div></section>');
    else container.insertAdjacentHTML('beforeend','<p><b>BOQ programme coverage:</b> '+escapeHtml(text)+' · <button class="btn small" onclick="openBoqScopeReview()">Review scope links and source basis</button></p>');
   }
@@ -6303,9 +6358,11 @@ function renderModuleResult(result){
       const groupLabels=shortLabels.map((label,index)=>shortLabels.indexOf(label)!==shortLabels.lastIndexOf(label)&&tables[index].pointer?readablePathLabel(tables[index].pointer)||label:label);
       const control=index=>{
         const table=tables[index],label=groupLabels[index];
-        return '<article class="project-action" data-paged-group><h4>'+escapeHtml(label)+'</h4><p>'+fmt(table.total)+' original '+(table.kind==='text'?'characters':'records')+' retained · '+fmt(table.shown)+' initially shown</p><button type="button" class="btn small" data-paged-detail="'+index+'" data-detail-offset="0">View 25 source records</button><div class="paged-evidence-list" data-paged-target="'+index+'"></div></article>';
+        return '<article class="project-action" data-paged-group><h4>'+escapeHtml(label)+'</h4><p>'+countText(table.total,table.kind==='text'?'character':'record',undefined,fmt)+' · '+fmt(table.shown)+' shown first</p><button type="button" class="btn small" data-paged-detail="'+index+'" data-detail-offset="0">View 25 source records</button><div class="paged-evidence-list" data-paged-target="'+index+'"></div></article>';
       };
-      const groupPanel=(summary,indexes)=>'<details class="planning-panel"><summary>'+summary+'</summary><div class="planning-panel-body"><p>The management summary is kept small. Source records are retrieved in groups of 25, without changing or discarding their original values.</p>'+indexes.map(control).join('')+'</div></details>';
+      // W5: how the groups are retrieved is said once per page, in the first group panel.
+      let retrievalSaid=false;
+      const groupPanel=(summary,indexes)=>{const intro=retrievalSaid?'':'<p>The management summary is kept small. Source records are retrieved in groups of 25, without changing or discarding their original values.</p>';retrievalSaid=true;return '<details class="planning-panel"><summary>'+summary+'</summary><div class="planning-panel-body">'+intro+indexes.map(control).join('')+'</div></details>';};
       // F10: groups read from one shared fact are shown on that fact's owner page;
       // other pages link to it. The page's own groups stay here.
       const pageKey=result.legacyKey||result.key;
@@ -6366,7 +6423,7 @@ function renderModuleResult(result){
       '<section class="planning-panel source-decision-panel"'+reviewItemsLinkAttrs(result.legacyKey||result.key)+'><h4>Source figures to reconcile · '+screenCountText(conflictTotal)+'</h4>'+
       '<p>Conflicting or unreadable records need source review. Clear source values remain available in analysis; official approval is separate.</p>'+
       '<p>'+fmt(records.length)+' original source reference'+(records.length===1?'':'s')+' retained for comparison'+(conflictTotal===sourceConflicts.length?'':' in the '+fmt(sourceConflicts.length)+' records listed here')+'.</p>'+
-      '<button class="btn primary" type="button" data-review-conflict-inline>Review evidence and record a decision here</button></section>');
+      '<button class="btn primary" type="button" data-review-conflict-inline>Choose or correct the value here</button></section>');
     const control=container.querySelector('[data-review-conflict-inline]');
     if(control)control.onclick=()=>openProjectActions(true);
   }
@@ -7381,7 +7438,7 @@ function applyProgressBreakdownFilters(root){
     row.hidden=Boolean((query&&!text.includes(query))||!modeMatch);
     if(!row.hidden)visible++;
   });
-  const count=panel.querySelector('[data-progress-count]');if(count){const total=Number(count.dataset.progressTotal||visible);count.textContent=visible+' of '+total+' groups shown'+(total>panel.querySelectorAll('[data-progress-row]').length?' · filters apply to loaded rows':'');}
+  const count=panel.querySelector('[data-progress-count]');if(count){const total=Number(count.dataset.progressTotal||visible);count.textContent=visible+' of '+countText(total,'group')+' shown'+(total>panel.querySelectorAll('[data-progress-row]').length?' · filters apply to loaded rows':'');}
 }
 document.addEventListener("click",event=>{
   const button=event.target.closest?.("[data-progress-dimension]");if(!button)return;

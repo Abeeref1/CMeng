@@ -45,7 +45,7 @@ function referenceSummary(issues: readonly ControlIssue[], checksRunCount: numbe
   return {schemaVersion:'1.0',primaryKind:CONTROL_ISSUE_KINDS.find(k=>(counts as any)[k]>0)??'checked',
     systemCheckState:(counts as any).system_defect>0?'failed':unique.some(i=>i.kind==='verification_pending'&&i.owner==='CMeng')||!(checksRun!==null&&checksRun>0)?'unverified':'listed_checks_passed',
     checksRunCount:checksRun,counts,affectedModuleCounts,issues:unique,
-    scope:'Categories are independent. A source conflict, missing input or difference between submitted and independent positions is not proof of a software defect. Passed checks certify only their stated scope; project performance remains separate.'};
+    scope:'Each type is counted on its own. Records that disagree, a missing input or a difference between the submitted and independent positions do not by themselves mean a software fault. A passed check covers only what it checks; project performance is reported separately.'};
 }
 
 // Deterministic pseudo-random generator (no Math.random: the cases repeat exactly).

@@ -1,4 +1,5 @@
 import {projectScopeClassification} from './location-review';
+import {countText} from './count-text';
 import {floatHoursText,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 import {canonicalHeader,dateValue,managementAction,type ManagementAction} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
@@ -228,7 +229,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       escalation:knownSourceOverdueCount?'Escalate '+knownSourceOverdueCount+' overdue source record(s); the oldest required date is '+sourceOverdueDays+' calendar days past at the reporting date. Agree a follow-up deadline.':members.find(m=>m.escalation)?.escalation??null,
       recordKey:'accountability-owner-group:'+key,
       ...(chainGroup?{memberActionIds:sourceIds}:{}),
-      issue:chainGroup?(cleanup?'Close-out review: ':'')+first.issue+': '+namedList(memberNames):(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+sourceCount+' records)'+(memberNames.length?': '+namedList(memberNames):''),
+      issue:chainGroup?(cleanup?'Close-out review: ':'')+first.issue+': '+namedList(memberNames):(cleanup?'Close-out review: ':'')+({'procurement-packages':'Procurement packages requiring attention','activity-analytics':'Programme activities under pressure','delivery-design':'Design records requiring attention','delivery-quality':'Quality records requiring attention','delay-claims':'Claim and notice records requiring assessment','notices-claims':'Claim and notice records requiring assessment','contract-particulars-bonds':'Contract security follow-up'}[first.owningModule??'']??'Project control records requiring attention')+' ('+countText(sourceCount,'record')+')'+(memberNames.length?': '+namedList(memberNames):''),
       consequence:cleanup?'All linked programme activities are complete; register close-out and any contractual acceptance obligations need confirmation.':first.consequence,
       affectedScope:scope.slice(0,20),
       requiredAction:first.requiredAction,

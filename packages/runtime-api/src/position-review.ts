@@ -1,4 +1,5 @@
 import type { ModuleRuntimeResult } from './project-state-types';
+import { countText } from './count-text';
 import type { ControlIssueAssessment } from '../../truth-kernel/src';
 
 /** One reader-facing vocabulary; source authority and project performance stay separate. */
@@ -79,7 +80,18 @@ export function positionVerdict(result:ModuleRuntimeResult) {
     const missing=p.noticeEventDateMissingCount??p.position?.claimsNotices?.noticeTimelinessCounts?.event_date_missing;
     if(number(missing))facts.noticeEventDateMissingCount=missing;
     else if(missing===null&&(p.eventPopulationState??p.position?.claimsNotices?.eventPopulationState)==='not_established')facts.noticeEventDateMissingCount=null;
-    text=number(missing)&&missing>0?missing+' events lack the event dates needed to assess notice timing. Reported claim values remain visible.':'Notice timing, reported claim values and dated determinations have separate evidence bases.';
+    // W6: each page answers its own question from its own figures. Notice
+    // Compliance states notice timing; Financial Claims states the claim register.
+    const gap=number(missing)&&missing>0?missing+' events lack the event dates needed to assess notice timing.':'';
+    if(result.key==='notices-claims'){
+      const timely=p.timelyNoticeCount,late=p.lateNoticeCount,notices=p.noticeCount;
+      text=gap||(number(timely)&&number(late)
+        ?countText(timely+late,'assessed notice')+': '+timely+' on time and '+late+' late.'
+        :(number(notices)?countText(notices,'notice')+' '+(notices===1?'is':'are')+' recorded. ':'')+'Notice timing is not yet assessed'+(p.noticeAssessmentState==='not_assessable_without_delay_events_and_requirements'?' because the delay events and the contract notice periods are not confirmed.':'.'));
+    }else{
+      const cn=p.position?.claimsNotices??{},claims=cn.sourceClaimCount??cn.lifecycleClaimCount??null;
+      text=(gap?gap+' ':'')+(number(claims)?countText(claims,'claim')+' '+(claims===1?'is':'are')+' in the claim register. Reported claim values and dated determinations are shown with their own evidence.':cn.state==='not_submitted'?'No claim register is in the current project documents, so claim values are not established.':'The number of claims is not established. Reported claim values and dated determinations are shown with their own evidence.');
+    }
     nextAction=number(missing)&&missing>0?'Enter the event or awareness date for these '+missing+' events, then reassess notice timing.':'Review notice timing against each event date and applicable contract period.';assignTo='Contracts Manager';
   } else if(result.key==='windows-analysis') {
     const days=p.projectCompletionMovementDays;
@@ -95,7 +107,22 @@ export function positionVerdict(result:ModuleRuntimeResult) {
     text=ready?'Actual cash is supported by the dated receipt and expenditure records, separated by currency.':'Certificate amounts are available. Provide the advance payment record and dated receipts and payments to establish actual cash.';
     nextAction=ready?'Review the cash balance and upcoming payments in each currency.':'Add dated cash receipts, expenditure and advance payment records.';assignTo='Commercial Manager';
   }
-  else if(result.key==='resource-utilization'||result.key==='manhour-scurve')text='Compare demand with capacity for each resource. Hours cover the dates in the register; they may not cover the full programme.';
+  else if(result.key==='resource-utilization'){
+    // W6: Resources answers whether demand can be compared with stated capacity.
+    const cap=p.capacityStatus,stated=cap?.statedCapacityTradeCount,notStated=cap?.notStatedCapacityTradeCount;
+    text=cap?.state==='missing'?'Labour demand cannot be compared with capacity yet: no weekly resource capacity is read from the current project documents.'
+      :cap?.state==='candidate'?'Weekly resource capacity is supplied only as unconfirmed evidence, so labour demand is not yet compared with it.'
+      :number(stated)?'Demand is compared with stated weekly capacity for '+countText(stated,'trade')+(number(notStated)&&notStated>0?'; '+countText(notStated,'trade')+' '+(notStated===1?'has':'have')+' no stated capacity':'')+'. Hours cover the dates in the register; they may not cover the full programme.'
+      :'Compare demand with capacity for each resource. Hours cover the dates in the register; they may not cover the full programme.';
+  }
+  else if(result.key==='manhour-scurve'){
+    // W6: the Man-Hour S-Curve answers how earned hours compare with hours spent.
+    const e=p.earnedHours,hours=(v:number)=>Math.round(v).toLocaleString('en-US');
+    text=e?.state==='established'&&number(e.earnedHours)
+      ?hours(e.earnedHours)+' earned hours to the Data Date'+(number(e.actualHoursSpent)?' against '+hours(e.actualHoursSpent)+' hours spent':'')+'. Hours cover the dates in the register; they may not cover the full programme.'
+      :typeof e?.actualHoursReason==='string'&&e.actualHoursReason?'Earned and spent man-hours are not established. '+e.actualHoursReason
+      :'Compare planned, earned and recorded hours over time. Hours cover the dates in the register; they may not cover the full programme.';
+  }
   const metrics=p.scopeComparison??p.sourceInterpretation?.progressMeasures?.scopeComparison;
   if(['progress-scurve','progress-report','master-dashboard','command-center','pmo-analysis'].includes(result.key)&&metrics&&number(metrics.gapPercentagePoints)){const v=metrics.gapPercentagePoints;rag=rag==='red'||v<0?'red':'green';const progressText=v===0?'Schedule progress on the same activities matches baseline plan.':'Schedule progress on the same activities is '+Math.abs(v).toFixed(2)+' percentage points '+(v<0?'behind':'ahead of')+' baseline plan.';text=result.key==='master-dashboard'?text+' '+progressText:progressText;}
   specific=text!=='The results, records and follow-up actions for this view are shown below.';
