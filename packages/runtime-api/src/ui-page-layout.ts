@@ -164,6 +164,15 @@ function pageDetailGroup(list,title,blocks,log){
    // A nested section's summary line may be the one said: its section opens with the group.
    const nestedLoads=heading.el?.tagName==='SUMMARY'&&pageLoadsOnOpen(heading.el.parentElement);
    if(heading.el&&heading.el!==block.node&&!nestedLoads&&heading.text&&whole===title){heading.el.classList.add('page-detail-title-shown');log.push(()=>heading.el.classList.remove('page-detail-title-shown'));}
+   else if(heading.el?.tagName==='SUMMARY'&&!nestedLoads&&heading.text===title){
+    // A summary with a note after its title: only the title text is not said twice.
+    const text=Array.from(heading.el.childNodes).find(child=>child.nodeType===3&&child.nodeValue.trim());
+    if(text&&text.nodeValue.trim()===title){
+     const span=document.createElement('span');span.className='page-detail-title-shown';
+     heading.el.insertBefore(span,text);span.appendChild(text);
+     log.push(()=>{span.parentNode.insertBefore(text,span);span.remove();});
+    }
+   }
   }
   pageFillGroup(body,blocks,log);
   list.appendChild(details);
