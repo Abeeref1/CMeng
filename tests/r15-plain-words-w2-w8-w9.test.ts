@@ -45,10 +45,12 @@ test('W2/W8: shared labels never print population, Not derivable or session iden
  }
  assert.equal(readablePathLabel('population.exclusions'),'Record set · exclusions');
  for(const key of ['not_derivable','session_identity_unverified','population','scenario_only'])assert.equal(humanize(key),readableFieldLabel(key),'browser '+key);
- const deliveryLabel=runInNewContext('const deliveryUnknownText="Not established";'+/const deliveryLabel=[^\n]*/.exec(script)![0]+';deliveryLabel') as (key:string)=>string;
+ // The delivery label now falls back to the shared reader words (W1, round 15 g2): load it with them.
+ const deliveryLabel=runInNewContext('const deliveryUnknownText="Not established";const deliveryReadableLabel='+readableFieldLabel.toString()+';'
+  +/function deliveryReaderWords\(s\)\{[^\n]*/.exec(script)![0]+'\n'+/const deliveryLabel=[^\n]*/.exec(script)![0]+';deliveryLabel') as (key:string)=>string;
  assert.equal(deliveryLabel('population'),'Record set');
- assert.equal(deliveryLabel('populationState'),'Record set State');
- assert.equal(deliveryLabel('populationId'),'Record set Id');
+ assert.equal(deliveryLabel('populationState'),'Record set state');
+ assert.equal(deliveryLabel('populationId'),'Record set ID');
 });
 
 test('W9: a pair or a known part never repeats an unknown word',()=>{
