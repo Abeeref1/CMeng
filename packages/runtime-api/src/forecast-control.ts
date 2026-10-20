@@ -144,7 +144,7 @@ export function buildForecastReconciliationGate(input: {
       state: requiredFinishIso ? "passed" : "not_established",
       detail: requiredFinishIso
         ? "A contractual/required finish is established for the management comparison."
-        : "A governed contractual/required finish is not established.",
+        : "No confirmed contract or required finish date is established yet.",
       count: requiredFinishIso ? 1 : 0,
     },
   ];
@@ -173,7 +173,9 @@ export function buildForecastReconciliationGate(input: {
     checks,
     reason: publishable
       ? "All six forecast reconciliation checks passed. The CMeng CPM/network recalculation may be published as a management analytical forecast, separate from contractual and contractor forecasts."
-      : (usable?'Calculated using the current programme logic, remaining durations and source calendars; reconciliation remains open. ':'')+failed.map(check => check.label + ": " + check.detail).join(" "),
+      // W5/plain words: the required finish is said as one plain sentence, without
+      // the check name in front of it.
+      : (usable?'Calculated using the current programme logic, remaining durations and source calendars; reconciliation remains open. ':'')+failed.map(check => check.key === "required_finish_authority" ? check.detail : check.label + ": " + check.detail).join(" "),
     basis:
       "A matching Project finish does not override failed calendar, graph, source-constraint, activity-coverage, activity-divergence or required-finish-authority checks. The " +
       materialActivityScreeningDays +

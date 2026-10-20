@@ -124,7 +124,9 @@ test('W7: window activity lists use the shared reader ID list with the count in 
 
 test('W2: delivery and interface controls say records and registers, not populations',()=>{
  const delivery=deliveryScript();
- assert.match(delivery,/>Confirm the selected register is complete<\/button>/);
+ // A3 (r15 c3-last): the button names its own register instead of "the selected register".
+ assert.match(delivery,/id="deliveryConfirmPopulation">'\+escapeHtml\(deliveryConfirmRegisterText\(p\.kind\)\)\+'<\/button>/);
+ assert.doesNotMatch(delivery,/Confirm the selected register is complete/);
  assert.doesNotMatch(delivery,/Confirm selected record population/);
  assert.doesNotMatch(script,/Confirm the complete interface population/);
  assert.equal(deliveryPopulationReason('commissioning'),'Confirm the Testing & commissioning register is complete');

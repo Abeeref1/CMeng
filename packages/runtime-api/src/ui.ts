@@ -914,6 +914,11 @@ function renderUniversalChallenge(challenge){
     const size=Math.abs(v);
     return fmt(size)+" "+(v<0?"fewer":"more")+" "+(size===1?noun:u)+" than "+reference;
   };
+  // W5: a candidate note shared by several positions of this table (such as why a
+  // position cannot be compared yet) is said once under the table; each position
+  // keeps its short state (Independent gap: Not directly comparable).
+  const panelComparisons=item=>{const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];return (item.submitted||{}).state!=="conflicted"&&comparisons.length<2?[]:comparisons;};
+  const candidateNotes=sentencesSaidOnce(challenge.items.flatMap(item=>panelComparisons(item).map(candidate=>candidate.note)));
   const conflictPanel=(item)=>{
     const sub=item.submitted||{};
     const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];
@@ -935,7 +940,7 @@ function renderUniversalChallenge(challenge){
           '<div><b>Source strength</b>'+escapeHtml(evidenceScore)+'</div>'+
           '<div><b>CMeng confidence</b>'+escapeHtml(recommendationScore)+'</div>'+
         '</div>'+
-        '<div class="candidate-sources"><b>Sources:</b> '+escapeHtml(sources)+(candidate.note?'<br>'+escapeHtml(candidate.note):'')+'</div>'+
+        '<div class="candidate-sources"><b>Sources:</b> '+escapeHtml(sources)+(candidateNotes.own(candidate.note)?'<br>'+escapeHtml(candidateNotes.own(candidate.note)):'')+'</div>'+
       '</div>';
     }).join("");
     const hasRecommendation=rec.recommendedValue!==null&&rec.recommendedValue!==undefined;
@@ -977,18 +982,21 @@ function renderUniversalChallenge(challenge){
   ];
   // W5: an action sentence shared by several metrics is said once, under the list;
   // each row keeps its own part of the action.
-  const sentencesOf=text=>String(text||'').split(/(?<=[.!?])\s+/).map(part=>part.trim()).filter(Boolean);
   const actionOf=item=>item.action?readerAuditAction(item.action):'';
-  const actionTally={};attentionItems.forEach(entry=>new Set(sentencesOf(actionOf(entry.item||{}))).forEach(sentence=>{actionTally[sentence]=(actionTally[sentence]||0)+1;}));
-  const commonActions=Object.keys(actionTally).filter(sentence=>actionTally[sentence]>1&&sentence.split(/\s+/).length>=8);
-  const rowAction=item=>sentencesOf(actionOf(item)).filter(sentence=>!commonActions.includes(sentence)).join(' ');
+  const actions=sentencesSaidOnce(attentionItems.map(entry=>actionOf(entry.item||{})));
+  const commonActions=actions.common;
+  const rowAction=item=>actions.own(actionOf(item));
+  // W5: when several CMeng checks cannot be worked out, each row says so in short and
+  // the reason is said once under the list.
+  const unworked=entry=>{const independent=(entry.item||{}).independent||{};return (independent.value===null||independent.value===undefined)&&!challengeValueFromSubmission(independent);};
+  const unworkedCount=attentionItems.filter(unworked).length;
   const attentionHtml=attentionItems.length
     ?'<div class="challenge-attention"><div class="challenge-attention-head"><strong>What needs attention</strong><span>These are the specific metrics behind the count above. "Missing" means a comparable submitted value was not found; it does not mean the whole document is missing.</span></div>'+attentionItems.map(entry=>{
       const item=entry.item||{};
       const independent=item.independent||{};
-      const independentText=independent.value===null||independent.value===undefined?"Cannot be worked out from the current records":withUnit(independent.value,independent.unit);
+      const independentText=independent.value===null||independent.value===undefined?(unworkedCount>1&&unworked(entry)?"Not worked out":"Cannot be worked out from the current records"):withUnit(independent.value,independent.unit);
       return '<div class="challenge-attention-row"><b>'+escapeHtml(item.label||item.metric)+'</b><span>'+escapeHtml(entry.kind)+'</span><span>'+(challengeValueFromSubmission(independent)?'From submitted records: ':'CMeng check: ')+escapeHtml(independentText)+(rowAction(item)?'<br>Action: '+escapeHtml(rowAction(item)):'')+'</span></div>';
-    }).join("")+(commonActions.length?'<p class="challenge-attention-common">For the items above: '+escapeHtml(commonActions.join(' '))+'</p>':'')+'</div>'
+    }).join("")+(unworkedCount>1?'<p class="challenge-attention-common">Not worked out: the current records are not enough for CMeng to check these '+escapeHtml(fmt(unworkedCount))+' items.</p>':'')+(commonActions.length?'<p class="challenge-attention-common">For the items above: '+escapeHtml(commonActions.join(' '))+'</p>':'')+'</div>'
     :"";
   const reviewStateLabels={derived:"Calculated",calculated:"Calculated",partial:"Partial",complete:"Complete",established:"Confirmed",missing:"Missing",not_submitted:"Not provided"};
   const submittedState=reviewStateLabels[challenge.submittedEvidenceState]||humanizeKey(challenge.submittedEvidenceState);
@@ -1000,7 +1008,7 @@ function renderUniversalChallenge(challenge){
       '<div class="scalar"><b>Missing submitted values</b><span>'+escapeHtml(fmt(noneWhenZeroGap(challenge.notSubmittedCount??"Not established","Missing submitted values")))+'</span></div>'+'<div class="scalar"><b>Unavailable independent checks</b><span>'+escapeHtml(fmt(challenge.unavailableCheckCount))+'</span></div>'+
       '<div class="scalar"><b>Other scenarios</b><span>'+escapeHtml(fmt(challenge.scenarioCount))+'</span></div>'+
     '</div>'+attentionHtml+
-    '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>'+(challenge.items.some(item=>challengeValueFromSubmission(item.independent))?'CMeng value and basis':'CMeng independent check')+'</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>'+(challenge.items.some(item=>challengeValueFromSubmission(item.independent))?'CMeng value and basis':'CMeng independent check')+'</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+(candidateNotes.common.length?'<p class="challenge-attention-common">For each position above that is not directly comparable: '+escapeHtml(candidateNotes.common.join(' '))+'</p>':'')+'</div>';
 }
 function renderContractSourceContext(contract){
   const contractCategoryCounts=contract?(contract.signals||[]).reduce((map,signal)=>{const label=humanizeKey(signal.category||"other");map.set(label,(map.get(label)||0)+1);return map},new Map()):new Map();
@@ -1958,7 +1966,11 @@ function renderForecastVisual(data){
     ["P80 duration sensitivity",planningShortDate(rawProb.p80CompletionIso)],
     ["P90 duration sensitivity",planningShortDate(rawProb.p90CompletionIso)]
   ].map(row=>'<div class="position-card"><div class="position-label">'+escapeHtml(row[0])+'</div><div class="position-value">'+escapeHtml(row[1])+'</div><div class="position-sub">Duration-factor sensitivity; not an official forecast</div></div>').join("")+'</div>':'<div class="notice info">P50, P80 and P90 are withheld because the calculation basis is incomplete.</div>';
-  const reviewWarning=review?'<div class="notice warn"><b>Forecast differences require review; available calculations remain visible with their assumptions.</b><p>'+escapeHtml(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.")+'</p></div>':'';
+  // W5: a sentence of the reason already said under "What needs attention" on this
+  // page is not said again here.
+  const statedReview=typeof experienceBrief==='function'?(experienceBrief('independent-forecast',data)||{}).review:null;
+  const warningReason=unsaidSentences(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.",[statedReview]);
+  const reviewWarning=review?'<div class="notice warn"><b>Forecast differences require review; available calculations remain visible with their assumptions.</b>'+(warningReason?'<p>'+escapeHtml(warningReason)+'</p>':'')+'</div>':'';
   return '<section class="planning-view independent-forecast-view">'+reviewWarning+kpis+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast taxonomy</h4><p>The six forecast positions remain separate. CMeng CPM/network recalculation is schedule-only and never implies BOQ, productivity, manpower or procurement evidence it does not use.</p></div></div><div class="planning-panel-body">'+taxonomyTable+dateLadder+'</div></section>'+
     gatePanel+visualOverview+
@@ -3358,7 +3370,7 @@ function renderScheduleChangeVisual(data){
   const floatMoves=largestFloat.map(a=>({label:a.activityId,value:-(floatMovesInDays?a.floatShiftWorkingDays:a.floatShiftHours)}));
   const detail=[...p.changedActivities].sort((a,b)=>Math.abs(b.finishShiftDays||0)-Math.abs(a.finishShiftDays||0)).slice(0,250);
   const rows=detail.map(a=>'<tr><td><b>'+escapeHtml(a.activityId)+'</b></td><td>'+escapeHtml(planningStateLabel(a.changeKind))+'</td><td class="'+((a.finishShiftDays||0)>0?"late-text":(a.finishShiftDays||0)<0?"early-text":"")+'">'+escapeHtml(a.finishShiftDays===null?"—":((a.finishShiftDays>0?"+":"")+fmt(a.finishShiftDays)))+'</td><td>'+escapeHtml(a.floatShiftHours==null?"—":typeof a.floatShiftWorkingDays==="number"?fmt(a.floatShiftWorkingDays)+" working days (each revision's calendar) · "+fmt(a.floatShiftHours)+" original h":fmt(a.floatShiftHours)+" original h · "+(a.floatShiftDaysBasis==="not_applicable_completed"?"completed work has no live float":"working days need both revisions' calendars"))+'</td><td>'+escapeHtml(fmt(a.progressShiftPercent))+'</td><td>'+escapeHtml((a.fieldChanges||[]).length)+'</td><td>'+escapeHtml(a.identityMethod?humanizeKey(a.identityMethod):'Not matched')+(typeof a.identityConfidence==='number'?' · '+escapeHtml(fmt(a.identityConfidence*100))+'%':'')+'</td></tr>').join("");
-  return '<section class="planning-view changes-view">'+comparisonRibbon+engineeringHtml+kpis+repeatedMovementWarning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What changed</h4><p>Activity changes between the two controlled programme revisions.</p></div></div><div class="planning-panel-body">'+composition+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic changes</h4><p>Relationships added or removed between the revisions.</p></div></div><div class="planning-panel-body">'+planningKpis([["Added links",p.addedRelationshipCount,"relationships","accent"],["Removed links",p.removedRelationshipCount,"relationships","warning"]])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Change categories & source identity</h4><p>Supporting classification and activity-identity coverage behind the revision comparison. Categories overlap and are not additive.</p></div></div><div class="planning-panel-body">'+identityHtml+categoryHtml+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest activity finish movements between these revisions</h4><p>'+escapeHtml(planningRevisionLabel(p.fromRevisionLabel||p.fromRevisionId))+' → '+escapeHtml(planningRevisionLabel(p.toRevisionLabel||p.toRevisionId))+'. Elapsed days (24 hours); this is separate from the controlled-baseline comparison in Activity Analytics. Date movement does not establish delay cause or entitlement.</p></div></div><div class="planning-panel-body">'+renderRevisionMovementConcentration(p.finishMovementAnalysis,movements)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest float changes</h4><p>Right: float lost. Left: float gained. The largest absolute changes are shown.</p></div></div><div class="planning-panel-body">'+planningSignedBars(floatMoves,floatMovesInDays?"working days lost (each revision's calendar)":"original hours lost (working days not established for every activity)")+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Changed activity detail</h4><p>Largest finish movements first. Showing '+escapeHtml(fmt(detail.length))+' of '+escapeHtml(fmt(changedCount))+' changed activities. All confirmed changed activities are available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the changed-activity register</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Change</th><th>Finish shift d</th><th>Float shift h</th><th>Progress shift pp</th><th>Fields changed</th><th>Identity basis</th></tr></thead><tbody>'+rows+'</tbody></table></div></details></div></section></section>';
+  return '<section class="planning-view changes-view">'+comparisonRibbon+engineeringHtml+kpis+repeatedMovementWarning+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>What changed</h4><p>Activity changes between the two controlled programme revisions.</p></div></div><div class="planning-panel-body">'+composition+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic changes</h4><p>Relationships added or removed between the revisions.</p></div></div><div class="planning-panel-body">'+planningKpis([["Added links",p.addedRelationshipCount,"relationships","accent"],["Removed links",p.removedRelationshipCount,"relationships","warning"]])+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Change categories & source identity</h4><p>Supporting classification and activity-identity coverage behind the revision comparison. Categories overlap and are not additive.</p></div></div><div class="planning-panel-body">'+identityHtml+categoryHtml+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest activity finish movements between these revisions</h4><p>'+escapeHtml(planningRevisionLabel(p.fromRevisionLabel||p.fromRevisionId))+' → '+escapeHtml(planningRevisionLabel(p.toRevisionLabel||p.toRevisionId))+'. Elapsed days (24 hours); this is separate from the controlled-baseline comparison in Activity Analytics. Date movement does not establish delay cause or entitlement.</p></div></div><div class="planning-panel-body">'+renderRevisionMovementConcentration(p.finishMovementAnalysis,movements)+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Largest float changes</h4><p>Right: float lost. Left: float gained. The largest absolute changes are shown.'+(floatMovesInDays?'':' Shown in original hours, because working days are not established for every activity.')+'</p></div></div><div class="planning-panel-body">'+planningSignedBars(floatMoves,floatMovesInDays?"working days lost (each revision's calendar)":"original hours lost")+'</div></section></div><section class="planning-panel"><div class="planning-panel-head"><div><h4>Changed activity detail</h4><p>Largest finish movements first. Showing '+escapeHtml(fmt(detail.length))+' of '+escapeHtml(fmt(changedCount))+' changed activities. All confirmed changed activities are available through Download Excel / Download data.</p></div></div><div class="planning-panel-body"><details><summary>Open the changed-activity register</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Change</th><th>Finish shift d</th><th>Float shift h</th><th>Progress shift pp</th><th>Fields changed</th><th>Identity basis</th></tr></thead><tbody>'+rows+'</tbody></table></div></details></div></section></section>';
 }
 // SW-25: the trend is read on the share of unfinished execution activities that
 // each producer point carries; a falling raw count is never read as improvement.
@@ -4188,8 +4200,11 @@ function commercialMetricHtml(metric,currency="",asOf=null,sharedBasis=""){
   // F27: every displayed money sum states its basis through the one shared label.
   const refs=Array.isArray(metric.sourceRefs)?metric.sourceRefs.length:0;
   const label=currency&&typeof metric.value==="number"?sumBasisLabel({records:refs?fmt(refs)+" source record"+(refs===1?"":"s"):null,currency,taxBasis:metric.taxBasis,asOf}):"";
-  // W5: a basis shared by the other figures of the same card is stated once under the card.
-  const basis=label&&label!==sharedBasis?'<br><span class="muted">'+escapeHtml(label)+'</span>':"";
+  // W5: the part of the basis (currency, tax basis and date) shared by the other figures
+  // of the same card is stated once under the card; the figure keeps its own records.
+  const tail=sharedBasis?" · "+sharedBasis:"";
+  const own=!label||label===sharedBasis?"":tail&&label.endsWith(tail)?label.slice(0,-tail.length):label;
+  const basis=own?'<br><span class="muted">'+escapeHtml(own)+'</span>':"";
   return '<b>'+escapeHtml(value)+'</b><br><span class="muted">'+escapeHtml(state)+'</span>'+basis;
 }
 function commercialRegisterCoverage(rows,label){
@@ -4309,14 +4324,21 @@ function renderCommercialVisual(key,data){
   const cards=position.currencies.length
     ? position.currencies.map(row=>{
         const asOf=data?.reportingContract?.dataDateIso||null,lineCurrency=field=>["interimCertificateCount","sourceCertificatePeriodCount"].includes(field)?"":row.currency;
-        // W5: the same F27 basis label (sumBasisLabel, as in commercialMetricHtml) shared by
-        // several figures of this card is said once, under the card.
-        const basisOf=(metric,currency)=>metric&&currency&&typeof metric.value==="number"?sumBasisLabel({records:(Array.isArray(metric.sourceRefs)&&metric.sourceRefs.length)?fmt(metric.sourceRefs.length)+" source record"+(metric.sourceRefs.length===1?"":"s"):null,currency,taxBasis:metric.taxBasis,asOf}):"";
-        const labels=cols.map(([,field])=>basisOf(row[field],lineCurrency(field)));
-        const shared=labels.find((label,index)=>label&&labels.indexOf(label)!==labels.lastIndexOf(label))||"";
-        const own=labels.some(label=>label&&label!==shared);
+        // W5: the F27 basis label (sumBasisLabel, as in commercialMetricHtml) is split in
+        // two: each figure keeps its own record count, and the currency, tax basis and date
+        // that several figures of this card share are said once, under the card.
+        const recordsOf=metric=>(Array.isArray(metric.sourceRefs)&&metric.sourceRefs.length)?fmt(metric.sourceRefs.length)+" source record"+(metric.sourceRefs.length===1?"":"s"):null;
+        const basisOf=(metric,currency)=>{
+          if(!(metric&&currency&&typeof metric.value==="number"))return "";
+          const records=recordsOf(metric),label=sumBasisLabel({records,currency,taxBasis:metric.taxBasis,asOf});
+          return label.slice(("Basis: "+(records??"records not established")+" · ").length);
+        };
+        const tails=cols.map(([,field])=>basisOf(row[field],lineCurrency(field)));
+        const uses=tail=>tails.filter(other=>other===tail).length;
+        const shared=tails.filter(tail=>tail&&uses(tail)>1).sort((a,b)=>uses(b)-uses(a))[0]||"";
+        const own=tails.some(tail=>tail&&tail!==shared);
         const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(commercialFieldLabel(row,field,label))+'</span><strong>'+commercialMetricHtml(row[field],lineCurrency(field),asOf,shared)+'</strong></div>').join("");
-        return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+(shared?'<p class="muted currency-shared-basis">'+escapeHtml((own?'Figures above without their own basis · ':'')+shared)+'</p>':'')+'</div>';
+        return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+(shared?'<p class="muted currency-shared-basis">'+escapeHtml((own?'Basis of the amounts above, unless an amount states its own: ':'Basis of the amounts above: ')+shared)+'</p>':'')+'</div>';
       }).join("")
     : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
   const commercialCharts=position.currencies.length
@@ -6220,7 +6242,9 @@ function renderClaimsReporting(r,key){
 }
 function issueLabel(kind){return humanizeKey(kind||'verification_pending')}
 function issueBadge(assessment){const kind=assessment?.primaryKind||"verification_pending";return '<span class="issue-badge '+escapeHtml(kind)+'">'+escapeHtml(issueLabel(kind))+'</span>'}
-function renderIssueAssessment(a,management=false){
+// W5: said is the page text already shown under "What needs attention"; a finding's
+// detail does not repeat those sentences.
+function renderIssueAssessment(a,management=false,said=null){
   if(!a)return '<p>Issue review is not available for this page yet.</p>';
   const descriptions={system_defect:"A CMeng calculation or same-basis check failed.",source_conflict:"Supplied sources make incompatible assertions.",data_quality:"A supplied field or link needs correction.",missing_information:"An input required for this conclusion is unavailable.",comparison_difference:"Two positions differ on the stated comparison basis.",governance_review:"An approval or authority is not confirmed.",verification_pending:"CMeng verification coverage is incomplete."};
   const counts=management?a.affectedModuleCounts:a.counts;
@@ -6255,14 +6279,14 @@ function renderIssueAssessment(a,management=false){
   const otherTitles=foldOthers?[...new Set(others.map(i=>readerIssue(i).title))]:[];
   const otherKinds=foldOthers?Object.keys(descriptions).map(kind=>[kind,others.filter(i=>i.kind===kind).length]).filter(([,n])=>n>0):[];
   const foldedRow=foldOthers?'<tr><td>'+otherKinds.map(([kind])=>issueBadge({primaryKind:kind})).join(' ')+'</td><td><b>'+escapeHtml(countText(others.length,'project finding')+' listed here: '+otherKinds.map(([kind,n])=>issueLabel(kind)+' '+fmt(n)).join(' · '))+'</b><details><summary>Findings</summary>'+escapeHtml(otherTitles.join('; '))+'</details></td><td colspan="2">Each finding is kept in full, with its owner and next step, in Actions required and on the pages it affects. <button class="btn small" type="button" onclick="openProjectActions()">Open Actions required</button></td></tr>':'';
-  const rows=(foldOthers?foldedRow:others.map(i=>{const r=readerIssue(i);return '<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(r.title)+'</b></td><td>'+escapeHtml(r.owner)+'<br>'+escapeHtml(r.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml(readerText([i.summary,i.detail,...(i.sourceRefs||[])].join(' · ')))+'</details></td></tr>';}).join(''))+missingRow;
+  const rows=(foldOthers?foldedRow:others.map(i=>{const r=readerIssue(i);return '<tr><td>'+issueBadge({primaryKind:i.kind})+'</td><td><b>'+escapeHtml(r.title)+'</b></td><td>'+escapeHtml(r.owner)+'<br>'+escapeHtml(r.action)+'</td><td>'+escapeHtml((i.moduleKeys||[]).map(k=>names[k]||k).join(', '))+'<details><summary>Document references and calculation details</summary>'+escapeHtml(readerText([i.summary,said&&said.length?unsaidSentences(i.detail,said):i.detail,...(i.sourceRefs||[])].filter(Boolean).join(' · ')))+'</details></td></tr>';}).join(''))+missingRow;
   // SW-46: "The listed checks passed" only when the check state says so; a missing state is not a pass.
   const scope=a.systemCheckState==='failed'?'Calculation failures require correction before reliance.':a.systemCheckState==='unverified'?'Verification coverage is incomplete.':conditionalNotice(a.systemCheckState==='listed_checks_passed'?true:null,'The listed checks passed. Other calculations may remain outside their scope.','','The result of the listed calculation checks is not established.');
   return '<section class="issue-assessment"><h4>Review findings</h4><p>'+escapeHtml(scope)+'</p><p>'+escapeHtml(management?'A page may have more than one type of follow-up.':'Each item below has its own action and supporting records.')+'</p>'+(rows?'<div class="table-wrap"><table><thead><tr><th>Type</th><th>Finding</th><th>Owner and next step</th><th>Source</th></tr></thead><tbody>'+rows+'</tbody></table></div>':'<p>No issues identified by the listed checks.</p>')+classification+'<small>'+escapeHtml(a.scope||'')+'</small></section>';
 }
-function renderModuleReadiness(data,reason=''){
+function renderModuleReadiness(data,reason='',said=null){
   const r=data?.moduleReadiness;
-  const classification=renderIssueAssessment(data?.issueAssessment,['master_dashboard','command_center','master_control_programme'].includes(data?.projectionKey));
+  const classification=renderIssueAssessment(data?.issueAssessment,['master_dashboard','command_center','master_control_programme'].includes(data?.projectionKey),said);
   const checks=r?'<p>Calculation: '+escapeHtml(r.calculation)+' · Evidence: '+escapeHtml(humanizeKey(r.evidence))+' · Consistency: '+escapeHtml(r.consistency)+' · Comparison: '+escapeHtml(humanizeKey(r.reconciliation))+'</p><p>'+escapeHtml(r.scope)+'</p>':'';
   const notes=reason?'<p>'+escapeHtml(reason)+'</p>':'';
   return '<details id="moduleReviewDetail" class="experience-disclosure experience-audit"><summary>Actions and supporting details<span>Documents, date rules and calculation checks</span></summary><div class="experience-disclosure-body">'+classification+checks+notes+(data?.positionVerdict?.specific===false?renderPositionVerdict(data,true):'')+renderRegisterScope(data,true)+renderModuleBasis(data,true)+'<p><a href="'+escapeHtml(reportDownloadUrl('json'))+'" download>Download complete calculation data</a> · <a href="'+escapeHtml(reportDownloadUrl('xlsx'))+'" download>Download calculation workbook</a></p></div></details>';
@@ -6331,6 +6355,14 @@ function unsaidSentences(text,said){
   const sentences=value=>value===null||value===undefined?[]:String(value).split(/(?<=[.!?])\s+/).map(sentence=>sentence.trim()).filter(Boolean);
   const done=new Set((said||[]).flatMap(sentences));
   return sentences(text).filter(sentence=>!done.has(sentence)).join(' ');
+}
+// W5: the sentences of 8 or more words that two or more texts of one list or table
+// share. The list says them once (common); each entry keeps its own sentences (own).
+function sentencesSaidOnce(texts){
+  const sentences=value=>value===null||value===undefined?[]:String(value).split(/(?<=[.!?])\s+/).map(sentence=>sentence.trim()).filter(Boolean);
+  const tally={};(texts||[]).forEach(text=>new Set(sentences(text)).forEach(sentence=>{tally[sentence]=(tally[sentence]||0)+1;}));
+  const common=Object.keys(tally).filter(sentence=>tally[sentence]>1&&sentence.split(/\s+/).length>=8);
+  return {common,own:text=>sentences(text).filter(sentence=>!common.includes(sentence)).join(' ')};
 }
 function userFacingModuleReason(key,reason){
   if(!reason)return"";
@@ -6475,6 +6507,29 @@ function removeDuplicatePageBlocks(container){
   }
   return removed;
 }
+// The names of the paged source-record groups of one page (see renderModuleResult).
+function pagedRecordGroupLabels(tables,result){
+  // T10: a group is named from its own field, or from its parent when the last
+  // segment is a generic list name. Two groups never share one name: when they
+  // would, each keeps its full path context.
+  const genericTail=/^(?:rows|items|records|entries|values|exclusions|memberIds|activityIds|relationshipIds|recordIds|documentIds|sourceRefs|sourceReferences)$/;
+  const shortLabels=tables.map(table=>{
+    const parts=table.pointer.split('/').filter(Boolean).filter(part=>!/^[0-9]+$/.test(part));
+    const last=parts[parts.length-1],parent=parts[parts.length-2];
+    return !parts.length?'Additional source data':parent&&genericTail.test(last)?readablePathLabel(parent+'/'+last):humanizeKey(last);
+  });
+  const pathLabels=shortLabels.map((label,index)=>shortLabels.indexOf(label)!==shortLabels.lastIndexOf(label)&&tables[index].pointer?readablePathLabel(tables[index].pointer)||label:label);
+  // W5/T10: groups whose paths still read alike (one list per dimension view, such as
+  // 'Dimension views · rows · activity IDs' six times) are named from the records on
+  // their path: 'By WBS · Main Works · activity IDs'.
+  const recordNames=pointer=>{let node=result;const found=[];for(const part of String(pointer||'').split('/').filter(Boolean)){const inList=Array.isArray(node);node=node&&typeof node==='object'?node[part]:undefined;if(inList&&node&&typeof node==='object'&&!Array.isArray(node)){const name=[node.label,node.groupLabel,node.title,node.name].find(value=>typeof value==='string'&&value.trim());if(name)found.push(name.trim());}}return found;};
+  const groupLabels=pathLabels.map((label,index)=>{
+    if(pathLabels.indexOf(label)===pathLabels.lastIndexOf(label))return label;
+    const names=recordNames(tables[index].pointer),last=readablePathLabel(String(tables[index].pointer||'').split('/').filter(Boolean).pop()||'');
+    return names.length&&last?names.join(' · ')+' · '+(/^[A-Z]{2,}\b/.test(last)?last:last.charAt(0).toLowerCase()+last.slice(1)):label;
+  });
+  return groupLabels;
+}
 function renderModuleResult(result){
   renderModuleResultBody(result);
   const container=el('moduleContent');
@@ -6495,16 +6550,7 @@ function renderModuleResult(result){
   if(paged?.tables?.length){
     const tables=paged.tables.filter(table=>table.total>table.shown||table.kind==='text');
     if(tables.length){
-      // T10: a group is named from its own field, or from its parent when the last
-      // segment is a generic list name. Two groups never share one name: when they
-      // would, each keeps its full path context.
-      const genericTail=/^(?:rows|items|records|entries|values|exclusions|memberIds|activityIds|relationshipIds|recordIds|documentIds|sourceRefs|sourceReferences)$/;
-      const shortLabels=tables.map(table=>{
-        const parts=table.pointer.split('/').filter(Boolean).filter(part=>!/^[0-9]+$/.test(part));
-        const last=parts[parts.length-1],parent=parts[parts.length-2];
-        return !parts.length?'Additional source data':parent&&genericTail.test(last)?readablePathLabel(parent+'/'+last):humanizeKey(last);
-      });
-      const groupLabels=shortLabels.map((label,index)=>shortLabels.indexOf(label)!==shortLabels.lastIndexOf(label)&&tables[index].pointer?readablePathLabel(tables[index].pointer)||label:label);
+      const groupLabels=pagedRecordGroupLabels(tables,result);
       // L2: one shared source-record browser per page instead of a raw panel of
       // "View 25 source records" buttons. Every group stays reachable: pick it in
       // the list and read it 25 records at a time, values unchanged.
@@ -6676,7 +6722,7 @@ function renderModuleResultBody(result){
   // the readiness review) is kept.
   const statedReview=!managementSurface&&result.key!=='pmo-analysis'&&typeof experienceBrief==='function'?(experienceBrief(result.key,data)||{}).review:null;
   const readinessReason=unsaidSentences(userReason,[statedReview,userFacingModuleReason(result.key,statedReview)]);
-  const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,readinessReason);
+  const review=progressBreakdown?progressBreakdownSystemFailures(data):experienceReviewSummary(data.issueAssessment,managementSurface)+renderModuleReadiness(data,readinessReason,statedReview?[statedReview,userFacingModuleReason(result.key,statedReview)]:null);
   // SW-43: every page opens with its answer (the page verdict: state, finding and
   // next step) before tables and evidence, not only the management surfaces.
   // Source review and Progress Breakdown keep their own answer-first layout.
