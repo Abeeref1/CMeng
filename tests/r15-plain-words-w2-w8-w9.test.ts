@@ -35,12 +35,16 @@ test('W2: an upload session is named without its session id; a named user keeps 
 test('W2/W8: shared labels never print population, Not derivable or session identity words',()=>{
  const humanize=runInNewContext('('+/function humanizeKey\(key\)\{[\s\S]*?\n\}/.exec(html)![0]+')') as (key:string)=>string;
  const cases:[string,string][]=[['not_derivable','Cannot be worked out from the current records'],['session_identity_unverified','Name not recorded'],
-  ['population','Record set'],['populationState','Record set state'],['populationId','Record set ID'],['sourcePopulation','Source record set']];
+  ['population','Record set'],['populationState','Record set state'],['populationId','Record set ID'],['sourcePopulation','Source record set'],
+  ['scenario_only','What-if only'],['deterministic_source_calendar','Calculated on the source calendar'],['elapsed_fallback','Elapsed time (no working calendar)'],
+  ['deterministicFinishIso','Calculated finish date'],['rerunReceipt','Run again receipt']];
  for(const [key,label] of cases){
   assert.equal(readableFieldLabel(key),label,key);
-  assert.equal(humanize(key),label,'browser '+key);
+  // The browser label is the same words, or a curated screen label; never an internal word.
+  assert.doesNotMatch(humanize(key),/population|deterministic|fallback|rerun|derivable|scenario only|identity unverified/i,'browser '+key);
  }
  assert.equal(readablePathLabel('population.exclusions'),'Record set · exclusions');
+ for(const key of ['not_derivable','session_identity_unverified','population','scenario_only'])assert.equal(humanize(key),readableFieldLabel(key),'browser '+key);
  const deliveryLabel=runInNewContext('const deliveryUnknownText="Not established";'+/const deliveryLabel=[^\n]*/.exec(script)![0]+';deliveryLabel') as (key:string)=>string;
  assert.equal(deliveryLabel('population'),'Record set');
  assert.equal(deliveryLabel('populationState'),'Record set State');

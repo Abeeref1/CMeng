@@ -33,6 +33,17 @@ export function readableFieldLabel(key: unknown): string {
     // W8/W2: state codes whose plain split would read as jargon. Data values are unchanged.
     not_derivable: 'Cannot be worked out from the current records',
     session_identity_unverified: 'Name not recorded',
+    scenario_only: 'What-if only',
+    deterministic: 'Calculated',
+    deterministic_derived: 'Calculated',
+    deterministic_source_calendar: 'Calculated on the source calendar',
+    deterministically_confirmed: 'Confirmed by CMeng rules',
+    accepted_deterministic: 'Accepted by matching rule',
+    elapsed_fallback: 'Elapsed time (no working calendar)',
+    elapsed_time_fallback: 'Elapsed time (no working calendar)',
+    mixed_with_elapsed_fallback: 'Partly elapsed time (no working calendar)',
+    date_arithmetic_fallback: 'Date arithmetic (no working calendar)',
+    metadata_fallback: 'Identified from file details',
   };
   if (Object.prototype.hasOwnProperty.call(fieldLabels, raw)) return fieldLabels[raw] as string;
   // Field-name shapes. Every segment starts with a letter, so IDs such as
@@ -69,6 +80,8 @@ export function readableFieldLabel(key: unknown): string {
     pointer: 'location', pointers: 'locations',
     // W2: a population is the set of records a figure covers.
     population: 'record set', populations: 'record sets',
+    // W2: other internal words read as plain words when a code has no curated label.
+    deterministic: 'calculated', deterministically: 'by calculation', fallback: 'default', rerun: 'run again', payload: 'data', stub: 'placeholder',
   };
   const acronyms = /^(?:eot|cpi|spi|ncr|rfi|cpm|wbs|eac|etc|ld|lds|boq|pmo|ai|pdf|ipc|kpi|hse|evm|tcpi|bac|vac|xer|csv|qa|qc|pv|ev|ac|sla|fx|cbs|mcp|rag|po|sv|cv|ptw|mep|vat|hvac|ocr|fidic|ltifr|trir|api|url|ifc|mir|wir|bei|sar|usd|aed|eur|gbp|qar|kwd|omr|bhd|jod|egp|p[0-9]{2})$/;
   // UPPER_SNAKE codes are read as lower-case words.
