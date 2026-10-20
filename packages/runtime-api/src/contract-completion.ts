@@ -108,7 +108,7 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
   const periodLabels=[...new Set(selected.filter(c=>c.date===value).map(c=>c.periodBasis??''))];
   const period:CompletionPeriodRead|null=value!==null&&periodLabels.length===1&&periodLabels[0]
     ?{label:periodLabels[0],reason:null,commencementIso:commencementDatePosition(state).dateIso}
-    :value===null&&values.length===0&&periodReason?{label:null,reason:periodReason,commencementIso:null}:null;
+    :value===null&&values.length===0&&(periodReason??(sectionScoped?SECTION_ONLY_COMPLETION_REASON:null))?{label:null,reason:(periodReason??SECTION_ONLY_COMPLETION_REASON),commencementIso:null}:null;
   const sourceConflicts=adoptedAssertions.length?[...new Set(candidates.filter(c=>c.sourceAnalytical&&!c.historical&&c.date!==value&&(c.role!=='amendment'||!c.effectiveFrom||!asOf||c.effectiveFrom<=asOf))
     .map(c=>'UNADOPTED_SOURCE_COMPLETION_DIFFERS:'+c.date+':'+c.documentId))]:[];
   const adoptedDocuments=documents.filter(d=>!sources.unadopted(d.documentId)||includeCandidates);
