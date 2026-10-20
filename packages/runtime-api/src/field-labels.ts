@@ -21,8 +21,9 @@ export function readableFieldLabel(key: unknown): string {
   if (!raw) return '';
   // W1: one shared map of people's labels for count and rate fields that the
   // generic key/value views show. Used on screen and in downloads.
-  // A 'known' count covers the records read so far ('found'); the plain count
-  // is the confirmed figure for the complete record group.
+  // A 'known' count covers the records read so far ('found'). Plain two-word
+  // keys ('openCount', 'closedCount') keep the shared fallback ('Open count'):
+  // they are used for records, activities and actions alike.
   const fieldLabels: Record<string, string> = {
     reviewPeriodCalendarDays: 'Review period (calendar days)',
     reviewPeriodKnownCount: 'Records with a review period',
@@ -31,33 +32,18 @@ export function readableFieldLabel(key: unknown): string {
     knownRecordCount: 'Records with a known status',
     unknownOutcomeCount: 'Outcome not recorded',
     unknownStatusCount: 'Status not recorded',
-    currentCount: 'Current records',
     knownCurrentCount: 'Current records found',
     knownCurrentRecordCount: 'Current records found',
     currentRecordCount: 'Current records',
-    openCount: 'Open records',
     knownOpenCount: 'Open records found',
-    overdueCount: 'Overdue records',
     knownOverdueCount: 'Overdue records found',
-    closedCount: 'Closed records',
-    closurePercent: 'Closed %',
-    retestCount: 'Retests required',
-    futureCount: 'Records dated after the Data Date',
     futureRecordCount: 'Records dated after the Data Date',
     afterDataDateCount: 'Records dated after the Data Date',
-    undatedCount: 'Undated records',
     undatedRecordCount: 'Undated records',
     undatedStatusCounts: 'Undated records by status',
     knownOutcomeCount: 'Records with an outcome',
     knownPassedCount: 'Passed records found',
     knownFailedCount: 'Failed records found',
-    passedCount: 'Passed records',
-    failedCount: 'Failed records',
-    recordCount: 'Records',
-    itemCount: 'Items',
-    totalCount: 'Total',
-    mappedCount: 'Linked',
-    sourceCount: 'Sources',
     sourceRecordCount: 'Source records',
     sourceRecordIds: 'Source record list',
     evidenceRecordCount: 'Records with evidence',
