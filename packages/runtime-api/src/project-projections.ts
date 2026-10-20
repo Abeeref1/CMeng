@@ -1,3 +1,4 @@
+import {registerScopeReason} from './unknown-reason';
 import {projectDocumentReading,readingSetup} from './document-read-review';
 import {configuredProviderState} from '../../project-ask/src/provider';
 import {projectScopeClassification} from './location-review';
@@ -8122,21 +8123,24 @@ function gapState(
 /** Presentation-only, exact-count operational scope for management pages.
  * Keep all original rows in specialist authorities and their exports. */ 
 export function compactManagementOperationalReporting(operations: ReturnType<typeof operationalReporting>){
- const register=(row:any)=>({
+ // S1: each register carries why its counts are unknown, read from the full scope
+ // (undated rows, unclear status, register issues) before it is compacted.
+ const register=(row:any,name:string)=>{const reason=registerScopeReason(row,name);return {
    state:row.state,
    sourceRecordCount:row.sourceRecordCount,
    currentRecordCount:row.currentRecordCount,
    futureRecordCount:row.futureRecordCount,
    undatedRecordCount:row.undatedRecordCount,
    unknownStatusCount:row.unknownStatusCount,
- });
+   ...(reason?{reason}:{}),
+ };};
  return {
    dataDateIso:operations.dataDateIso,
    counts:operations.counts,
    knownCounts:operations.knownCounts,
-   quality:register(operations.quality),
-   rfi:register(operations.rfi),
-   risk:{...register(operations.risk),
+   quality:register(operations.quality,'an NCR register'),
+   rfi:register(operations.rfi,'an RFI register'),
+   risk:{...register(operations.risk,'a risk register'),
      // Only displayed status breakdown is needed for undated-risk coverage;
      // source references, identities, dates and evidence stay in Risk Review.
      sourceRows:(operations.risk.sourceRows??[]).map((row:any)=>({
