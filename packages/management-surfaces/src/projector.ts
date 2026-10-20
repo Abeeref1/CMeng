@@ -88,7 +88,7 @@ function buildAlerts(
       consequence:
         "CMeng cannot establish project-wide management priorities without a current programme position.",
       action:
-        "Establish the current programme and rerun the project position.",
+        "Establish the current programme and check the project position again.",
       owningModule:
         "pmo-analysis",
       state:
@@ -736,7 +736,7 @@ function dashboardMetrics(
   const comparable=d?.sourceInterpretation?.progressMeasures.scopeComparison;
   metrics.push(metric({key:"progress-position",label:"Progress gap · same tasks, fixed weights",value:comparable?.gapPercentagePoints??null,
     unit:"pp",state:comparable?.gapPercentagePoints!=null?"calculated":"unavailable",authority:"calculated",health:"unavailable",
-    basis:comparable?.interpretation??"A matched activity population and common weights are needed before stating a progress gap.",owningModule:"progress-report"}));
+    basis:comparable?.interpretation??"A matched set of activities and common weights are needed before stating a progress gap.",owningModule:"progress-report"}));
   const productivity=managementForecastPosition(d);
   metrics.push(finishMetric("productivity-forecast-finish",productivity.label,productivity.completionIso,productivity.interpretation,"source"));
 
@@ -921,7 +921,7 @@ export function buildManagementSurfaces(
 ): ManagementSurfacesProjection {
   const facts=input.projectFacts;
   const consistency = input.consistency ?? { state: "pending" as const, checkCount: 0, failedCheckIds: [],
-    scope: "Cross-module values, populations, Data Date, authority, configuration and version have not been checked." };
+    scope: "Values across pages, record sets, Data Date, authority, configuration and version have not been checked." };
   const modules = input.modules.map(item => {
     // Specialist readiness is module-scoped. The overall project consistency
     // state remains visible on the management surface, but a failure owned by

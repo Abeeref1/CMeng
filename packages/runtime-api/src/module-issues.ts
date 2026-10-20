@@ -1,5 +1,6 @@
 import { conditionalNotice, summarizeControlIssues, type ControlIssue, type ControlIssueKind } from '../../truth-kernel/src';
 import {readableFieldLabel,readablePathLabel} from './field-labels';
+import {managementNumber} from './management-values';
 import type { ModuleRuntimeResult } from './project-state-types';
 import type { CrossModuleCertification } from './certification';
 import {consistencyForModule} from './certification';
@@ -56,7 +57,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     const failed=(integrity?.checks??[]).filter((c:any)=>c.passed===false);
     add('system_defect','CALCULATION_CHECK_FAILED','CMeng calculation check failed',
       failed.length?failed.map((c:any)=>c.metric+': expected '+JSON.stringify(c.expected)+', actual '+JSON.stringify(c.actual)).join('; '):result.reason??'The calculation engine reported failure.',
-      'Correct the implementation and rerun the failed checks before using the affected result.','systemEvidenceContract','CMeng',[],failed.map((c:any)=>c.metric));
+      'Correct the implementation and run the failed checks again before using the affected result.','systemEvidenceContract','CMeng',[],failed.map((c:any)=>c.metric));
   } else if(integrity?.state!=='verified_for_checked_metrics') {
     add('verification_pending','CALCULATION_NOT_VERIFIED','CMeng calculation verification incomplete',
       'No completed calculation certification is established for this module. This is a verification gap, not proof that the answer is wrong.',
@@ -80,14 +81,14 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     'Reconcile the conflicting assertions and retain the selected authority and source references.','challenge');
   if(comparison.required&&reconciliation==='submitted_missing') add('missing_information','COMPARABLE_ASSERTION_MISSING','Comparable submitted assertion not established',
     'The required comparison value is absent or not established. This does not mean the contractor submitted no documents.',
-    'Identify the comparable submitted value and its date, population and authority, or explicitly mark this comparison not applicable.','challenge');
+    'Identify the comparable submitted value and its date, records covered and authority, or explicitly mark this comparison not applicable.','challenge');
   const noticeInputsMissing=result.key==='notices-claims'&&integrity?.state==='verified_for_checked_metrics'&&d.noticeEventDateMissingCount>0;
   if(noticeInputsMissing)add('missing_information','NOTICE_TRIGGER_DATES_MISSING','Event dates are needed for notice assessment',
     // SW-46: "passed the listed checks" only when this module's listed checks actually ran.
     d.noticeEventDateMissingCount+' events have no event/awareness date. '+conditionalNotice(Array.isArray(integrity?.checks)?integrity.checks.length>0:null,
-      'Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.',
-      'No listed calculation check is recorded for this module, so population, claimed-day retention and timing arithmetic are not verified.',
-      'The listed calculation checks for this module are not established, so population, claimed-day retention and timing arithmetic are not verified.'),
+      'Record counts, claimed-day retention and assessable timing arithmetic have passed the listed checks.',
+      'No listed calculation check is recorded for this module, so record counts, claimed-day retention and timing arithmetic are not verified.',
+      'The listed calculation checks for this module are not established, so record counts, claimed-day retention and timing arithmetic are not verified.'),
     'Supply the dated event/awareness evidence and dated claim assessments, then assess each applicable contract rule.','events.eventStartIso');
   const unavailableItems=advisoryDefaultChallenge?[]:challengeItems.filter((i:any)=>i.reconciliationState==='independent_unavailable');
   const classifiedUnavailable=unavailableItems.filter((i:any)=>i.independent?.diagnostics?.some((s:string)=>s.startsWith('COMPARISON_INPUT_REQUIRED:')||s==='SOURCE_AUTHORITY_ONLY'));
@@ -108,7 +109,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     if(certifiedSourcePresent){
       add('verification_pending','CERTIFIED_PROGRESS_INDEPENDENT_VERIFICATION',
         'Certified financial progress established; independent quantity comparator not verified',
-        'The Progress Report already holds '+heldCertified+'% certified financial progress. The separate independent quantity/valuation comparison remains unavailable and must not be represented as missing source certification.',
+        'The Progress Report already holds '+managementNumber(heldCertified)+'% certified financial progress. The separate independent quantity/valuation comparison remains unavailable and must not be represented as missing source certification.',
         'CMeng must establish a genuinely comparable independent verification if source evidence permits; retain the certified financial amount and percentage without asking for them again.',
         'challenge.items.'+item.metric,'CMeng',item.submitted.sourceRefs??[]);
       continue;
@@ -118,7 +119,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
   const dependenciesExplained=unavailableItems.length>0&&classifiedUnavailable.length===unavailableItems.length;
   if(comparison.required&&!noticeInputsMissing&&!dependenciesExplained&&(reconciliation==='independent_unavailable'||reconciliation==='not_checked'||!reconciliation)) add('verification_pending','INDEPENDENT_COMPARISON_NOT_ESTABLISHED','Independent comparison not established',
     'CMeng has not established an independent value for this comparison.',
-    'Establish the independent calculation and identify any specific input dependency. Do not blame a missing contractor submission.','challenge','CMeng');
+    'CMeng must complete the independent calculation and name any specific input it needs. A missing contractor submission is not the cause.','challenge','CMeng');
   if(result.evidenceState==='missing'||!d) add('missing_information','REQUIRED_EVIDENCE_MISSING','Required information not established',
     result.reason??result.dependencies.join(', '),'Provide the identified source evidence; missing values remain unavailable.','evidenceState');
   if(result.evidenceState==='conflicted') add('source_conflict','EVIDENCE_STATE_CONFLICTED','Source evidence conflicts',
@@ -244,7 +245,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
       if(typeof value.sourceFactKey==='string')issues.at(-1)!.sourceFactKey=value.sourceFactKey;
     }
     else if(['invalid','stale'].includes(value.state)||invalid.length) add('data_quality','SOURCE_QUALITY',field()+' · data quality',invalid.join('; ')||'The supplied record is invalid or stale for this position.',
-      'Correct or govern the specific source record, then rerun the same validation.',path,'Project evidence owner',refs());
+      'Correct or confirm the specific source record, then run the same check again.',path,'Project evidence owner',refs());
     else if(value.state!=='submitted_unparsed'&&value.applicability!=='stage_not_reached'&&(['missing','not_submitted','missing_evidence','missing_information'].includes(value.state)||missingInput.length)) add('missing_information','MISSING_SOURCE_VALUE',field()+' · information missing',
       value.consequence||missingInput.join('; ')||'The required source value is not established.',value.action||'Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.',path,'Project evidence owner',refs());
     else if(value.state==='submitted_unparsed') add('verification_pending','SUBMITTED_NOT_INTERPRETED',field()+' · submitted evidence not interpreted',
@@ -274,7 +275,7 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
         'Identify the actual event dates; a planned period cannot replace an actual event. Validate any supplied date before calling it invalid.',path+'.population','Project evidence owner',refs());
       if(invalidDates.length)add('data_quality','INVALID_EVENT_DATES',field()+' · invalid event dates',
         invalidDates.length+' retained record(s) contain a date that failed date validation.',
-        'Correct the invalid event-date values and rerun validation.',path+'.population','Project evidence owner',refs());
+        'Correct the invalid event-date values and run the check again.',path+'.population','Project evidence owner',refs());
     }
     if(issues.length>firstFinding){const raw=rawField();for(let i=firstFinding;i<issues.length;i++)issues[i]!.field=raw;}
     }

@@ -218,7 +218,7 @@ export async function enrichRegisterSheetSemantics(
     }
     const needsSemanticReading=!sheet.semantic||tableNeedsSemanticReading(sheet.rows,sheet.semantic.documentType,sheet.semantic.columnMeanings??[]);
     if(!needsSemanticReading){
-      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'not_required',attempted:false,note:'Deterministic source reading established the available column meanings.'});
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'not_required',attempted:false,note:'CMeng rule-based reading established the available column meanings.'});
     }else if(alreadyRead.has(sheet.name)){
       options.diagnostics?.push('Worksheet '+sheet.name+': AI already read this source and could not establish the remaining column meanings. Source values are retained.');
       options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'unresolved',attempted:true,note:'AI already read this sheet for this exact source; the result was not validated. No repeat paid call.'});
@@ -249,7 +249,7 @@ export async function enrichRegisterSheetSemantics(
     }else{
       const status=options.resolver?'call_limit':options.requested?'provider_unavailable':'disabled';
       options.diagnostics?.push('Worksheet '+sheet.name+': some source column meanings remain unresolved. '+(status==='call_limit'?'The per-file AI reading limit was reached.':'AI reading was not enabled or available for this read.'));
-      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status,attempted:false,note:status==='call_limit'?'Per-file AI call limit reached without further paid calls.':status==='provider_unavailable'?'AI was requested but the configured provider is unavailable.':'AI reading was not requested; deterministic records remain available.'});
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status,attempted:false,note:status==='call_limit'?'Per-file AI call limit reached without further paid calls.':status==='provider_unavailable'?'AI was requested but the configured provider is unavailable.':'AI reading was not requested; records read by CMeng rules remain available.'});
     }
   }
   return read;
@@ -4669,7 +4669,7 @@ export class RuntimeProjectStore {
         semanticAiSteps.push({sheetName:'CSV',sourceHashSha256,status,attempted:csvAiAttempted,
           note:status==='validated'?'Validated against original CSV headers and content.':
             status==='reused'?'Previously grounded source reading reused without another call.':
-            status==='not_required'?'Deterministic CSV column reading is sufficient.':
+            status==='not_required'?'Rule-based CSV column reading is sufficient.':
             status==='stopped_at_cap'||status==='failed'||status==='provider_error'||status==='invalid_response'?aiErrorNote(status,'original CSV retained.'):
             status==='unresolved'?'AI call did not validate the unmatched source columns.':
             status==='disabled'?'AI was not requested for this upload.':
@@ -6364,13 +6364,13 @@ export class RuntimeProjectStore {
         note:'Previously parsed contract source was reused for the identical source hash; no new paid AI call was made.'});
     }else if(!aiRequested){
       semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'disabled',attempted:false,
-        note:'AI heading reading was not requested; deterministic contract reading remains authoritative.'});
+        note:'AI heading reading was not requested; the rule-based contract reading remains the basis.'});
     }else if(!aiResolver){
       semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'provider_unavailable',attempted:false,
         note:'AI heading reading was requested but no configured provider was available.'});
     }else if(semanticAiSteps.length===0){
       semanticAiSteps.push({sheetName:'Contract headings',sourceHashSha256:hash,status:'not_required',attempted:false,
-        note:'Deterministic contract heading reading found no unresolved heading that required an AI call.'});
+        note:'Rule-based contract heading reading found no unresolved heading that required an AI call.'});
     }
     const assertions =
       input.assertions ??

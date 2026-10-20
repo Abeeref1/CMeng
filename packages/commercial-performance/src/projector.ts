@@ -2401,7 +2401,7 @@ function cashFlow(
                   : candidate ? "This retained subtotal includes candidate evidence and is not an established cash position."
                   : complete ? "The total uses only explicit dated entries of one currency."
                   : "Known dated entries are retained as a subtotal; incomplete current source evidence prevents an established total.",
-              action: complete ? null : "Review candidate evidence and complete the applicable dated transaction population.",
+              action: complete ? null : "Review the suggested records and complete the set of dated transactions that apply.",
             },
           );
     };
@@ -2890,7 +2890,7 @@ function cashFlow(
           "ready"
             ? "Certified amounts can be aggregated as a controlled project series, but remain separate from cash receipts."
             : certificationState === "partial"
-              ? "Known certifications are retained, but the applicable amount/date population is incomplete."
+              ? "Known certifications are retained, but the applicable amounts and dates are incomplete."
             : certificationState ===
                 "not_aggregable"
               ? "Certified amounts exist, but their series basis is not one explicit incremental or project-cumulative basis, so CMeng withholds the project total."
@@ -2927,7 +2927,7 @@ function cashFlow(
           "ready"
             ? "Actual paid cash has an explicit date and aggregable series basis."
             : receiptsState === "partial"
-              ? "Known receipts are retained, but the applicable amount/date population is incomplete."
+              ? "Known receipts are retained, but the applicable amounts and dates are incomplete."
             : receiptsState ===
                 "not_aggregable"
               ? "Paid amounts and dates exist, but the cash series basis is not explicitly incremental or project cumulative."
@@ -2958,7 +2958,7 @@ function cashFlow(
           "ready"
             ? "Dated actual cash expenditure has an aggregable series basis."
             : expenditureState === "partial"
-              ? "Known cash expenditure is retained, but its current population is incomplete or contains unestablished evidence."
+              ? "Known cash expenditure is retained, but its current records are incomplete or include unconfirmed evidence."
             : actualExpenditureRows
                   .length === 0 &&
                 actualCostRows.length >

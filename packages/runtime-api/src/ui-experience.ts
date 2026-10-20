@@ -35,7 +35,7 @@ function experienceManagementReading(key,brief){
  if(!facts.length&&!absent.length&&!brief.review)return '';
  const explanation=f=>f.explanationHtml||(f.basis?escapeHtml(f.basis):'');
  const established=facts.length?'<p><b>Established from project records:</b> '+facts.map(f=>escapeHtml(f.label)+': <strong>'+escapeHtml(f.display)+'</strong>'+(explanation(f)?' <small class="figure-explanation">('+explanation(f)+')</small>':'')).join(' · ')+'</p>':'';
- const gaps=absent.length?'<p><b>Not yet established:</b> '+absent.map(f=>escapeHtml(f.label)).join('; ')+'. This is not a zero result.</p>':'';
+ const gaps=absent.length?'<p><b>Not yet established:</b> '+absent.map(f=>escapeHtml(f.label)).join('; ')+'. These values are unknown, not zero.</p>':'';
  const attention=brief.review?'<p><b>What needs attention:</b> '+escapeHtml(brief.review)+'</p>':'';
  const context=brief.note?'<details><summary>How to interpret these figures</summary><p>'+escapeHtml(brief.note)+'</p></details>':'';
  const reading='<section class="experience-management-reading"><h4>What this page shows</h4>'+established+gaps+attention+context+'</section>';
@@ -147,7 +147,7 @@ function experienceBrief(key,data){
     add('BOQ items',d.boqItemCount,'Source quantities');add('Items with dated measurements',d.installedQuantityStatus?.measuredItemCount,'Through the reporting date');
     const scope=data.boqProgrammeLinks||d.boqProgrammeLinks;
     add('Programme scope-linked items',scope?.linkedItemCount,'Exact WBS code or unique source section relationship; no invented quantity split');
-    add('Programme scope-link coverage',scope?.coveragePercent,scope?.basis||'Full source BOQ population; missing relationships remain explicit','%');
+    add('Programme scope-link coverage',scope?.coveragePercent,scope?.basis||'All source BOQ items; missing relationships remain explicit','%');
     add('Time-distributed quantity allocations',d.allocatedItemCount,d.mappingBasis==='candidate_scenario'?'Scenario allocations; review required':'Recorded quantity splits needed for planned quantity curves');
     note=d.installedQuantityStatus?.explanation||'Programme links and dated installed measurements are separate facts.';
     if(d.allocationState!=='complete'||d.mappingBasis!=='governed')review='Planned quantity curves require confirmed BOQ-to-activity links. This mapping review does not remove available measured installations.';
@@ -292,9 +292,9 @@ function experienceRoleLensContext(role,data){
     const p=context.planning||{};
     return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Programme mechanics & driving network</h4><span>Planning Engineer</span></div>'+
       roleLensFacts([
-        {label:'Critical activities · known',value:p.criticalCount,basis:'Current adopted programme float population'},
+        {label:'Critical activities · known',value:p.criticalCount,basis:'Float values of the current adopted programme'},
         {label:'Near-critical · known',value:p.nearCriticalCount,basis:'Current configured near-critical band'},
-        {label:'Negative float · known',value:p.negativeFloatCount,basis:'Current adopted programme float population'},
+        {label:'Negative float · known',value:p.negativeFloatCount,basis:'Float values of the current adopted programme'},
         {label:'Driving network state',value:p.drivingNetworkState,basis}
       ])+
       roleLensTable('Finish-driving activities',[['activityId','Activity ID'],['name','Activity'],['wbs','WBS'],['calculatedFinishIso','Calculated finish','date'],['totalFloatHours','Float','float']],p.drivers||[])+

@@ -29,7 +29,7 @@ async function diagnosisPage(id,offset){
 function diagnosisAsk(question){setAppView('ai');el('aiQuestion').value=question;askCmeng();}
 function milestoneExposureNote(exposure){
  if(exposure?.absenceConfirmed)return 'The source-bound review confirms no programme milestones. Contractual commitments remain separate.';
- if(exposure?.value==null)return 'Milestone exposure cannot be cleared or ranked for the complete population. '+(!exposure?.identifiedCount?'No milestone population has been identified or confirmed; review source types or select key dates.':(exposure.knownCount==null?'Priority count not established':fmt(exposure.knownCount)+' identified priorities')+'; population or assessment fields remain unresolved.');
+ if(exposure?.value==null)return 'Milestone exposure cannot be cleared or ranked for all milestones. '+(!exposure?.identifiedCount?'No set of milestones has been identified or confirmed; review source types or select key dates.':(exposure.knownCount==null?'Priority count not established':fmt(exposure.knownCount)+' identified priorities')+'; milestone or assessment fields remain unresolved.');
  return exposure.value===0?'No identified milestone or reviewed key date is ranked for attention by the available programme checks. This is not a contractual clearance.':fmt(exposure.value)+' identified milestones or reviewed key dates are ranked for attention by the available programme checks.';
 }
 function renderProjectPrioritySummary(register){
@@ -122,10 +122,10 @@ function renderProjectBrief(d,data=null){
  const determined=typeof awarded==='number'?fmt(awarded)+' days in the dated determination basis':'Not independently established from the determination evidence';
  const contractPosition='<section class="diagnosis-section"><h4>Contract dates and extension authority</h4>'+
   planningKpis([
-   ['Original contractual completion',original?planningShortDate(original):'Not established','Recorded original agreement'],
-   ['EOT from determinations',determined,'Separate from amendment wording'],
-   ['Adjusted contractual completion',verifiedExtended?planningShortDate(extended):'Not established','A qualified candidate is not an approved deadline'],
-   ['Submitted programme finish',submitted?planningShortDate(submitted):'Not established','Current submitted programme']
+   ['Original contractual completion',original?planningShortDate(original):'Not established','Recorded original agreement','',time.contractualCompletionIso?.reason],
+   ['EOT from determinations',determined,'Separate from amendment wording','','Needs dated Engineer determinations'],
+   ['Adjusted contractual completion',verifiedExtended?planningShortDate(extended):'Not established','A qualified candidate is not an approved deadline','',time.extendedContractCompletionIso?.reason],
+   ['Submitted programme finish',submitted?planningShortDate(submitted):'Not established','Current submitted programme','',scheduleFacts.submittedProgrammeCompletionIso?.reason]
   ])+
   amendmentText+
   '<p><b>Time comparison:</b> '+escapeHtml(originalComparison)+'</p>'+
@@ -137,7 +137,7 @@ function renderProjectBrief(d,data=null){
    ['Critical activities',fmtCount(critical),floatOrigin],
    ['Negative-float activities',fmtCount(negative),floatOrigin],
    ['Near-critical activities',fmtCount(nearCritical),floatOrigin],
-   ['Independent CPM finish',independent?planningShortDate(independent):'Not established','Calculated finish, not an EOT decision']
+   ['Independent CPM finish',independent?planningShortDate(independent):'Not established','Calculated finish, not an EOT decision','',d.completion?.reason]
  ]);
  const summary='<section class="diagnosis-section brief-management-conclusion"><h4>Management conclusion</h4>'+
   '<p><b>Completion:</b> '+escapeHtml(originalComparison)+' '+escapeHtml(verifiedComparison)+'</p>'+
@@ -163,8 +163,12 @@ function renderProjectBrief(d,data=null){
     '</tbody></table></div>'
   :'<p>'+escapeHtml(milestoneExposureNote(d.milestoneExposure))+'</p>';
  const revision=d.revision||{};
+ // N3: an unknown count is never followed by its noun ("Not established activities").
+ const revisionCounts=[revision.modified,revision.added,revision.removed].every(n=>typeof n==='number')
+  ?fmt(revision.modified)+' activities changed, '+fmt(revision.added)+' were added and '+fmt(revision.removed)+' removed since the previous revision.'
+  :'Since the previous revision: changed activities '+fmt(revision.modified??'Not established')+', added '+fmt(revision.added??'Not established')+', removed '+fmt(revision.removed??'Not established')+'.';
  const revisionText=revision.state==='available'
-  ?fmt(revision.modified)+' activities changed, '+fmt(revision.added)+' were added and '+fmt(revision.removed)+' removed since the previous revision. The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'
+  ?revisionCounts+' The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'
   :revision.basis||'No comparable earlier adopted programme is available.';
  const changeNext=revision.state==='available'?'<p><b>Decision needed from Project Controls:</b> Validate material changes and their authority before accepting the update as a recovery commitment.</p>':'';
  const controls=data?.projectFacts?.controls||{};
@@ -187,7 +191,7 @@ function renderProjectBrief(d,data=null){
    'Forecast basis: '+escapeHtml(s.forecastBasisLabel)+'.'+next+(s.forecastBasis==='not_established'&&s.forecastReason?' '+escapeHtml(s.forecastReason):'')+'</p>';
  };
  const deliveryAndCommercial='<section class="diagnosis-section"><h4>Delivery controls and commercial exposure</h4>'+
-  planningKpis(deliveryRows.map(row=>[row[0],displayFact(row[1]),row[2]]))+
+  planningKpis(deliveryRows.map(row=>[row[0],displayFact(row[1]),row[2],'',row[1]?.reason||'']))+
   (financial.length?financial.slice(0,2).map(c=>'<p><b>'+escapeHtml(c.currency)+' commercial position:</b> Current contract value '+escapeHtml(displayFact(c.currentContractValue))+
     '; approved variation amount '+escapeHtml(displayFact(c.approvedVariationAmount))+
     '; CPI '+escapeHtml(displayFact(c.cpi))+
@@ -214,7 +218,7 @@ function renderProjectDiagnosis(d){
  if(!d)return '';
  const c=d.counts,countText=x=>x.value??(x.knownCount===null?'Not available':fmt(x.knownCount)+' known');
  const basis=d.criticalityBasisLabel||(d.criticalityBasis==='independent_cpm'?'Independent CPM, reconciled':'Submitted programme float, not reconciled');
- const metrics=planningKpis([['Negative float',countText(c.negativeFloat),basis],['Critical',countText(c.critical),basis],['Near-critical',countText(c.nearCritical),basis],['Missed starts',countText(c.missedStarts),'against Data Date'],['Overdue finishes',countText(c.overdueFinishes),'unfinished work'],['Slipped since previous',countText(c.previousUpdateSlippage),'adopted revision comparison']]);
+ const metrics=planningKpis([['Negative float',countText(c.negativeFloat),basis],['Critical',countText(c.critical),basis],['Near-critical',countText(c.nearCritical),basis],['Missed starts',countText(c.missedStarts),'against Data Date'],['Overdue finishes',countText(c.overdueFinishes),'unfinished work'],['Slipped since previous',countText(c.previousUpdateSlippage),'adopted revision comparison','',d.revision?.state==='available'?'':'Needs a previous adopted programme revision to compare']]);
  const net=d.network,network=net.state==='unavailable'?'<p>The independent finish-driving network is not calculable from the current programme fields. Known critical and negative-float activities remain available below.</p>':
  '<p>'+escapeHtml(net.state==='scenario'?'Calculated with the completion assumptions shown above.':'Calculated from the programme calendars and logic.')+' '+screenCountText(d.tableTotals?.network??listTotal(net.rows))+' activities · '+screenCountText(d.tableTotals?.relationships??listTotal(net.relationships))+' driving links. Parallel branches are retained; use the predecessor and successor columns to follow the actual sequence.</p>'+diagnosisTable(d,'network',net.rows,[['sequence','Order'],['activityId','Activity ID'],['name','Activity'],['wbs','WBS'],['calculatedStartIso','Calculated start'],['calculatedFinishIso','Calculated finish'],['remainingDurationHours','Remaining hours'],['totalFloatHours','Source float'],['previousFinishMovementCalendarDays','Movement · elapsed days'],['drivingPredecessors','Driving predecessors / link / lag'],['drivingSuccessors','Driving successors / link / lag']]);
  let previousAction=null;

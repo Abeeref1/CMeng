@@ -24,7 +24,7 @@ export async function buildDeliveryWorkbook(projectId:string,result:ModuleRuntim
  const summary=workbook.addWorksheet('Report');summary.addRows([['Project',projectId],['Page',titleForModule(result.key)],['Status',readableFieldLabel(result.status)],['Management position',known(result.reason)],
    ['Data date',known(data?.dataDateIso??data?.reportingContract?.dataDateIso)],['Programme revision',known(data?.programmeRevisionId??data?.reportingContract?.programmeRevisionId)],
    ['Authority',known(typeof data?.authorityScope==='string'?readableFieldLabel(data.authorityScope):data?.authorityScope)],
-   ['Scope','Project '+projectId+' · '+titleForModule(result.key)+' · complete population (no screen paging)']]);
+   ['Scope','Project '+projectId+' · '+titleForModule(result.key)+' · all records (no screen paging)']]);
  // T10 X2: every figure the page shows outside its tables, in reader words.
  // Tables are on their own worksheets below; nothing is cut at a fixed depth.
  summary.addRow([]);summary.addRow(['Figures on the page','Value']).font={bold:true};

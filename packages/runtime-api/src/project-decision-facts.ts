@@ -345,7 +345,7 @@ function buildMeasuredPerformance(state:ProjectRuntimeState,model:any,cutoff:str
  const installedVsCertified=buildInstalledVsCertified(items,commercial,cutoff);
  return {items,itemCount:q?items.length:null,measuredItemCount:items.filter(r=>r.installedQuantity!==null).length,areas,areaReconciliation,certificateCount:certificates.length,
   lumpSumQueries,installedVsCertified,contractCompletionIso:governing,daysToContractCompletion,
-  basis:'Full retained BOQ item population; area and currency totals use explicit source associations. Quantities with unlike units are never summed into a project physical percentage.'};
+  basis:'All retained BOQ items; area and currency totals use explicit source associations. Quantities with unlike units are never summed into a project physical percentage.'};
 }
 
 /** F45: installed value (measured quantity x BOQ rate, per currency) against the

@@ -41,7 +41,7 @@ async function loadQuantityCurvePage(offset,query){
   }
   if(!quantityCurveContextActive(s)||s.request!==request||!target.isConnected)return;
   if(!Array.isArray(page.rows)||page.rows.some(r=>!r||!Array.isArray(r.points))||!Number.isInteger(page.total)||!Number.isInteger(page.offset)||page.offset!==at||
-    (Number.isInteger(s.version)&&Number.isInteger(page.projectVersion)&&s.version!==page.projectVersion))throw Error('Item curve population changed');
+    (Number.isInteger(s.version)&&Number.isInteger(page.projectVersion)&&s.version!==page.projectVersion))throw Error('Item curve records changed');
   Object.assign(s,{rows:page.rows,offset:page.offset,total:page.total,sourceTotal:page.sourceTotal??s.sourceTotal,query:q,selected:0});
   target.innerHTML=quantityCurveBrowserHtml(s);
  }catch(error){if(quantityCurveContextActive(s)&&s.request===request&&target.isConnected){const node=el('quantityCurveFeedback');if(node)node.textContent='The item curves could not be loaded. Previous values are retained; retry or refresh the page if project data changed.';}}

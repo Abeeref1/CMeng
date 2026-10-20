@@ -27,7 +27,7 @@ function managementActionsAnswer(result:AnalysisResult):NarrativeBlock|null{
   const table=section?.tables.find(t=>t.id==='command-center.actions');
   if(!section||!table)return null;
   const matching=table.selection?.matching??table.rows.length;
-  if(section.state==='unavailable')return {heading:'Management actions',text:'The canonical Command Center action population is not established from the current project evidence. This is not confirmation that there are no management issues.',classification:'calculated_intelligence',traceIds:[table.traceId]};
+  if(section.state==='unavailable')return {heading:'Management actions',text:'The full set of Command Center actions is not established from the current project evidence. This is not confirmation that there are no management issues.',classification:'calculated_intelligence',traceIds:[table.traceId]};
   const preview=table.rows.slice(0,result.presentation.detail==='short'?3:10).map((row,index)=>{
     const ownerText=apiOwnerText(row);
     const owner=ownerText?'; owner '+String(ownerText):'; owner not established';
@@ -76,7 +76,7 @@ function delayDriversAnswer(result:AnalysisResult):NarrativeBlock|null{
   if(negative&&pressure?.state!=='unavailable')text+=' '+(negative.selection?.matching??negative.rows.length)+' have negative float.';
   if(activitySection?.explanation.includes('No baseline has been confirmed'))text+=' No baseline has been confirmed, so delay against the original planned dates cannot be measured.';
   const rows=delayed?.selection?.ranked&&delayed.rows.length?delayed.rows:critical.length?critical:(delayed?.rows??[]);
-  if(rows.length)text+='\n\nActivities to focus on:\n'+rows.slice(0,5).map(r=>String(r.activityId)+' — '+String(r.name)+'; finish '+String(r.plannedFinishIso??r.forecastFinishIso??r.currentFinishIso??'not available').slice(0,10)).join('\n')+'\nThe tables below show the matching populations and any requested selection.';
+  if(rows.length)text+='\n\nActivities to focus on:\n'+rows.slice(0,5).map(r=>String(r.activityId)+' — '+String(r.name)+'; finish '+String(r.plannedFinishIso??r.forecastFinishIso??r.currentFinishIso??'not available').slice(0,10)).join('\n')+'\nThe tables below show the matching records and any requested selection.';
   if(linked.length)text+='\n\nConfirmed linked work blockers:\n'+linked.slice(0,5).map(r=>String(r.activityId)+' — '+String(r.linkedBlockers)).join('\n');
   else text+='\n\nNo specific linked work blocker is established in the available look-ahead records.';
   text+=' These are the schedule pressure points I can identify. A proven cause of project delay requires dated events tied to the controlling path; I cannot infer that from float alone.';
@@ -98,8 +98,8 @@ function activityAnswer(result:AnalysisResult):NarrativeBlock|null{
   let text=n+' '+(n===1?'activity':'activities')+' '+verb+asOf+'.';
   const incompleteSelection=n===0&&(section.state==='partial'||table.state==='partial'||result.unresolved.some(g=>/float|critical|date|status|classification|coverage|missing|unconfirmed|unresolved/i.test(g)));
   if(n===0){
-    if(incompleteSelection&&(has('totalFloatHours')||has('floatRiskWatchlist')||section.authorityId==='float'))text='No float-risk activity can be confirmed from the currently readable float data'+asOf+'. The float population is incomplete, so this is not confirmation that no float-risk activities exist.';
-    else if(incompleteSelection&&section.authorityId==='critical-path')text='The finish-driving / critical-path population is not fully calculable from the current programme fields'+asOf+'. This is not confirmation that no critical path exists.';
+    if(incompleteSelection&&(has('totalFloatHours')||has('floatRiskWatchlist')||section.authorityId==='float'))text='No float-risk activity can be confirmed from the currently readable float data'+asOf+'. Float values are incomplete, so this is not confirmation that no float-risk activities exist.';
+    else if(incompleteSelection&&section.authorityId==='critical-path')text='The finish-driving / critical-path activities are not fully calculable from the current programme fields'+asOf+'. This is not confirmation that no critical path exists.';
     else text='No matching activities were found in the available programme records'+asOf+'.';
   }
   if(section.authorityId==='critical-path'&&section.state!=='established')text+=' The independent critical path is not yet confirmed; this is the programme’s known critical-activity list.';
@@ -316,10 +316,10 @@ export class ProjectAskEngine {
             const breakoutPlan:AnalysisPlan={...planWithoutBreakouts,filters:[...breakout.filters],authorityFilters:{},groupBy:[],rankBy:null,rankings:[],limit:null,criticalOnly:false,issuesOnly:false};
             const queried=queryTable(base,breakoutPlan);
             unresolved.push(...queried.gaps);
-            result.tables.push({...queried.table,id:base.id+'-breakout-'+index,title:breakout.label,basis:queried.table.basis+' This is an independent result set from the same full programme population; it is not intersected with the primary activity request.'});
+            result.tables.push({...queried.table,id:base.id+'-breakout-'+index,title:breakout.label,basis:queried.table.basis+' This is an independent result set from the same full programme; it is not intersected with the primary activity request.'});
           }
         }
-        if(plan.countRows)for(const table of result.tables){const missing=countGapTables.has(table.id);result.metrics.push({id:table.id+'.matching-count',label:'Matching '+table.title+' records',value:missing||table.state==='unavailable'?null:table.selection?.matching??table.rows.length,unit:'records',state:missing?'unavailable':table.state,classification:'calculated_intelligence',traceId:table.traceId,basis:'Count after applying all requested filters to the full available population, before Top N selection. '+table.basis});}
+        if(plan.countRows)for(const table of result.tables){const missing=countGapTables.has(table.id);result.metrics.push({id:table.id+'.matching-count',label:'Matching '+table.title+' records',value:missing||table.state==='unavailable'?null:table.selection?.matching??table.rows.length,unit:'records',state:missing?'unavailable':table.state,classification:'calculated_intelligence',traceId:table.traceId,basis:'Count after applying all requested filters to all available records, before Top N selection. '+table.basis});}
         result.charts=presentation.charts?result.tables.map(t=>chooseChart(t,scope.dataDate)).filter((c):c is NonNullable<typeof c>=>c!==null):[];sections.push(result);
       }
       materialReconciliation(sections);

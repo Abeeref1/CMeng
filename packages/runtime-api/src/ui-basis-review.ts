@@ -193,7 +193,7 @@ function renderBasisReviews(data,key){
     html+=basisPanel('Schedule-loaded cost and cost-report totals use different bases','Request a cost and scope reconciliation before using these figures interchangeably.',
       basisTable(['Source measure','Amount / ratio','Currency basis'],[
         ['XER loaded cost',fmt(b.xer.loadedCost),b.xer.currency],['XER actual regular cost',fmt(b.xer.actualRegularCost),b.xer.currency],
-        ['Actual regular cost / loaded cost',percent2(b.xer.actualRegularCostPercent)+'%','Within XER assignment population'],
+        ['Actual regular cost / loaded cost',percent2(b.xer.actualRegularCostPercent)+'%','Within the XER assignments'],
         ...cost.flatMap(r=>['bac','ac','ev','pv'].filter(k=>r.values[k]!=null).map(k=>[({bac:'Cost-report budget',ac:'Cost-report actual cost',ev:'Cost-report earned value',pv:'Cost-report planned value'})[k]+' · '+planningShortDate(r.asOfIso),fmt(r.values[k]),r.currency+' / '+r.taxBasis]))
       ])+'<p>Unreported overtime cost is '+(b.xer.actualOvertimeCost==null?'unknown':fmt(b.xer.actualOvertimeCost))+'. XER loaded cost is not automatically the contract budget.</p>');
   }

@@ -46,7 +46,7 @@ export function sourceInterpretation(state:ProjectRuntimeState,progress?:Progres
         percentOriginalState:ratio.state,percentOriginalReason:ratio.reason,percentOriginalBasis:ratio.basis,percentCurrent:work!==null&&current!==null&&current>0?work/current*100:null,basis:'Dated incremental certificates only; measured gross work excludes variations and advance applications. This is a monetary ratio, not measured physical progress.'};}),
       certificatePeriods:certificateGroups.map(g=>({currency:g.currency,taxBasis:g.taxBasis,grossWork:g.totals?.grossWork??null,net:g.totals?.netCertifiedAmount??null,
         count:g.as_of.length,basis:g.totalLabel,certificationUnconfirmedCount:g.certificationUnconfirmedIds.length})),
-      interpretation:'Schedule snapshot, time-phased baseline plan, earned value and certificate-period amounts use different weights and populations. The schedule ratio is an indicative comparison, not EVM SPI. Source certificate sums do not establish physical progress or cash.'},
+      interpretation:'Schedule snapshot, time-phased baseline plan, earned value and certificate-period amounts use different weights and sets of records. The schedule ratio is an indicative comparison, not EVM SPI. Source certificate sums do not establish physical progress or cash.'},
   };
 }
 export type SourceInterpretation=ReturnType<typeof sourceInterpretation>;

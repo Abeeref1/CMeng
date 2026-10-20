@@ -119,7 +119,7 @@ function produceBoq({state}:AskProducerContext,scope:ProjectScope,plan?:Analysis
   b.table('items','BOQ items and derived scope',intelligence.rows,intelligence.basis,{...overrides,building:{dimension:true},tower:{dimension:true},zone:{dimension:true},floor:{dimension:true},level:{dimension:true},area:{dimension:true},discipline:{dimension:true},trade:{dimension:true},system:{dimension:true},packageCandidate:{label:'Candidate package',dimension:true},procurementPriority:{label:'Procurement priority',dimension:true}});
   const explicitCostRanking=!!plan&&((plan.rankBy==='amount'&&plan.limit!==null)||(plan.rankings??[]).some(r=>r.authorityId==='boq'&&r.field==='amount'));
   if(explicitCostRanking){
-    b.result.explanation='CMeng ranked the complete readable BOQ item population by stated line amount within its source currency. The shared ranking engine applies the requested Top N; no duplicate cost-driver table is added.';
+    b.result.explanation='CMeng ranked all readable BOQ items by stated line amount within their source currency. The shared ranking engine applies the requested Top N; no duplicate cost-driver table is added.';
     return b.result;
   }
   const reported=suppliedBoqReportedTotals(state,source.selection.sourceDocumentId);
@@ -135,11 +135,11 @@ function produceBoq({state}:AskProducerContext,scope:ProjectScope,plan?:Analysis
   const drivers=intelligence.topCostDrivers.flatMap(group=>group.items.map((row,index)=>({rank:index+1,...row})));
   if(drivers.length)b.table('top-cost-drivers','Top cost drivers by currency',drivers,'Top 20 readable BOQ line amounts within each currency. No exchange rate is assumed across currencies.',{...overrides,rank:{type:'number'},amount:{unit:'row currency'},discipline:{dimension:true},zone:{dimension:true},packageCandidate:{label:'Candidate package',dimension:true}});
   if(intelligence.risks.length)b.table('candidate-risks','Candidates from BOQ wording, not risks',intelligence.risks,'Professional assessment derived from actual BOQ scope. These are not confirmed Project Risk Register entries.',{category:{dimension:true},severity:{dimension:true}});
-  if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ items are readable. CMeng has also classified the scope it can support from the BOQ itself: '+intelligence.coverage.discipline+' discipline-classified items, '+intelligence.coverage.location+' location-classified items, '+intelligence.packages.length+' candidate packages and '+intelligence.longLead.length+' candidate long-lead items. '+(!source.boq?.complete?'The complete item population and total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This BOQ source is awaiting confirmation.':'');
+  if(figures.rows.length)b.result.explanation=figures.rows.length+' BOQ items are readable. CMeng has also classified the scope it can support from the BOQ itself: '+intelligence.coverage.discipline+' discipline-classified items, '+intelligence.coverage.location+' location-classified items, '+intelligence.packages.length+' candidate packages and '+intelligence.longLead.length+' candidate long-lead items. '+(!source.boq?.complete?'The complete set of items and the total reconciliation remain unconfirmed. ':'')+(source.selection.state==='candidate'?'This BOQ source is awaiting confirmation.':'');
   const currencies=[...new Set(figures.rows.map(r=>r.currency))];
   for(const currency of currencies){const rows=figures.rows.filter(r=>r.currency===currency),known=rows.filter(r=>typeof r.amount==='number');
     const total=currency&&source.selection.adoptedSource&&source.boq?.complete&&known.length===rows.length?known.reduce((n,r)=>n+r.amount!,0):null;
-    b.metric('value-'+(currency??'unresolved'),'BOQ value · '+(currency??'currency unresolved'),total,currency,'Sum of selected BOQ item amounts within one currency. Complete item population and readable amounts required.',{refs:rows.flatMap(r=>r.sourceRefs)});
+    b.metric('value-'+(currency??'unresolved'),'BOQ value · '+(currency??'currency unresolved'),total,currency,'Sum of selected BOQ item amounts within one currency. All items and readable amounts are required.',{refs:rows.flatMap(r=>r.sourceRefs)});
     if(known.length<rows.length)b.finding('missing-amounts-'+currency,'BOQ value coverage incomplete',known.length+' of '+rows.length+' item amounts are readable.','Use the available BOQ analysis now; a corrected/reconciled BOQ would make the total fully complete.');
   }
   return b.result;
@@ -203,7 +203,7 @@ function evmAuthority(b:AuthorityBuilder,d:any){
   const performance=d?.position?.performance;
   const positions=performance?.costControl?.positions??[];
   for(const [i,p] of positions.entries())for(const [key,name] of [['cpi','CPI'],['spi','SPI'],['ev','Earned value'],['pv','Planned value'],['ac','Actual cost']] as const){const v=p[key];b.metric(key+'-'+p.currency+'-'+p.taxBasis,name+' · '+p.currency+' · tax '+p.taxBasis,v?.value,key==='cpi'||key==='spi'?'ratio':p.currency,v?.basis??'Existing Commercial / EVM authority at Data Date.',{path:'position.performance.costControl.positions.'+i+'.'+key,state:v?.state,refs:v?.sourceRefs??[]});}
-  if(!positions.length)for(const key of ['cpi','spi','ev','pv','ac'])b.metric(key,key.toUpperCase(),null,key==='cpi'||key==='spi'?'ratio':null,'Commercial EVM inputs and a compatible measurement population are not established.');
+  if(!positions.length)for(const key of ['cpi','spi','ev','pv','ac'])b.metric(key,key.toUpperCase(),null,key==='cpi'||key==='spi'?'ratio':null,'Commercial EVM inputs and a compatible set of measured records are not established.');
   for(const [i,series] of (performance?.evmPerformance?.series??[]).entries())b.table('evm-'+i,'EVM · '+series.currency,series.points,'Existing Commercial EVM time series; current and future positions retain their producer labels.',{},r=>Object.fromEntries(Object.entries(r).map(([k,v]:[string,any])=>[k,v&&typeof v==='object'?'value'in v?v.value:null:v])));
 }
 function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:string,registration:Registration,title:string,plan?:AnalysisPlan):AuthorityResult{
@@ -250,7 +250,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
     const rows=view?.rows??d?.rows??[];
     const dimensionField=dimension==='zone'?'zone':dimension==='level'?'level':dimension==='work_front'?'workFront':dimension==='wbs'?'wbsId':null;
     b.result.explanation=view
-      ?'Progress Breakdown '+view.label+' uses the same classified activity population and progress basis as the page. Unclassified activities remain outside the named group and are not treated as zero.'
+      ?'Progress Breakdown '+view.label+' uses the same classified activities and progress basis as the page. Unclassified activities remain outside the named group and are not treated as zero.'
       :(result.reason??'Current Progress Breakdown position.');
     b.table('rows',view?view.label:'Progress Breakdown',rows,view?.basis??b.result.explanation,overrides,(row:any)=>({
       ...row,
@@ -290,7 +290,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
     return b.result;
   }
   for(const [path,name,unit] of registration.metrics??[])b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
-  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its population, exclusions and calculation basis apply.',overrides,r=>({...r,...askClaimRegisterColumns(r),late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
+  for(const path of registration.tables??[])if(Array.isArray(at(d,path)))b.table(path,title+' · '+label(path.split('.').at(-1)!),at(d,path),'Existing '+title+' producer. Its records covered, exclusions and calculation basis apply.',overrides,r=>({...r,...askClaimRegisterColumns(r),late:typeof r.dueState==='string'&&r.dueState!=='unknown'?r.dueState==='overdue':null,critical:typeof r.critical==='boolean'?r.critical:typeof r.criticality==='string'?r.criticality==='unknown'?null:r.criticality==='critical':typeof r.totalFloatHours==='number'?r.totalFloatHours<=projectScheduleControlBasis(context.state).analysisConfig.criticalFloatThresholdHours:null}));
   if(registration.id==='programme'){
     b.metric('dataDate','Programme Data Date',scope.dataDate,null,'Selected programme authority.',{fact:true});
     sharedMetric('source-finish','Submitted programme completion',shared.schedule.submittedProgrammeCompletionIso,null);

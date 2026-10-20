@@ -18,7 +18,7 @@ test('T10: unmapped field keys and codes read as plain sentence case, never code
  const cases:[string,string][]=[
   ['recordActionCount','Record action count'],['RECORD_ACTION_COUNT','Record action count'],
   ['memberIds','Member IDs'],['dataDateIso','Data date'],['contractualCompletionIso','Contractual completion date'],
-  ['actualIssuedAt','Actual issued date'],['knownOpenCount','Known open count'],['openNcrCount','Open NCR count'],
+  ['actualIssuedAt','Actual issued date'],['knownOpenCount','Open records found'],['openNcrCount','Open NCR count'],
   ['passRatePercent','Pass rate %'],['record_date_missing','Record date missing'],['sourceRefs','Source references'],
   ['wbsPath','WBS path'],['cmeng_screening_policy','CMeng screening rule'],['source_total_float','Source total float'],
   ['PAYMENT_CURRENCY_BASIS_CONFLICT:IPC_71','Payment currency basis conflict · IPC 71'],

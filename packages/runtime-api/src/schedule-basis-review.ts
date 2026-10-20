@@ -55,7 +55,7 @@ function calculateReview(model:CanonicalScheduleModel,forecast:IndependentForeca
     sensitivity={fromCalendarIds:[...fromIds],toCalendarId:target.calendarId,toCalendarName:target.name,
       changedActivityCount:activities.filter((a,i)=>a!==model.activities[i]).length,completionIso:result.projectFinishIso,
       movementDays:days(forecast.independentForecastCompletionIso,result.projectFinishIso),complete:result.complete,
-      assumptions:['Scenario only: replace assigned five-day calendars with the existing six-day calendar of equal standard day length. Durations, logic, actuals and other calendars are unchanged.','The calculation applies retained source date constraints. Confirm the correct calendars with the programme owner.']};
+      assumptions:['What-if only: replace assigned five-day calendars with the existing six-day calendar of equal standard day length. Durations, logic, actuals and other calendars are unchanged.','The calculation applies retained source date constraints. Confirm the correct calendars with the programme owner.']};
   }
   return {contractFinishIso:contractFinish,packageCount:rows.length,leafWbsCount:leaves.length,excludedLeafCount:leaves.length-rows.length,
     packageDefinition:'Leaf WBS with execution tasks and exactly one finish milestone; other WBS nodes are excluded and counted.',

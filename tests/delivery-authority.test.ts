@@ -303,7 +303,7 @@ test('Batch H Quality and Commissioning rates require complete current populatio
   f.create(kind,'FUTURE',{'raised date':'2031-09-01','actual date':'2031-09-02','outcome date':'2031-09-02',outcome:'passed'});
   let summary=deliveryPosition(f.state).summaries[kind]!;assert.equal(summary.passRatePercent,null);
   f.population(kind);summary=deliveryPosition(f.state).summaries[kind]!;
-  assert.equal(summary.currentCount,2);assert.equal(summary.futureCount,1);assert.equal(summary.passRatePercent,50);assert.match(summary.basis,/confirmed current applicable population/i);
+  assert.equal(summary.currentCount,2);assert.equal(summary.futureCount,1);assert.equal(summary.passRatePercent,50);assert.match(summary.basis,/confirmed complete set of current applicable records/i);
  }
 });
 
@@ -351,8 +351,10 @@ test('original ABB approved submittals close their dated review across the full 
  const module=deliveryModule(f.state,'delivery-submittals'),data=module.data as any;
  assert.equal(data.summary.closedCount,600);assert.equal(data.summary.passRatePercent,null);
  const html=runInNewContext(deliveryScript()+';deliveryObjectDetail(summary)',{summary:data.summary,Intl,escapeHtml:(v:unknown)=>String(v),fmt:(v:unknown)=>String(v),humanizeKey:(v:string)=>v});
- assert.match(html,/Closed Count<\/dt><dd>600/);
- assert.match(html,/Pass Rate Percent<\/dt><dd>Not established/);
+ // W1: the summary shows people's labels from the shared label map, never Title Case field names.
+ assert.match(html,/Closed count<\/dt><dd>600/);
+ assert.match(html,/Pass rate %<\/dt><dd>Not established/);
+ assert.doesNotMatch(html,/Closed Count|Pass Rate Percent|Known Open Count/);
  for(const [path,bytes] of originals)assert.deepEqual(readFileSync(path),bytes,'original source bytes retained');
 });
 
@@ -753,7 +755,7 @@ test('testing, handover and asset pages share complete source comparisons withou
  const testing=comparison.rows.find((r:any)=>r.key==='testing'),handover=comparison.rows.find((r:any)=>r.key==='handover'),installed=comparison.rows.find((r:any)=>r.key==='installed'),commissioned=comparison.rows.find((r:any)=>r.key==='commissioned');
  assert.equal(testing.numerator,1);assert.equal(testing.denominator,1);assert.equal(testing.missingCompletionDates,1);assert.equal(handover.numerator,0);
  assert.deepEqual([installed.numerator,installed.denominator,installed.percent],[244,260,93.85]);assert.deepEqual([commissioned.numerator,commissioned.denominator,commissioned.percent],[237,260,91.15]);
- assert.equal(installed.undatedCount,259);assert.equal(installed.futureCount,1);assert.match(comparison.basis,/different populations/);
+ assert.equal(installed.undatedCount,259);assert.equal(installed.futureCount,1);assert.match(comparison.basis,/different sets of records/);
  assert.equal(pages[1].handover.readinessPercent,null);assert.equal(JSON.stringify(f.state.evidenceDocuments),original);
 });
 test('unrecognized asset flags remain unknown and no programme source produces null programme counts',async t=>{

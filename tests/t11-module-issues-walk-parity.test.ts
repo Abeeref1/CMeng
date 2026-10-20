@@ -72,5 +72,10 @@ test('readiness findings walk gives byte-identical issues, paths and order to v/
  // The issue shape gained the identity fields of the lossless de-duplication fix (d1824129).
   // a40dfc12... is the digest of the PREVIOUS walk implementation on those same trees (built on
   // branch v/d1-identity, without the walk change), so this still proves the new walk is identical.
-  assert.equal(digest,'a40dfc1263b3e513193920eeb679af1421aa9a770cdef14bd632bf267dcfa45e');
+  // Round 15 (W2): two action sentences lost the word 'rerun' ('...then rerun the same validation.' and
+  // '...and rerun validation.' now say '...then run the same check again.' / '...and run the check again.').
+  // Checked before changing this digest: the previous verified build (7a3b4d94, digest
+  // a40dfc1263b3e513193920eeb679af1421aa9a770cdef14bd632bf267dcfa45e) with only those two sentences
+  // replaced gives exactly the digest below, so issues, evidence paths and order are unchanged.
+  assert.equal(digest,'e8c2ab582d046c53b63e17bcb977e37501abac19470bc6cb6df372979a1a4b3b');
 });

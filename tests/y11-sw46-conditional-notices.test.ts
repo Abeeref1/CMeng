@@ -213,9 +213,9 @@ test('SW-46 Notices issue: "have passed the listed checks" only when the module 
   const ran=assessModuleIssues(notices([{metric:'population',passed:true}]),pass);
   const none=assessModuleIssues(notices([]),pass);
   const unknown=assessModuleIssues(notices(undefined),pass);
-  assert.equal(issue(ran).detail,'2 events have no event/awareness date. Population, claimed-day retention and assessable timing arithmetic have passed the listed checks.');
+  assert.equal(issue(ran).detail,'2 events have no event/awareness date. Record counts, claimed-day retention and assessable timing arithmetic have passed the listed checks.');
   assert.doesNotMatch(issue(none).detail,/have passed the listed checks/);
-  assert.equal(issue(none).detail,'2 events have no event/awareness date. No listed calculation check is recorded for this module, so population, claimed-day retention and timing arithmetic are not verified.');
+  assert.equal(issue(none).detail,'2 events have no event/awareness date. No listed calculation check is recorded for this module, so record counts, claimed-day retention and timing arithmetic are not verified.');
   assert.doesNotMatch(issue(unknown).detail,/have passed the listed checks/);
   assert.match(issue(unknown).detail,/listed calculation checks for this module are not established/);
   // Wording never changes identity: same member ids and the same counts in every case.

@@ -7,10 +7,10 @@ function renderCompletionPosition(p,detailsOpen=false){
  const difference=p.differenceElapsedDays;
  const delta=typeof difference==='number'?(difference>0?'+':'')+fmt(difference)+' elapsed days':'Not comparable';
  const values=planningKpis([
-  ['Submitted programme finish',p.submittedFinishIso?planningShortDate(p.submittedFinishIso):'Not available','Current reporting programme'],
-  ['CMeng calendar recalculation',p.independentFinishIso?planningShortDate(p.independentFinishIso):'Not available',p.calculationState==='scenario'?'Calculated with assumptions':p.calculationState==='calculated'?'Calculated from programme calendars':'Full network not calculable'],
+  ['Submitted programme finish',p.submittedFinishIso?planningShortDate(p.submittedFinishIso):'Not available','Current reporting programme','','Needs a reporting programme with a finish date'],
+  ['CMeng calendar recalculation',p.independentFinishIso?planningShortDate(p.independentFinishIso):'Not available',p.calculationState==='scenario'?'Calculated with assumptions':p.calculationState==='calculated'?'Calculated from programme calendars':'Full network not calculable','',p.independentFinishIso?'':p.reason],
   ['Difference',delta,'Recalculation minus submitted finish; includes time of day'],
-  [p.extendedContractFinishIso?'Contract completion including awarded EOT':'Contractual completion',(p.extendedContractFinishIso||p.contractualFinishIso)?planningShortDate(p.extendedContractFinishIso||p.contractualFinishIso):'Not confirmed',p.extendedContractFinishIso?'Original completion '+planningShortDate(p.contractualFinishIso)+' plus awarded time':'Separate contract comparison']
+  [p.extendedContractFinishIso?'Contract completion including awarded EOT':'Contractual completion',(p.extendedContractFinishIso||p.contractualFinishIso)?planningShortDate(p.extendedContractFinishIso||p.contractualFinishIso):'Not confirmed',p.extendedContractFinishIso?'Original completion '+planningShortDate(p.contractualFinishIso)+' plus awarded time':'Separate contract comparison','','Needs the contractual completion date from the contract']
  ]);
  const limits=p.limitations||[];
  // T05/N1: the qualifications and difference rows may arrive as a preview.

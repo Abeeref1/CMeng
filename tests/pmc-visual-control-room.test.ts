@@ -186,7 +186,7 @@ test('PMC control room presents quarantined claims as retained source evidence, 
   assert.match(output,/Source evidence under review/);
   assert.match(output,/Current governed claims<\/em><b>Not established<\/b>/);
   assert.match(output,/Current governed delay events<\/em><b>Not established<\/b>/);
-  assert.match(output,/Source records<\/em><b>Quarantined from management truth<\/b>/);
+  assert.match(output,/Source records<\/em><b>Held back from the reported figures<\/b>/);
   assert.match(output,/Supporting documents<\/em><b>8<\/b>/);
   assert.doesNotMatch(output,/0 current/);
 });
