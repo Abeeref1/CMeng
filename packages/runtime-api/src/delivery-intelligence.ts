@@ -17,8 +17,8 @@ export function deliveryHsePosition(records:DeliveryRecord[],cutoff:string|null,
  const incidents=current.filter(r=>r.type==='incident');
  const aggregates=exposures.filter(r=>r.type==='aggregate report');
  const diagnostics:string[]=[];
- if(current.some(r=>!['exposure','exposure report','aggregate report','incident','near miss','inspection','audit','training','competency','ptw','toolbox talk','emergency drill','corrective action'].includes(r.type)))diagnostics.push('Classify all current HSE rows before establishing the rate population.');
- if(!complete)diagnostics.push('Applicable HSE population is not confirmed.');
+ if(current.some(r=>!['exposure','exposure report','aggregate report','incident','near miss','inspection','audit','training','competency','ptw','toolbox talk','emergency drill','corrective action'].includes(r.type)))diagnostics.push('Classify all current HSE rows before setting the records the rate uses.');
+ if(!complete)diagnostics.push('The full set of applicable HSE records is not confirmed.');
  if(rows.some(r=>!r.when))diagnostics.push('Some HSE records have no reporting date.');
  if(!exposures.length)diagnostics.push('No governed exposure periods.');
  if(exposures.some(r=>!r.from||!r.to||r.from>r.to||!r.scope||r.hours===null||r.hours<0))diagnostics.push('Every exposure period needs ordered start/end dates, a non-overlapping scope and non-negative hours.');
@@ -39,13 +39,13 @@ export function deliveryHsePosition(records:DeliveryRecord[],cutoff:string|null,
  const factors=[...new Set(exposures.map(r=>r.factor))];const factor=factors.length===1?factors[0]!:null;
  const hours=sumKnown(exposures.map(r=>r.hours));
  const injuries=invalidInjuryRecordIds.length?null:injuryRows.length?sumKnown(injuryRows.map(r=>r.injuries)):complete&&exposures.length&&!aggregates.length?0:null;
- if(injuries===null||injuries<0)diagnostics.push('Lost-time injury population or counts are unresolved.');
+ if(injuries===null||injuries<0)diagnostics.push('Lost-time injury records or counts are unresolved.');
  if(factor===null||factor<=0)diagnostics.push('Frequency-rate basis is unresolved or inconsistent.');
  const rate=diagnostics.length===0&&hours!==null&&hours>0&&injuries!==null&&factor!==null?Number((injuries/hours*factor).toFixed(4)):null;
  const periodTotalsLabel='Calculated from period totals: lost-time injuries and man hours supplied on the exposure periods; no per-incident rows were supplied.';
  return {exposureHours:hours,lostTimeInjuries:injuries,rateBasis:factor,frequencyRate:rate,injuryBasis,rateSource:rate===null?null:injuryBasis,rows,invalidInjuryRecordIds,
   includedRecordIds:current.map(r=>r.recordId),excludedRecordIds:rows.filter(r=>!current.includes(r)).map(r=>r.recordId),diagnostics:[...new Set(diagnostics)],
-  explanation:(periodTotals?periodTotalsLabel+' ':'')+'Rate uses confirmed, dated exposure periods and a matching incident population. Direct source facts remain in the register. '+[...new Set(diagnostics)].join(' ')};
+  explanation:(periodTotals?periodTotalsLabel+' ':'')+'Rate uses confirmed, dated exposure periods and the matching incident records. Direct source facts remain in the register. '+[...new Set(diagnostics)].join(' ')};
 }
 
 export function deliveryEvidenceMetrics(records:DeliveryRecord[],cutoff:string|null){

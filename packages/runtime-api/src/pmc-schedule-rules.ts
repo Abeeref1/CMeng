@@ -95,7 +95,7 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
   report('negative_float','Negative float',remaining.filter(a=>a.totalFloatHours!==null&&a.totalFloatHours<0),remaining.length,'Remaining execution activities with total float below zero.'),
   report('high_duration','Long remaining duration',remaining.filter(a=>dayHours(a)!==null&&a.remainingDurationHours!==null&&a.remainingDurationHours/dayHours(a)!>44),remaining.length,'Remaining duration exceeds 44 activity-calendar working days; CMeng screening threshold.'),
   report('calendar','Unreadable or missing calendar',remaining.filter(a=>!hasReadableCalendar(a.calendarId)),remaining.length,'Each remaining execution activity requires an explicit readable working calendar.'),
-  report('float_missing','Missing float on remaining work',remaining.filter(a=>a.totalFloatHours===null),remaining.length,'Completed work is excluded from the missing-float population.'),
+  report('float_missing','Missing float on remaining work',remaining.filter(a=>a.totalFloatHours===null),remaining.length,'Completed work is excluded from the missing-float count.'),
   report('duration_day_basis_missing','Unresolved working-day conversion',remaining.filter(a=>dayHours(a)===null),remaining.length,'High-float and duration checks cannot convert hours to days for these rows.'),
   report('invalid_dates','Invalid activity dates',execution.filter(a=>
    a.baselineStartIso&&a.baselineFinishIso&&a.baselineStartIso>a.baselineFinishIso||
@@ -237,7 +237,7 @@ function programmeFloatErosion(model:CanonicalScheduleModel|null,remaining:Canon
   averageFloatChangePerElapsedWorkingDay:null,earliestTurnsCritical:null as {activityId:string;dateIso:string}|null,rows:[] as FloatErosionRow[]});
  if(!model)return none('No current programme.');
  if(!model.dataDateIso)return none('The current programme has no Data Date.');
- if(!config)return none('The project criticality rule is not available, so the near-critical population is not established.');
+ if(!config)return none('The project criticality rule is not available, so the near-critical activities are not established.');
  if(!current?.floats)return none('The CMeng CPM of the current revision is not complete and publishable, so its total floats are not established.');
  if(!previous)return none('No earlier dated, adopted programme revision is available to compare.');
  if(!previous.model.dataDateIso)return none('The previous revision has no Data Date.');
@@ -285,7 +285,7 @@ function programmeFloatErosion(model:CanonicalScheduleModel|null,remaining:Canon
  const matched=rows.filter(r=>r.state!=='not_comparable'),count=(state:FloatErosionState)=>rows.filter(r=>r.state===state).length;
  const first=rows.find(r=>r.turnsCriticalByIso!==null)??null;
  return {...base,state:matched.length?'calculated' as const:'not_established' as const,
-  reason:matched.length?null:'No activity of the near-critical and driving population has the same activity id and a CMeng CPM total float in both revisions.',
+  reason:matched.length?null:'No near-critical or driving activity has the same activity id and a CMeng CPM total float in both revisions.',
   populationCount:rows.length,populationComplete:criticalityUnknown.length===0,drivingCount:rows.filter(r=>r.onDrivingChain).length,nearCriticalCount:rows.filter(r=>!r.onDrivingChain).length,
   matchedCount:matched.length,erodingCount:count('eroding'),notErodingCount:count('not_eroding'),alreadyCriticalCount:count('already_critical'),notComparableCount:count('not_comparable'),
   criticalityUnknownActivityIds:criticalityUnknown,

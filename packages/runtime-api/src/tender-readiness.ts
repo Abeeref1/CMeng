@@ -107,8 +107,8 @@ export function tenderReadinessForState(state:ProjectRuntimeState):ModuleRuntime
     tenderCriterion({
       key:'scope-boq',criterion:'Scope / BOQ basis',owner:'Commercial / Estimating',
       established:boqItems.length>0,partial:boqSources.length>0,
-      availableEvidence:boqItems.length?boqItems.length+' BOQ item(s) read':boqSources.length?boqSources.length+' BOQ/scope source(s) supplied but a governed item population is not established':'No BOQ/scope item population is established',
-      gap:'Establish the tender scope/BOQ population before calling the commercial scope complete.',
+      availableEvidence:boqItems.length?boqItems.length+' BOQ item(s) read':boqSources.length?boqSources.length+' BOQ/scope source(s) supplied but a confirmed set of items is not established':'No BOQ/scope items are established',
+      gap:'Establish the full tender scope/BOQ items before calling the commercial scope complete.',
       sourceRefs:refs(boqSources)
     }),
     tenderCriterion({
@@ -151,7 +151,7 @@ export function tenderReadinessForState(state:ProjectRuntimeState):ModuleRuntime
     tenderCriterion({
       key:'risk-basis',criterion:'Tender risk basis',owner:'Project Controls / Risk',
       established:riskEstablished,partial:riskSources.length>0,sourceReadOnly:state.controls.risks.length===0&&sourceReadOnly(riskSources),
-      availableEvidence:riskEstablished?state.controls.risks.length+' governed/current risk record(s) available':riskSources.length?riskSources.length+' risk source(s) supplied but no governed risk population is established':'No tender/project risk population is established',
+      availableEvidence:riskEstablished?state.controls.risks.length+' governed/current risk record(s) available':riskSources.length?riskSources.length+' risk source(s) supplied but no confirmed set of risks is established':'No tender/project risks are established',
       gap:'Provide or establish the applicable risk register and rating basis.',
       sourceRefs:refs(riskSources)
     }),

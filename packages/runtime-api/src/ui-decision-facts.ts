@@ -40,7 +40,7 @@ function decisionTable(kind,rows,pointer,total,offset=0,pageData=null){
  const navigation=at>0||hasMore?'<div class="actions">'+
   '<button class="btn small" '+(at===0?'disabled ':'')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+Math.max(0,at-25)+')">Previous records</button>'+
   '<button class="btn small" '+(hasMore?'':'disabled ')+'onclick="loadDecisionPage(&quot;'+kind+'&quot;,&quot;'+pointer+'&quot;,'+(at+25)+')">Next records</button></div>':'';
- return '<p class="decision-population">'+escapeHtml(caption)+'</p>'+(missing?'<p class="hint">— means not established for that record. Missing inputs are listed in the row.</p>':'')+'<div class="table-wrap"><table><thead><tr>'+cols.map(([label,key])=>'<th'+cellClass(key)+'>'+escapeHtml(label)+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols.length+'">No applicable records were found in this source population.</td></tr>')+'</tbody></table></div>'+navigation;
+ return '<p class="decision-population">'+escapeHtml(caption)+'</p>'+(missing?'<p class="hint">— means not established for that record. Missing inputs are listed in the row.</p>':'')+'<div class="table-wrap"><table><thead><tr>'+cols.map(([label,key])=>'<th'+cellClass(key)+'>'+escapeHtml(label)+'</th>').join('')+'</tr></thead><tbody>'+(body||'<tr><td colspan="'+cols.length+'">No applicable records were found in this source.</td></tr>')+'</tbody></table></div>'+navigation;
 }
 async function loadDecisionPage(kind,pointer,offset){
  const owner=project(),seq=projectRequestSeq,result=currentModuleResult,target=el('decision-'+kind);if(!result||!target)return;

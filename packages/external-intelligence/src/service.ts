@@ -19,7 +19,7 @@ export class ExternalIntelligenceService {
     const principal:AskSession={userId:'external-plan',workspaceId:'external-plan',name:null,title:null,company:null,allowModel:false};
     const prior=previous?{plan:previous.analysis.plan,presentation:{format:'interactive'}} as any:null;
     const result=resolveIntent(objective,this.backend.catalogue,principal,null,prior).plan;
-    if(['scenario','proposal'].includes(result.kind))fail(403,'read_only','External access cannot change governed records or execute write actions.');
+    if(['scenario','proposal'].includes(result.kind))fail(403,'read_only','External access cannot change project records or run write actions.');
     if(q.authorityIds!==undefined){if(!Array.isArray(q.authorityIds)||!q.authorityIds.length||q.authorityIds.length>8||q.authorityIds.some(id=>typeof id!=='string'))fail(400,'authority_selection_invalid','Select up to eight available authorities.');result.authorities=[...new Set(q.authorityIds)];}
     if(result.authorities.length>8)fail(422,'objective_too_broad','Narrow the question to related project domains. A full project briefing is not an external capability.');
     this.required(result.authorities);

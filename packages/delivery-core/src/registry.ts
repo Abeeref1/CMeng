@@ -19,7 +19,7 @@ export const deliveryPages=[
  ['delivery-assets','Asset & System Handover','Installation, commissioning, documentation and handover relationships.','asset'],
  ['delivery-closeout','Snag & Closeout','Outstanding construction work, rectification and verified closure.','snag'],
  ['delivery-spares','Spares & Special Tools','Required, delivered, accepted, stored and handed-over quantities.','spare'],
- ['handover-readiness','Handover Readiness','Accepted requirements against a confirmed handover population.','handover'],
+ ['handover-readiness','Handover Readiness','Accepted requirements against the confirmed full set of handover requirements.','handover'],
  ['delivery-weather','Weather / Disruption Evidence','Recorded site disruption and links to the existing claims authority.','weather'],
  ['delivery-risks','Delivery Risks','The governed project risk register viewed by delivery consequence.','package'],
 ] as const;

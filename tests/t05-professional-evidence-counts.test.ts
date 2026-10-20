@@ -47,13 +47,13 @@ test("T05/T07 missing lifecycle or commercial-money linkage cannot certify a zer
 test("T05 notices and payment record counts preserve unknown and legitimate zero",()=>{
  const unknown=assessment("notices-claims",{noticeAssessmentState:"assessed",noticeRequirementMissingCount:null});
  assert.equal(unknown.status,"partial");
- assert.match(unknown.reason??"",/not assessable as a complete population/i);
+ assert.match(unknown.reason??"",/not assessable for the complete set of records/i);
  assert.equal(assessment("notices-claims",{noticeAssessmentState:"assessed",
   noticeRequirementMissingCount:0}).status,"ready");
  const pay=(count:number|null,coverage:number|null)=>assessment("payments",
   {focus:{paymentRegister:{recordCount:count,stageCoveragePercent:coverage}}});
  assert.equal(pay(null,100).status,"partial");
- assert.match(pay(null,100).reason??"",/population is not established/i);
+ assert.match(pay(null,100).reason??"",/complete payment register is not established/i);
  assert.equal(pay(0,null).status,"ready");
  assert.equal(pay(1,null).status,"partial");
 });

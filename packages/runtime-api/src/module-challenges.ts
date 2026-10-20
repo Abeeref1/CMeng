@@ -351,7 +351,7 @@ function spec(
     actionWhenMissing:
       input.actionMissing ??
       (
-        "Reconcile the source fields, population, definition and reporting date for " +
+        "Reconcile the source fields, records covered, definition and reporting date for " +
         label.toLowerCase() +
         ". Obtain a separate report value only if an external comparison is required."
       ),
@@ -904,7 +904,7 @@ function metricsFor(
       return [
         spec(
           "activity_count",
-          "Activity population",
+          "Activity count",
           numberOrNull(
             dataOf(
               modules,
@@ -1063,7 +1063,7 @@ function metricsFor(
             consequenceMissing: "The schedule-derived look-ahead is established; a separate submitted look-ahead register is not available for an identity-level comparison.",
             actionMissing: "If a submitted look-ahead register is required, reconcile its activity IDs, window dates and readiness evidence with this view.",
             consequenceDifferent:
-              "The contractor look-ahead does not represent the same activity population as the schedule-derived look-ahead.",
+              "The contractor look-ahead does not cover the same activities as the schedule-derived look-ahead.",
             actionDifferent:
               "Reconcile omitted/extra look-ahead activities against the current schedule and readiness evidence.",
           },
@@ -1149,7 +1149,7 @@ function metricsFor(
               change?.state ===
                 "insufficient_history"
                 ? "A second schedule revision is required to independently test schedule changes."
-                : "The contractor did not provide a comparable disclosure of schedule changes; CMeng has independently identified the actual changed population.",
+                : "The contractor did not provide a comparable disclosure of schedule changes; CMeng has independently identified the activities that actually changed.",
             actionMissing:
               change?.state ===
                 "insufficient_history"
@@ -1249,7 +1249,7 @@ function metricsFor(
           "milestones",
           milestoneCount===null?'not_derivable':'calculated',
           [sourceRef],
-          {note:milestoneCount===null?'Milestone identification is incomplete or an empty programme milestone population has not been reviewed. Retained identified rows do not establish the full total.':undefined},
+          {note:milestoneCount===null?'Milestone identification is incomplete or a programme with no milestones has not been reviewed. Retained identified rows do not establish the full total.':undefined},
         ),
         spec(
           "late_milestone_count",
@@ -1356,7 +1356,7 @@ function metricsFor(
                 : undefined,
             note:
               scenarioHours !== null
-                ? "Fallback assumes 8 hours/person/day and the base 6-person concurrent-work-front scenario."
+                ? "This estimate assumes 8 hours/person/day and the base 6-person concurrent-work-front scenario."
                 : undefined,
           },
         ),

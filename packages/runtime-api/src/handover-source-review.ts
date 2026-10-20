@@ -67,7 +67,7 @@ function buildComparison(state:ProjectRuntimeState){
   return {key:key!,source:'asset_register',label:label!,numerator:yes,denominator:source.length,unknownCount:unknown,percent:unknown?null:percent(yes,source.length),
    asOfConfirmedYes:asOf.confirmedYes,asOfKnownCount:asOf.knownCount,asOfUnknownCount:asOf.unknownCount,asOfPercent:asOf.percentage,
    statusDate:[...new Set(assetDates.filter((d):d is string=>!!d))].sort().join(', ')||null,undatedCount,futureCount,
-   basis:(flagReviewRefs.length?'Reviewed source flag interpretations: '+flagReviewRefs.join('; ')+'. Original source values remain available. ':'')+'Reported source flag counts and percentages are retained separately from the reporting-date position. The as-of percentage is not established while any source flag is undated, future-dated or unknown; neither measure proves formal handover acceptance or a complete asset population.'};
+   basis:(flagReviewRefs.length?'Reviewed source flag interpretations: '+flagReviewRefs.join('; ')+'. Original source values remain available. ':'')+'Reported source flag counts and percentages are retained separately from the reporting-date position. The as-of percentage is not established while any source flag is undated, future-dated or unknown; neither measure proves formal handover acceptance or a complete asset register.'};
  });
  const linkedAssetCount=source.filter(r=>r.links.activityIds.some(id=>taskIds.has(id))).length;
  const sourceRefs=[...new Set([...(schedule?['schedule:'+schedule.revision.revisionId]:[]),...source.flatMap(r=>r.receipts.map(receipt=>'evidence-document:'+receipt.documentId))])];
@@ -77,7 +77,7 @@ function buildComparison(state:ProjectRuntimeState){
  const programmeAvailable=programme.some(row=>(row.denominator??0)>0),reviewAvailable=programmeAvailable&&source.length>0;
  const rows=decision?.choice==='asset_focus'?[...assetRows,...programme]:[...programme,...assetRows];
  return {sourceFingerprint,sourceRefs,dataDateIso:cutoff,programmeAvailable,reviewAvailable,assetRecordCount:source.length,linkedAssetCount,unlinkedAssetCount:source.length-linkedAssetCount,rows,
-  comparability:'different_populations' as const,basis:'Programme task counts and asset-register flags describe different populations. Reconcile the scope, asset-to-activity links and status dates before treating their percentages as a disagreement. Neither source alone proves formal handover acceptance.',
+  comparability:'different_populations' as const,basis:'Programme task counts and asset-register flags describe different sets of records. Reconcile the scope, asset-to-activity links and status dates before treating their percentages as a disagreement. Neither source alone proves formal handover acceptance.',
   dateQualification:cutoff?undatedCount+' asset records have no status date; '+futureCount+' are dated after the programme Data Date. Source flags remain visible and are not promoted to current acceptance.':'Programme Data Date is unavailable. '+undatedCount+' asset records have no status date. Source flags do not establish current acceptance.',
   decision:decision?{choice:decision.choice,reference:decision.reference,confirmedAt:decision.confirmedAt}:null};
 }

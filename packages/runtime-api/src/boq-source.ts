@@ -25,7 +25,7 @@ function readableRetainedSource(boq:BoqIngestionResult|null,document:ProjectRunt
 export function suppliedBoqReportedTotals(state:ProjectRuntimeState,sourceDocumentId:string|null){
  const doc=state.evidenceDocuments.find(d=>d.documentId===sourceDocumentId),read=doc?.fullTextRead;
  if(!doc||!read||read.sourceHashSha256!==doc.sourceHashSha256)return [];
- return nativeBoqReportedTotals(read.result.pages).map(r=>({...r,sourceRefs:['sha256:'+doc.sourceHashSha256+':pdf:page:'+r.page],basis:'Explicit source summary, not a reconciled sum of the extracted item population or certification of contract value.'}));
+ return nativeBoqReportedTotals(read.result.pages).map(r=>({...r,sourceRefs:['sha256:'+doc.sourceHashSha256+':pdf:page:'+r.page],basis:'Explicit source summary, not a reconciled sum of the extracted items or certification of contract value.'}));
 }
 
 /** An attempted ingestion is not proof of an empty measured population. */
@@ -129,7 +129,7 @@ export function resolveBoqSource(state:ProjectRuntimeState,scheduleRevisionId:st
     authority:'source_quantities_not_certified_installations',adoptedSource:source?adopted(source):Boolean(selected),
     excludedMisclassifiedDocuments:rejected.map(d=>({documentId:d.documentId,sourceFilename:d.sourceFilename,recordedType:d.documentType,detectedType:documentClassificationForReview(d).documentType})),
     diagnostics:[...(selected&&!readable?['BOQ_ITEM_POPULATION_UNREADABLE']:[]),...(rejected.length?['LEGACY_NON_BOQ_SOURCES_EXCLUDED']:[]),...(!validCurrent&&candidates.length>1?['BOQ_SOURCE_SELECTION_AMBIGUOUS']:[])],
-    explanation:selected&&!readable?'The selected source did not yield a readable BOQ item population. Counts and quantity calculations remain unresolved.':rejected.length?'Content validation excluded sources from another evidence family. Valid BOQ quantities retain their own source authority.':'BOQ source and measured installation evidence remain separate.'};
+    explanation:selected&&!readable?'No readable BOQ items were found in the selected source. Counts and quantity calculations remain unresolved.':rejected.length?'Content validation excluded sources from another evidence family. Valid BOQ quantities retain their own source authority.':'BOQ source and measured installation evidence remain separate.'};
   const quantities=selected?(readable?(selected===state.boq&&state.quantities?quarantineBoqQuantityModel(state.quantities,selected):quantityModelFromBoq(selected,scheduleRevisionId,state.quantities)):null):state.boq?null:quarantineBoqQuantityModel(state.quantities,null);
   return {boq:selected,quantities:withRetainedCostCodes(quantities,source),selection};
 }

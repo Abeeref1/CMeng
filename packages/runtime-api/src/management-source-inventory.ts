@@ -122,7 +122,7 @@ function build(state:ProjectRuntimeState){
           ?'Source rows are readable. This establishes source availability only; completeness, authority and cross-domain mapping remain separate.'
           :'Source rows are readable but the register schema is not fully recognised. Preserve the rows and review field mapping before using dependent calculations.')
         :parsedDocumentCount
-          ?'Relevant source documents were read, but a structured row population is not available from the current extraction.'
+          ?'Relevant source documents were read, but structured rows are not available from the current extraction.'
           :'Relevant source files are retained. Their structured records have not yet been established.';
     return {
       domain:definition.domain,label:definition.label,documentCount:matched.length,parsedDocumentCount,

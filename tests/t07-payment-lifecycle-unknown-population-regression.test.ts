@@ -28,7 +28,7 @@ function render(input:{source:boolean;population:boolean;stages:boolean;count:nu
 test('T07 absent payment register is unknown and never an all-zero lifecycle',()=>{
  const html=render({source:false,population:false,stages:false,count:null});
  assert.match(html,/Payment register is not confirmed\. Lifecycle counts are not confirmed/);
- assert.doesNotMatch(html,/The confirmed current payment population is zero/);
+ assert.doesNotMatch(html,/There are zero confirmed current payments/);
  assert.doesNotMatch(html,/\\"applied\\":0/);
 });
 
@@ -36,12 +36,12 @@ test('T07 source exists but incomplete stages cannot be described as missing sou
  const html=render({source:true,population:true,stages:false,count:8});
  assert.match(html,/Payment source records are retained/);
  assert.match(html,/current lifecycle stages are not fully established/);
- assert.doesNotMatch(html,/Payment register is not confirmed|population is zero/);
+ assert.doesNotMatch(html,/Payment register is not confirmed|zero confirmed current payments/);
 });
 
 test('T07 an evidenced empty as-of population is a genuine zero',()=>{
  const html=render({source:true,population:true,stages:false,count:0});
- assert.match(html,/confirmed current payment population is zero/);
+ assert.match(html,/zero confirmed current payments/);
  assert.doesNotMatch(html,/not confirmed/);
 });
 

@@ -74,10 +74,10 @@ test('approved-only lifecycle display withholds pending exposure and empty aging
  const show=()=>render(full,"renderCommercialVisual('variations-change',data)");
  let result=show();assert.equal(result.kpis.find(row=>row[0]==='Known pending')[1],'Not established');assert.match(result.html,/Approved-only or rejected-only rows do not prove/);
  assert.match(result.html,/complete exposure is not established/);
- assert.doesNotMatch(result.html,/The established pending and unknown-stage population is zero/,'an empty identified subset does not prove zero');
+ assert.doesNotMatch(result.html,/There are zero confirmed pending or unknown-stage records/,'an empty identified subset does not prove zero');
  vo.knownPendingCount=4;vo.pendingAgeBands.upTo30Days=4;vo.unknownAsOfStageCount=2;result=show();assert.equal(result.kpis.find(row=>row[0]==='Known pending')[1],4);assert.doesNotMatch(result.html,/No pending lifecycle population is established/);assert.match(result.html,/does not establish the complete pending exposure/);
  vo.pendingCount=0;vo.knownPendingCount=0;vo.unknownAsOfStageCount=0;vo.pendingAgeBands.upTo30Days=0;
  result=show();assert.equal(result.kpis.find(row=>row[0]==='Known pending')[1],0,'a source-established complete zero remains zero');
- assert.match(result.html,/The established pending and unknown-stage population is zero/);
+ assert.match(result.html,/There are zero confirmed pending or unknown-stage records/);
  assert.doesNotMatch(result.html,/Approved-only or rejected-only rows do not prove/,'do not falsely claim uncertainty when a source confirms complete zero');
 });

@@ -52,13 +52,13 @@ function build(state:ProjectRuntimeState){
   }
   const broad=watchPercent!==null&&watchPercent>50;
   const authorityText=authority==='cmeng_screening_policy'?'CMeng screening only; project threshold unresolved':authority==='project_evidenced_threshold'?'Project-evidenced threshold':'Threshold authority requires review';
-  const message=unknown?`${unknown} of ${activities.length} unfinished execution activities cannot be fully classified. Whole-population counts and percentages remain unresolved.`
+  const message=unknown?`${unknown} of ${activities.length} unfinished execution activities cannot be fully classified. Counts and percentages for all activities remain unresolved.`
     :`${near} of ${activities.length} unfinished execution activities (${nearPercent??'unresolved'}%) are near-critical; the wider watchlist contains ${watch} (${watchPercent??'unresolved'}%).`;
   return {sourceRevisionId:model.sourceRevisionId,authority,threshold,thresholdWorkingDays:config.nearCriticalWorkingDays??null,
     thresholdHours:config.nearCriticalWorkingDays==null?config.nearCriticalFloatThresholdHours:null,
     populationCount:activities.length,unresolvedActivityCount:unknown,nearCriticalCount:unknown?null:near,watchlistCount:unknown?null:watch,
     nearCriticalPercent:nearPercent,watchlistPercent:watchPercent,broadScreening:broad,
-    broadScreeningRule:'Advisory review when the watchlist contains more than half of the execution population; this does not alter activity classifications.',
+    broadScreeningRule:'Advisory review when the watchlist contains more than half of the execution activities; this does not alter activity classifications.',
     basis:threshold+' · '+authorityText,
     explanation:message+(broad?' The watchlist covers most of the programme and cannot serve as a short priority list.':''),
     action:'Review negative and zero float, remaining work, upcoming dates and driving paths. Establish the project threshold in the schedule control basis; do not rescale it automatically to reduce the count.',

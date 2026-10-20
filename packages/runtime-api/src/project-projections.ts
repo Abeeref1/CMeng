@@ -1,4 +1,5 @@
 import {projectDocumentReading,readingSetup} from './document-read-review';
+import {auditActorDisplayName} from './audit-context';
 import {configuredProviderState} from '../../project-ask/src/provider';
 import {projectScopeClassification} from './location-review';
 import {attachSourceActivityCalendars} from './source-milestone-calendar-join';
@@ -1902,7 +1903,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         },
         ["resource-loaded XER or governed weekly resource evidence"],
         "partial",
-        "Resource assignments and governed weekly resource evidence are not established. The page remains available without manufacturing a resource population or utilization result.",
+        "Resource assignments and governed weekly resource evidence are not established. The page remains available without inventing resource records or a utilization result.",
       ),
     );
     modules.set(
@@ -2075,7 +2076,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ? "ready"
         : "partial",
       claimPopulationQuarantined
-        ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are retained but quarantined because their population matches a generated sequential pattern with no schedule linkage. They do not feed delay attribution, EOT, portfolio or Ask CMeng counts."
+        ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are retained but held for review because their records match a generated sequential pattern with no schedule linkage. They do not feed delay attribution, EOT, portfolio or Ask CMeng counts."
         : analyticalDelayModel.claims.length > 0 &&
           delayClaims.events.length === 0
           ? analyticalDelayModel.claims.length +
@@ -2159,7 +2160,7 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
         ? "ready"
         : "partial",
       claimPopulationQuarantined
-        ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are quarantined by the integrity gate. Notice compliance is withheld for that population until the source is independently verified."
+        ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are held for review by the integrity check. Notice compliance is withheld for those records until the source is independently verified."
         : noticeAssessable
           ? null
           : noticeAssessmentAvailable &&
@@ -3170,11 +3171,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
                     document.parserState ===
                       "parsed",
                 )
-                ? "Open-risk population is established from the active risk evidence basis."
+                ? "The full set of open risks is established from the active risk evidence."
                 : evidenceTypes.has(
                     "risk_register",
                   )
-                  ? "Risk register evidence is present, but an open-risk population is not yet semantically established; CMeng will not display zero."
+                  ? "Risk register evidence is present, but the full set of open risks is not yet established; CMeng will not display zero."
                   : "No risk register evidence is established; CMeng will not display zero.",
           },
           revision: {
@@ -5183,7 +5184,7 @@ export function sourceOnlyForecast(
       p90CompletionIso:
         null,
       assumptions: [
-        "Probabilistic comparison is not calculated until the independent deterministic forecast is reviewed.",
+        "Probabilistic comparison is not calculated until the independent standard CPM forecast is reviewed.",
       ],
     },
     activities: [],
@@ -5424,7 +5425,7 @@ function independentForecastReviewReason(
         String(
           missingPatterns.length,
         ) +
-        " referenced P6 calendar record(s) do not establish a usable working-time pattern. CMeng does not assume a fallback calendar."
+        " referenced P6 calendar record(s) do not establish a usable working-time pattern. CMeng does not assume a substitute calendar."
       );
     }
     if (unresolvedSemantics.length > 0) {
@@ -5436,7 +5437,7 @@ function independentForecastReviewReason(
         String(
           unresolvedSemantics.length,
         ) +
-        " referenced P6 calendar record(s) have unresolved source semantics. CMeng keeps the forecast unavailable rather than replacing them with assumed working time."
+        " referenced P6 calendar record(s) cannot be read with a clear meaning. CMeng keeps the forecast unavailable rather than replacing them with assumed working time."
       );
     }
     return "Independent forecast requires review because one or more CPM inputs are unresolved.";
@@ -5700,7 +5701,7 @@ function buildSpecialistModuleFast(
             ],
             "partial",
             claimPopulationQuarantined
-              ? "Claim/notice evidence is retained but quarantined. Notice and schedule conclusions are withheld until the population is independently verified."
+              ? "Claim/notice evidence is retained but held for review. Notice and schedule conclusions are withheld until these records are independently verified."
               : noticeAssessable
                 ? "Notice compliance is assessable from the governed event, requirement and notice evidence. Programme attribution is not established because no controlled programme is available."
                 : "Claim/notice evidence remains visible. Complete notice assessment needs the missing event/requirement evidence; programme attribution separately requires a controlled programme.",
@@ -6459,7 +6460,7 @@ function buildSpecialistModuleFast(
           ? "ready"
           : "partial",
         claimPopulationQuarantined
-          ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are quarantined by the integrity gate. Notice compliance is withheld for that population until the source is independently verified."
+          ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are held for review by the integrity check. Notice compliance is withheld for those records until the source is independently verified."
           : noticeAssessable
             ? null
             : noticeAssessmentAvailable && notices.noticeRequirementMissingCount !== null &&
@@ -6511,7 +6512,7 @@ function buildSpecialistModuleFast(
           delayModel.events.length >
             0
             ? null
-            : "Programme movement is calculated from controlled programme revisions, but causation remains un-attributed because no linked delay-event population is established.",
+            : "Programme movement is calculated from controlled programme revisions, but causation remains un-attributed because no linked delay events are established.",
         );
       } else if (
         key ===
@@ -6549,7 +6550,7 @@ function buildSpecialistModuleFast(
             ? "ready"
             : "partial",
           claimPopulationQuarantined
-            ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are retained but quarantined because their population matches a generated sequential pattern with no schedule linkage. They do not feed delay attribution, EOT, portfolio or Ask CMeng counts."
+            ? claimPopulationIntegrity!.quarantinedClaimCount+" source claim rows are retained but held for review because their records match a generated sequential pattern with no schedule linkage. They do not feed delay attribution, EOT, portfolio or Ask CMeng counts."
             : analyticalDelayModel
                 .claims.length >
               0 &&
@@ -7045,7 +7046,7 @@ export function applyProfessionalModuleState(
   ) {
     const eventCount = typeof data.eventCount === 'number' && Number.isFinite(data.eventCount) && data.eventCount >= 0 ? data.eventCount : null;
     const activityLinked = typeof data.activityLinkedEventCount === 'number' && Number.isFinite(data.activityLinkedEventCount) && data.activityLinkedEventCount >= 0 ? data.activityLinkedEventCount : null;
-    if (eventCount === null || activityLinked === null) review('Delay event or activity-link population is not established; missing records cannot be reported as zero.');
+    if (eventCount === null || activityLinked === null) review('Delay events or activity links are not established; missing records cannot be reported as zero.');
     if (
       eventCount !== null && activityLinked !== null && eventCount > 0 &&
       activityLinked < eventCount
@@ -7078,7 +7079,7 @@ export function applyProfessionalModuleState(
               requirementMissing,
             ) +
               " delay event(s) do not have a confirmed applicable notice requirement; assessed events remain visible but the page is only partially assessable."
-          : "Notice compliance is not assessable as a complete population until confirmed delay events, applicable notice requirements and actual notice dates are established.",
+          : "Notice compliance is not assessable for the complete set of records until confirmed delay events, applicable notice requirements and actual notice dates are established.",
       );
     }
   }
@@ -7093,7 +7094,7 @@ export function applyProfessionalModuleState(
       null;
     const rawCount = register?.recordCount;
     const count = typeof rawCount === 'number' && Number.isFinite(rawCount) && rawCount >= 0 ? rawCount : null;
-    if (count === null) review('Payment register population is not established; absence of records cannot be represented as zero payments.');
+    if (count === null) review('The complete payment register is not established; absence of records cannot be represented as zero payments.');
     const coverage =
       register
         ?.stageCoveragePercent ??
@@ -7218,7 +7219,7 @@ export function applyProfessionalModuleState(
     if (conflicts || cost?.state !== "established" || position?.foundation?.costRegister?.mappingCoveragePercent !== 100) {
       review((position?.sourceLedger?.costPosition ?? []).length
         ? "Cost snapshots are available, but reconciliation, source authority or CBS mapping requires review. A single observation does not establish a trend."
-        : "Cost snapshots are not established. Supply dated EVM inputs with a compatible currency, tax basis and measurement population before calculating cost performance.");
+        : "Cost snapshots are not established. Supply dated EVM inputs with a compatible currency, tax basis and set of measured records before calculating cost performance.");
     }
     // SW-31: a source EAC challenge or query is shown on the page as an exception
     // beside the independent values. It concerns the submitted figure, so it
@@ -7317,7 +7318,7 @@ export function applyProfessionalModuleState(
           noticeEvidenceGaps === null || noticeEvidenceGaps > 0) {
         review(
           lifecycleCount === null
-            ? "Claim lifecycle population is not established; Financial Claims remains under review."
+            ? "The full set of claims and their lifecycle stages is not established; Financial Claims remains under review."
             : moneyLinkGap
               ? (commercialCount === null ? "Not established" : String(commercialCount)) +
                 " of " + String(lifecycleCount) +
@@ -8219,7 +8220,7 @@ export function managementSurfacesForProject(
   const mp3=profiling?performance.now():0;
   const consistency = { state: certification.state, checkCount: certification.checkCount,
     failedCheckIds: certification.failedCheckIds,
-    scope: "Checked cross-module values, shared population IDs and denominators, Data Date, authority, configuration and project version. Evidence completeness is a separate gate." };
+    scope: "Checked values across pages, shared record sets and denominators, Data Date, authority, configuration and project version. Evidence completeness is a separate gate." };
   const moduleInput = (descriptor: {key: string; title: string; category: string}, commercialModule = false): ManagementModuleInput => {
     const result = resolvedModules.get(descriptor.key)!;
     const integrity = (result.data as any)?.systemEvidenceContract;
@@ -8487,7 +8488,7 @@ export function managementSurfacesForProject(
   const history:
     ManagementHistoryInput[] = [
       ...(state.auditHistory??[]).map(event=>({eventId:event.eventId,occurredAt:event.occurredAt,entity:'Project version '+event.projectVersion,
-        action:event.operation,actor:event.actor.label,state:event.actor.identityVerified?(event.actor.kind==='user'?'attributed_user':'attributed_system'):'session_identity_unverified',sourceRef:'audit-request:'+event.requestId})),
+        action:event.operation,actor:auditActorDisplayName(event.actor),state:event.actor.identityVerified?(event.actor.kind==='user'?'attributed_user':'attributed_system'):'session_identity_unverified',sourceRef:'audit-request:'+event.requestId})),
       ...state.evidenceDocuments.map(
         (document) => ({
           eventId:
@@ -8499,7 +8500,7 @@ export function managementSurfacesForProject(
             document.sourceFilename,
           action:
             "Project evidence added or updated",
-          actor: state.auditSourceActors?.['evidence:'+document.documentId]?.label??"Actor not recorded (legacy)",
+          actor: auditActorDisplayName(state.auditSourceActors?.['evidence:'+document.documentId])??"Actor not recorded (legacy)",
           state:
             document.basisState,
           sourceRef:
@@ -8520,7 +8521,7 @@ export function managementSurfacesForProject(
             publication.stale
               ? "Board publication became stale"
               : "Board publication finalized",
-          actor: state.auditSourceActors?.['publication:'+publication.publicationId]?.label??"Actor not recorded (legacy)",
+          actor: auditActorDisplayName(state.auditSourceActors?.['publication:'+publication.publicationId])??"Actor not recorded (legacy)",
           state:
             publication.stale
               ? "stale"
@@ -8545,7 +8546,7 @@ export function managementSurfacesForProject(
                 "Project control position",
               action:
                 "Project position recalculated and cross-module certification executed",
-              actor: state.auditSourceActors?.['rerun:'+state.lastRerunReceipt.receiptId]?.label??"Actor not recorded (legacy)",
+              actor: auditActorDisplayName(state.auditSourceActors?.['rerun:'+state.lastRerunReceipt.receiptId])??"Actor not recorded (legacy)",
               state:
                 state.lastRerunReceipt
                   .certification
@@ -8835,7 +8836,7 @@ export function managementSurfacesForProject(
   Object.assign(result.sourceQuality,{pageValueChecks:pageChecks});
   const pageFailures=pageChecks.filter(c=>c.state==='failed');
   if(pageFailures.length){
-    const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:JSON.stringify(c.values),action:'Correct the shared producer or consumer and rerun the cross-page release checks.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
+    const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:JSON.stringify(c.values),action:'Correct the shared calculation or the page that reads it, then run the cross-page release checks again.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
     result.sourceQuality.systemFailures.push(...failures);
     for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])surface.issueAssessment=summarizeControlIssues([...issueAssessment.issues,...failures],totalChecksRun([issueAssessment.checksRunCount,pageChecks.length]));
   }

@@ -475,27 +475,27 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       criticalActivityCount:aggregateFact(
         canonicalCritical,
         authoritativeIndependent
-          ?'Unfinished execution activities classified critical by deterministic independent source-calendar CPM.'
+          ?'Unfinished execution activities classified critical by the standard independent CPM on the source calendars.'
              :'Unfinished execution activities classified critical from '+governedCriticality.floatLabel+'.',
       ),
       nearCriticalActivityCount:aggregateFact(
         canonicalNearCritical,
         authoritativeIndependent
-          ?'Unfinished execution activities classified near-critical by deterministic independent source-calendar CPM using the shared threshold.'
+          ?'Unfinished execution activities classified near-critical by the standard independent CPM on the source calendars, using the shared threshold.'
              :'Unfinished execution activities classified near-critical from '+governedCriticality.floatLabel+'.',
       ),
       negativeFloatActivityCount:aggregateFact(
         canonicalNegativeFloat,
         authoritativeIndependent
-          ?'Unfinished execution activities with deterministic independent CPM total float below zero.'
+          ?'Unfinished execution activities with standard independent CPM total float below zero.'
              :'Unfinished execution activities with '+governedCriticality.floatLabel+'.',
       ),
-      submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical population retained for reconciliation.'),
-      submittedNearCriticalActivityCount:aggregateFact(submittedNearCritical,'Submitted/source total-float near-critical population retained for reconciliation.'),
-      submittedNegativeFloatActivityCount:aggregateFact(submittedNegativeFloat,'Submitted/source negative-float population retained for reconciliation.'),
-      independentCriticalActivityCount:aggregateFact(independentCritical,'Independent CPM critical population; unavailable until the independent calculation covers the open execution population.'),
-      independentNearCriticalActivityCount:aggregateFact(independentNearCritical,'Independent CPM near-critical population; unavailable until the independent calculation covers the open execution population.'),
-      independentNegativeFloatActivityCount:aggregateFact(independentNegativeFloat,'Independent CPM negative-float population; unavailable until the independent calculation covers the open execution population.'),
+      submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical activities retained for reconciliation.'),
+      submittedNearCriticalActivityCount:aggregateFact(submittedNearCritical,'Submitted/source total-float near-critical activities retained for reconciliation.'),
+      submittedNegativeFloatActivityCount:aggregateFact(submittedNegativeFloat,'Submitted/source negative-float activities retained for reconciliation.'),
+      independentCriticalActivityCount:aggregateFact(independentCritical,'Independent CPM critical activities; unavailable until the independent calculation covers all open execution activities.'),
+      independentNearCriticalActivityCount:aggregateFact(independentNearCritical,'Independent CPM near-critical activities; unavailable until the independent calculation covers all open execution activities.'),
+      independentNegativeFloatActivityCount:aggregateFact(independentNegativeFloat,'Independent CPM negative-float activities; unavailable until the independent calculation covers all open execution activities.'),
       delayedOpenActivityCount:aggregateFact(
         delayedOpen,
         'All unfinished programme records, including level-of-effort records, whose effective finish is later than the adopted baseline finish.',

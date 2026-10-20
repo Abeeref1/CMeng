@@ -170,7 +170,7 @@ function calculateHsePosition(state:ProjectRuntimeState,dataDateIso:string|null)
     monthlyMetrics:latest?.monthlyMetrics??null,periods:eligible,metricBasis:latest?.metricBasis??'reported_period',
     rates:{recordablePopulationComplete:completeRecordableCounts,state:countsConfirmed?'counts_available':'unresolved',reason:rateReason,reportedRates,recordableCasesFromLtiAndMedical:countsConfirmed?recordable:null,restrictedWorkCases:restricted,suppliedTrir:supplied,comparisons:rates,basisEstablished:!!latest?.rateBasisHours,sourceBasisHours:latest?.rateBasisHours??null,
       calculatedTrir,calculatedLtifr},
-    laborComparison:{reportedManHours:hours,approvedLaborHoursToDataDate:approvedLaborHours,resourceWeekCount:labor.length,ratio:hours!==null&&approvedLaborHours?hours/approvedLaborHours:null,basis:'Report exposure and approved labor usage have different stated populations; reconcile coverage and period before asserting a same-basis contradiction.'},
+    laborComparison:{reportedManHours:hours,approvedLaborHoursToDataDate:approvedLaborHours,resourceWeekCount:labor.length,ratio:hours!==null&&approvedLaborHours?hours/approvedLaborHours:null,basis:'Report exposure and approved labor usage cover different stated records; reconcile coverage and period before asserting a same-basis contradiction.'},
     futureReportCount:reports.filter(r=>cutoff&&r.periodEndIso&&r.periodEndIso>cutoff).length,
     diagnostics:[...(latest?.diagnostics??[]),...(conflicting?['HSE_REPORT_SAME_PERIOD_CONFLICT']:[]),...(unexplained?['HSE_TRIR_RECONCILIATION_REQUIRED']:[]),...(ltifrUnexplained?['HSE_LTIFR_RECONCILIATION_REQUIRED']:[]),...(countsConfirmed&&!completeRecordableCounts?['HSE_RESTRICTED_WORK_CASES_UNRESOLVED']:[])],
   };

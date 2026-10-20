@@ -29,7 +29,7 @@ async function diagnosisPage(id,offset){
 function diagnosisAsk(question){setAppView('ai');el('aiQuestion').value=question;askCmeng();}
 function milestoneExposureNote(exposure){
  if(exposure?.absenceConfirmed)return 'The source-bound review confirms no programme milestones. Contractual commitments remain separate.';
- if(exposure?.value==null)return 'Milestone exposure cannot be cleared or ranked for the complete population. '+(!exposure?.identifiedCount?'No milestone population has been identified or confirmed; review source types or select key dates.':(exposure.knownCount==null?'Priority count not established':fmt(exposure.knownCount)+' identified priorities')+'; population or assessment fields remain unresolved.');
+ if(exposure?.value==null)return 'Milestone exposure cannot be cleared or ranked for all milestones. '+(!exposure?.identifiedCount?'No set of milestones has been identified or confirmed; review source types or select key dates.':(exposure.knownCount==null?'Priority count not established':fmt(exposure.knownCount)+' identified priorities')+'; milestone or assessment fields remain unresolved.');
  return exposure.value===0?'No identified milestone or reviewed key date is ranked for attention by the available programme checks. This is not a contractual clearance.':fmt(exposure.value)+' identified milestones or reviewed key dates are ranked for attention by the available programme checks.';
 }
 function renderProjectPrioritySummary(register){

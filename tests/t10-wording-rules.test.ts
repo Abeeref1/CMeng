@@ -28,7 +28,7 @@ test('T10 W1/W4: field names seen in real API responses read as plain words',()=
   ['retentionCalendar_full_source','Retention calendar full source'],
   ['siteInstructions_full_source','Site instructions full source'],
   ['ld_rate_per_day_x_exposure_days','LD rate per day × exposure days'],
-  ['position.contractControls.bondsInsurance.insurancePopulation.denominator','Position contract controls bonds insurance population denominator'],
+  ['position.contractControls.bondsInsurance.insurancePopulation.denominator','Position contract controls bonds insurance record set denominator'],
  ];
  for(const [key,label] of cases){
   assert.equal(readableFieldLabel(key),label,key);
@@ -38,7 +38,7 @@ test('T10 W1/W4: field names seen in real API responses read as plain words',()=
  // The browser label (headings, cells, filters) gives the same words.
  for(const [key,label] of cases.filter(([key])=>!key.includes('.')&&key!=='ld_rate_per_day_x_exposure_days'))assert.equal(humanize(key),label,key);
  assert.equal(humanize('ld_rate_per_day_x_exposure_days'),'LD rate per day × exposure days');
- assert.equal(readablePathLabel('position.contractControls.bondsInsurance.insurancePopulation.denominator'),'Position · contract controls · bonds insurance · insurance population · denominator','path labels keep each segment');
+ assert.equal(readablePathLabel('position.contractControls.bondsInsurance.insurancePopulation.denominator'),'Position · contract controls · bonds insurance · insurance record set · denominator','path labels keep each segment');
 });
 
 test('T10 W1: IDs, units and plain words are still left as written',()=>{

@@ -58,12 +58,12 @@ test('Task 58 keeps value unit population Data Date state authority and qualific
  const selected=await exportModuleReport('SEMANTIC-PARITY','progress-report',result,'json',view),analysis=JSON.parse(selected.bytes.toString());
  const metric=analysis.sections[0].metrics.find((row:any)=>row.id==='module.progressPosition.value');
  assert.equal(metric.value,37);assert.equal(metric.unit,'%');assert.equal(metric.state,'partial');assert.equal(metric.classification,'project_fact');
- assert.match(metric.basis,/Measured physical progress/);assert.match(metric.basis,/Population 120/);assert.match(metric.basis,/excluded 5/);assert.match(metric.basis,/Data Date 2031-04-15/);assert.match(metric.basis,/Authority source/);
+ assert.match(metric.basis,/Measured physical progress/);assert.match(metric.basis,/Records 120/);assert.match(metric.basis,/excluded 5/);assert.match(metric.basis,/Data Date 2031-04-15/);assert.match(metric.basis,/Authority source/);
  const trace=analysis.sections[0].traces.find((row:any)=>row.id==='module:metric:progressPosition.value');
  assert.equal(trace.dataDate,'2031-04-15');assert.equal(trace.state,'partial');assert.match(trace.basis,/Authority source/);
  const nonPopulation=analysis.sections[0].metrics.find((row:any)=>row.id==='module.contractCompletion.value');
  assert.equal(nonPopulation.value,'2031-05-30');assert.equal(nonPopulation.unit,'date');assert.equal(nonPopulation.state,'established');assert.equal(nonPopulation.classification,'project_fact');
- assert.match(nonPopulation.basis,/Governed contractual completion/);assert.match(nonPopulation.basis,/Population not separately established/);assert.match(nonPopulation.basis,/Data Date 2031-04-15/);assert.match(nonPopulation.basis,/Authority official/);
+ assert.match(nonPopulation.basis,/Governed contractual completion/);assert.match(nonPopulation.basis,/Record count not separately established/);assert.match(nonPopulation.basis,/Data Date 2031-04-15/);assert.match(nonPopulation.basis,/Authority official/);
 
  const pdf=await exportModuleReport('SEMANTIC-PARITY','progress-report',result,'pdf',view),parser=new PDFParse({data:pdf.bytes as any});const pdfText=(await parser.getText()).text;await parser.destroy();
  assert.match(pdfText,/37/);assert.match(pdfText,/Measured physical progress/);assert.match(pdfText,/2031-04-15/);

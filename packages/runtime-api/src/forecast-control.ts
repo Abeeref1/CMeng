@@ -125,7 +125,7 @@ export function buildForecastReconciliationGate(input: {
       label: "Activity calculation coverage",
       state: coverageEstablished ? "passed" : "review_required",
       detail: coverageEstablished
-        ? "The execution activity calculation population is fully covered."
+        ? "All execution activities are covered by the calculation."
         : "Activity calculation coverage is " + (forecast.activityCoveragePercent === null ? "not established" : forecast.activityCoveragePercent + "%") + ".",
       count: forecast.unresolvedActivityCount,
     },

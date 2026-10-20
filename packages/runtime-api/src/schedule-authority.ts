@@ -92,7 +92,7 @@ export const programmeAuthorityLabels:Record<string,string>={
   current:'Current submitted programme · not an approval',
   candidate:'Programme candidate · needs adoption before current',
   previous:'Previous version',
-  scenario:'Scenario only',
+  scenario:'What-if version only',
   reference:'Reference only',
 };
 /** Programme-authority state of one schedule document, read from the shared review. */

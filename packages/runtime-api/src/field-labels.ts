@@ -30,6 +30,9 @@ export function readableFieldLabel(key: unknown): string {
     unknownOutcomeCount: 'Outcome not recorded',
     unknownStatusCount: 'Status not recorded',
     knownOverdueCount: 'Overdue records',
+    // W8/W2: state codes whose plain split would read as jargon. Data values are unchanged.
+    not_derivable: 'Cannot be worked out from the current records',
+    session_identity_unverified: 'Name not recorded',
   };
   if (Object.prototype.hasOwnProperty.call(fieldLabels, raw)) return fieldLabels[raw] as string;
   // Field-name shapes. Every segment starts with a letter, so IDs such as
@@ -64,6 +67,8 @@ export function readableFieldLabel(key: unknown): string {
     sha256: 'SHA-256', sha1: 'SHA-1', md5: 'MD5',
     // W2: a data pointer is a location in the source record.
     pointer: 'location', pointers: 'locations',
+    // W2: a population is the set of records a figure covers.
+    population: 'record set', populations: 'record sets',
   };
   const acronyms = /^(?:eot|cpi|spi|ncr|rfi|cpm|wbs|eac|etc|ld|lds|boq|pmo|ai|pdf|ipc|kpi|hse|evm|tcpi|bac|vac|xer|csv|qa|qc|pv|ev|ac|sla|fx|cbs|mcp|rag|po|sv|cv|ptw|mep|vat|hvac|ocr|fidic|ltifr|trir|api|url|ifc|mir|wir|bei|sar|usd|aed|eur|gbp|qar|kwd|omr|bhd|jod|egp|p[0-9]{2})$/;
   // UPPER_SNAKE codes are read as lower-case words.

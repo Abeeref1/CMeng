@@ -2746,7 +2746,7 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
   {
     "id": "handover",
     "title": "Handover Readiness",
-    "description": "Accepted requirements against a confirmed handover population.",
+    "description": "Accepted requirements against the confirmed full set of handover requirements.",
     "module": "handover-readiness",
     "domains": [
       "delivery"

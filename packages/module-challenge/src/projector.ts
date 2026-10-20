@@ -565,7 +565,7 @@ function gapValue(
           .confidence,
       diagnostics: [],
       note:
-        "Gap is that the contractor did not submit a comparable value; the independent result is still shown.",
+        "The contractor has not submitted a comparable value; the independent result is still shown.",
     };
   }
 
@@ -1365,7 +1365,7 @@ function itemFor(
     action = "Confirm the comparison basis and materiality tolerance before interpreting agreement or difference.";
   } else if (reconciliationState === "incomparable") {
     consequence = "The submitted and calculated values do not have a comparable measurement basis.";
-    action = "Reconcile units, population, authority and time basis before interpreting a difference.";
+    action = "Reconcile units, records covered, authority and time basis before interpreting a difference.";
   } else if (reconciliationState === "scenario") {
     consequence = "The comparison uses a scenario. Numeric agreement does not establish an approved or independently verified position.";
     action = "Validate and govern the scenario assumptions before using the comparison as an official position.";
