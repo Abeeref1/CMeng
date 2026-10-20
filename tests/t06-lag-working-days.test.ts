@@ -29,7 +29,8 @@ test('T06 a 24 h lag into a 12-hour successor calendar is 2 working days; hours 
   assert.equal(out.relationships[0].lagDaysBasis,'successor_activity_calendar');
   assert.equal(out.positiveLags[0].lagWorkingDays,2,'logic-check lag rows carry the same working days');
   assert.equal((body.relationships[0] as any).lagWorkingDays,undefined,'input is not mutated');
-  assert.equal(lagHoursText(24,lagWorkingDays(m,'S12',24).dayHours),'lag 2 working days (successor calendar) · 24 h');
+  // N7: working days on screen; the source hours stay as the audit ("original h").
+  assert.equal(lagHoursText(24,lagWorkingDays(m,'S12',24).dayHours),'lag 2 working days (successor calendar) · 24 original h');
 });
 
 test('T06 lag into an unread or unknown successor calendar is not established, never an 8-hour day',()=>{
@@ -42,7 +43,7 @@ test('T06 lag into an unread or unknown successor calendar is not established, n
   assert.equal(out.rows[0].lagHours,24);
   const text=lagHoursText(24,lagWorkingDays(m,'SUNREAD',24).dayHours);
   assert.match(text,/lag working days not established/);
-  assert.match(text,/24 h/);
+  assert.match(text,/24 original h/);
   assert.doesNotMatch(text,/\b3 working days/);
   assert.equal(lagHoursText(null,12),'lag not established');
 });

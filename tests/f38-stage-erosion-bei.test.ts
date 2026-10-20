@@ -13,6 +13,7 @@ import {projectScheduleControlBasis} from '../packages/runtime-api/src/schedule-
 import {pmcScheduleRules} from '../packages/runtime-api/src/pmc-schedule-rules';
 import {buildIndependentForecastProjection} from '../packages/independent-forecast/src';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {attachProjectFloatWorkingDays} from '../packages/runtime-api/src/activity-float-reconciliation';
 process.env.CMENG_OCR_ENABLED = '0';
 type Inputs = Parameters<typeof pmcScheduleRules>[3];
 
@@ -126,7 +127,7 @@ function renderNearCriticalPage(projectFacts: unknown): string {
   assert.ok(start >= 0 && end > start);
   const parsed = createSourceFile('cmeng-screen.js', script, ScriptTarget.Latest, true);
   const helpers = 'let responsePopulationRoot=null,responsePopulationIndex=new WeakMap(),responseRowPopulationIndex=new WeakMap();\n' + parsed.statements.filter(isFunctionDeclaration)
-    .filter(n => ['indexResponsePopulations', 'listTotal', 'knownScreenCount', 'screenCountText', 'floatThresholdText', 'floatBucketDaysNote', 'floatDistributionSummary'].includes(n.name?.text ?? '')).map(n => n.getText(parsed)).join('\n');
+    .filter(n => ['indexResponsePopulations', 'listTotal', 'knownScreenCount', 'screenCountText', 'floatThresholdText', 'floatBucketDaysNote', 'floatDistributionSummary', 'sourceWorkingFloat', 'sourceWorkingFloatField'].includes(n.name?.text ?? '')).map(n => n.getText(parsed)).join('\n');
   const p = {rows: [], watchlistRows: [], criticalRows: [], negativeFloatRows: [], managementGroups: [], nearCriticalCount: 0, floatRiskWatchlistCount: 0, zeroFloatCount: 0, negativeFloatCount: 0,
     floatCoveragePercent: 100, classificationCoveragePercent: 100, unresolvedActivityCount: 0, criticalThresholdHours: 0, nearCriticalThresholdHours: 40, floatRiskWatchlistIncludesCriticalThreshold: true,
     nearCriticalThresholdAuthority: 'cmeng_screening_policy', ...(projectFacts ? {projectFacts} : {})};
@@ -235,10 +236,11 @@ test('F38 uploaded programme: driving chain stages from codes and WBS, float ero
   assert.match(review, /Criticality definition:<\/b> critical = total float of 0 working days or less on the CMeng CPM; near-critical = more than 0 and up to 5 working days of each activity calendar \(CMeng policy default\)\./);
   assert.match(review, /Float erosion<\/b> \(CMeng CPM total float, previous to current revision\): 2027-01-04T08:00[^ ]* to 2027-01-11T08:00[^ ]*: 8 of 8 near-critical and driving activities compared; 1 losing float; average change -0\.0375 working days of total float per working day elapsed, on the activity calendar\. Turns critical by: 2027-01-15T16:00:00\.000Z \(X1\)\./);
   assert.match(review, /BEI \(Baseline Execution Index\) = detail tasks completed by the Data Date/);
-  const nearCritical = renderNearCriticalPage((moduleForProject(projectId, 'near-critical').data as any).projectFacts);
+  // The screen response carries the shared float-days step (T06), as every project page does.
+  const nearCritical = renderNearCriticalPage(attachProjectFloatWorkingDays(state, (moduleForProject(projectId, 'near-critical').data as any).projectFacts));
   assert.match(nearCritical, /<h4>CMeng CPM criticality and float erosion<\/h4>/);
   assert.match(nearCritical, /<b>Turns critical by:<\/b> 2027-01-15T16:00:00\.000Z \(X1\)/);
-  assert.match(nearCritical, /<tr><td><b>X1<\/b><br><span class="muted">External works<\/span><\/td><td>32 h<\/td><td>16 h<\/td><td>-0\.4<\/td><td>2027-01-15T16:00:00\.000Z<\/td><td>Losing float<\/td><\/tr>/);
+  assert.match(nearCritical, /<tr><td><b>X1<\/b><br><span class="muted">External works<\/span><\/td><td>32 original h<\/td><td>2 working days · 16 original h<\/td><td>-0\.4<\/td><td>2027-01-15T16:00:00\.000Z<\/td><td>Losing float<\/td><\/tr>/);
   assert.ok(nearCritical.indexOf('Float screening basis:') < nearCritical.indexOf('CMeng CPM criticality and float erosion'), 'shown after the float screening basis');
   assert.doesNotMatch(renderNearCriticalPage(undefined), /CMeng CPM criticality and float erosion/, 'no project facts: no panel');
 });

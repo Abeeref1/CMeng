@@ -25,6 +25,8 @@ test('CPLI uses matching calendar units for remaining length and required-date h
  model.activities=[{...model.activities[0]!,activityId:'FINISH',activityType:'finish_milestone',status:'not_started',calendarId:'C',forecastFinishIso:'2031-09-10T17:00:00Z',currentFinishIso:'2031-09-10T17:00:00Z',actualFinishIso:null}];
  const value=pmcScheduleRules(model,[], '2031-09-12').cpli;
  assert.ok(value.remainingWorkingHours!>0);assert.equal(value.totalFloatWorkingHours,16);assert.equal(value.value,(value.remainingWorkingHours!+16)/value.remainingWorkingHours!);
+ // N7: the same values in working days of that one terminal calendar (8 h source day), hours unchanged.
+ assert.equal(value.totalFloatWorkingDays,2);assert.equal(value.remainingWorkingDays,Number((value.remainingWorkingHours!/8).toFixed(6)));assert.equal(value.workingDaysBasis,'terminal_activity_calendar');
 });
 
 test('Programme quality retains exact source-order list of activities whose baseline is not established',()=>{
