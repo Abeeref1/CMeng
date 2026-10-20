@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import type {AnalysisResult,AnalysisTable,AnalysisChart,Cell} from '../../project-ask/src/types';
 import {AskError} from '../../project-ask/src/catalogue';
+import {unknownWithUnit} from './unknown-reason';
 const font=join(process.cwd(),'packages/project-ask/assets/DejaVuSans.ttf');
 const colors=['#336b91','#bb7938','#5d927f','#9c5e80'];
 const display=(v:Cell|undefined)=>v===null||v===undefined?'Not established':String(v);
@@ -140,7 +141,7 @@ async function pdf(result:AnalysisResult,view?:AskExportView){
   doc.fontSize(13).fillColor('#547d98').text('CMeng | PROJECT INTELLIGENCE');doc.moveDown(1.2).fontSize(25).fillColor('#24384a').text(result.presentation.title,{width:490});if(view?.subtitle){doc.moveDown(.35);para(view.subtitle,10);}doc.moveDown();
   for(const [key,value]of metadata(result).filter(([k])=>!['Source snapshot','Scope','Grouping'].includes(String(k))))para(key+': '+value);
   for(const block of result.narrative){heading(block.heading);para(block.text);}
-  heading('Key figures');for(const m of result.sections.flatMap(s=>s.metrics)){para(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);}
+  heading('Key figures');for(const m of result.sections.flatMap(s=>s.metrics)){para(m.label+': '+unknownWithUnit(display(m.value),m.value,m.unit)+' · '+m.state);}
   for(const chart of result.sections.flatMap(s=>s.charts)){const table=rows(result).find(t=>t.id===chart.tableId);if(!table)continue;if(doc.y>470)doc.addPage();doc.image(askChartPng(chart,table,{...(view?.chartLimits?.[chart.id]!==undefined?{limit:view.chartLimits[chart.id]}:{})}),44,doc.y,{width:507});doc.y+=248;para(chart.basis,8);}
   for(const table of rows(result).filter(t=>t.rows.length)){
     heading(table.title);para(table.basis,8);para('Showing '+Math.min(40,table.rows.length)+' of '+table.rows.length+' result rows. The Excel and structured exports contain every result row.',8);
@@ -160,7 +161,7 @@ function wordParagraph(text:string,style='Normal'){return '<w:p><w:pPr><w:pStyle
 async function word(result:AnalysisResult,view?:AskExportView){
   const zip=new (jsZip())();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');if(view?.subtitle)body+=wordParagraph(view.subtitle);for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
   for(const n of result.narrative)body+=wordParagraph(n.heading,'Heading1')+wordParagraph(n.text);
-  body+=wordParagraph('Key figures','Heading1');for(const m of result.sections.flatMap(s=>s.metrics))body+=wordParagraph(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);
+  body+=wordParagraph('Key figures','Heading1');for(const m of result.sections.flatMap(s=>s.metrics))body+=wordParagraph(m.label+': '+unknownWithUnit(display(m.value),m.value,m.unit)+' · '+m.state);
   const relationships:string[]=[];let imageIndex=0;
   for(const chart of result.sections.flatMap(s=>s.charts)){const table=rows(result).find(t=>t.id===chart.tableId);if(!table)continue;const id='rIdChart'+(++imageIndex);zip.file('word/media/chart'+imageIndex+'.png',askChartPng(chart,table,{...(view?.chartLimits?.[chart.id]!==undefined?{limit:view.chartLimits[chart.id]}:{})}));relationships.push('<Relationship Id="'+id+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/chart'+imageIndex+'.png"/>');body+=wordParagraph(chart.title,'Heading1')+'<w:p><w:r><w:drawing><wp:inline><wp:extent cx="5486400" cy="2560320"/><wp:docPr id="'+imageIndex+'" name="Chart '+imageIndex+'"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="'+imageIndex+'" name="chart.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="'+id+'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="5486400" cy="2560320"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'+wordParagraph(chart.basis);}
   for(const table of rows(result).filter(t=>t.rows.length)){body+=wordParagraph(table.title,'Heading1')+wordParagraph(table.basis)+wordParagraph('Showing '+Math.min(100,table.rows.length)+' of '+table.rows.length+' result rows; all result rows are in Excel and structured exports.');

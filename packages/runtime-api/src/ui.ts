@@ -27,6 +27,7 @@ import {basisReviewScript} from './ui-basis-review';
 import {paymentDueBasisLabel,sumBasisLabel} from './commercial-sum-basis';
 import { experienceStyles, experienceScript } from './ui-experience';
 import {countTextSource} from './count-text';
+import {unknownReasonSource} from './unknown-reason';
 
 export function cmengUatHtml(): string {
   return String.raw`<!doctype html>
@@ -635,7 +636,7 @@ ${conditionalNotice.toString()}
 ${paymentDueBasisLabel.toString()}
 ${sumBasisLabel.toString()}
 ${managementNumber.toString()}
-${countTextSource()}${managementDate.toString()}
+${countTextSource()}${unknownReasonSource()}${managementDate.toString()}
 ${managementValue.toString()}
 ${managementText.toString()}
 ${pmcRoleOwner.toString()}
@@ -895,7 +896,8 @@ function humanizeIsoText(value){
 function renderUniversalChallenge(challenge){
   if(!challenge||!Array.isArray(challenge.items))return"";
   const show=v=>v===null||v===undefined?"Not established":typeof v==="string"?humanizeIsoText(v):fmt(v);
-  const withUnit=(v,u)=>show(v)+(u?" "+u:"");
+  // N3: a unit is shown only after a known value.
+  const withUnit=(v,u)=>unknownWithUnit(show(v),v,u);
   const conflictPanel=(item)=>{
     const sub=item.submitted||{};
     const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];
@@ -972,7 +974,7 @@ function renderUniversalChallenge(challenge){
     '<div class="scalar-grid challenge-summary">'+
       '<div class="scalar"><b>Submitted position</b><span>'+escapeHtml(submittedState)+'</span></div>'+
       '<div class="scalar"><b>CMeng review</b><span>'+escapeHtml(independentState)+'</span></div>'+
-      '<div class="scalar"><b>Missing submitted values</b><span>'+escapeHtml(fmt(challenge.notSubmittedCount))+'</span></div>'+'<div class="scalar"><b>Unavailable independent checks</b><span>'+escapeHtml(fmt(challenge.unavailableCheckCount))+'</span></div>'+
+      '<div class="scalar"><b>Missing submitted values</b><span>'+escapeHtml(fmt(noneWhenZeroGap(challenge.notSubmittedCount??"Not established","Missing submitted values")))+'</span></div>'+'<div class="scalar"><b>Unavailable independent checks</b><span>'+escapeHtml(fmt(challenge.unavailableCheckCount))+'</span></div>'+
       '<div class="scalar"><b>Other scenarios</b><span>'+escapeHtml(fmt(challenge.scenarioCount))+'</span></div>'+
     '</div>'+attentionHtml+
     '<div class="table-wrap challenge-table-wrap"><table><thead><tr><th>Metric</th><th>Submitted</th><th>'+(challenge.items.some(item=>challengeValueFromSubmission(item.independent))?'CMeng value and basis':'CMeng independent check')+'</th><th>Gap</th><th>Consequence</th><th>Action</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
@@ -1054,10 +1056,10 @@ function renderDeliveryChallenge(data,reason,status){
   const prereqRows=prerequisites.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td><span class="state-pill '+(row.established?"ready":"review")+'">'+escapeHtml(row.established?"Established":"Missing")+'</span></td><td>'+escapeHtml(row.evidence||"")+'</td></tr>').join("");
   const prereqTable=prereqRows?'<div class="table-wrap"><table><thead><tr><th>Prerequisite</th><th>State</th><th>Evidence basis</th></tr></thead><tbody>'+prereqRows+'</tbody></table></div>':'';
   const sourceKpis=planningKpis([
-    ["BOQ scope",data?.suppliedBoq?.itemCount??data?.suppliedBoq?.rows?.length??"Not established","source quantity items"],
-    ["BOQ items checked",responseListPopulation(f.rows||[]).total||"Not established","includes items whose calculations remain unresolved"],
-    ["Activity feasibility checks",responseListPopulation(f.activityChecks||[]).total||"Not established","current activity checks"],
-    ["Labour evidence",data.sourceLaborEvidence?"Available":"Not established","source hours remain evidence; not inferred headcount"]
+    ["BOQ scope",data?.suppliedBoq?.itemCount??data?.suppliedBoq?.rows?.length??"Not established","source quantity items","","Needs a readable BOQ"],
+    ["BOQ items checked",responseListPopulation(f.rows||[]).total||"Not established","includes items whose calculations remain unresolved","",f.reason],
+    ["Activity feasibility checks",responseListPopulation(f.activityChecks||[]).total||"Not established","current activity checks","",f.reason],
+    ["Labour evidence",data.sourceLaborEvidence?"Available":"Not established","source hours remain evidence; not inferred headcount","","Needs labour hours or headcount in the programme or a resource register"]
   ]);
   const feasibility=f.feasibilityPosition;
   const feasibilityAnswer=feasibility?managementPanel('Feasibility · source-based planning scenario',feasibility.answer,
@@ -1712,7 +1714,7 @@ function renderQuantityScurveVisual(data){
     ["Unmapped items",unmappedCount,"items",unmappedCount?"warning":""],
     ["Partially mapped",partialCount,"items",partialCount?"warning":""],
     ["Over-allocated",overCount,"items",overCount?"danger":""]
-  ]);
+  ],{reason:boqItemCount===null?"Needs a readable BOQ":unknownFactReason(data.boqProgrammeLinks)});
   const productivity=p.productivityForecast||null;
   const productivityRows=Array.isArray(productivity?.rows)?productivity.rows:[];
   const productivityHtml='<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Remaining quantity & productivity forecast</h4><p>Source productivity evidence is kept separate from BOQ-to-programme mapping. Forecast is shown only when the source evidence establishes quantity, achieved rate and calculation basis.</p></div></div><div class="planning-panel-body">'+(productivityRows.length?'<div class="table-wrap"><table><thead><tr><th>Work package</th><th>Total quantity</th><th>Installed</th><th>Remaining</th><th>Evidenced rate / h</th><th>Rate basis</th><th>Forecast finish</th><th>State</th></tr></thead><tbody>'+productivityRows.map(row=>'<tr><td><b>'+escapeHtml(row.workPackageId)+'</b><br>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(row.totalQuantity==null?"Not established":fmt(row.totalQuantity)+" "+(row.unit||""))+'</td><td>'+escapeHtml(row.installedQuantity==null?"Not established":fmt(row.installedQuantity)+" "+(row.unit||""))+'</td><td>'+escapeHtml(row.remainingQuantity==null?"Not established":fmt(row.remainingQuantity)+" "+(row.unit||""))+'</td><td>'+escapeHtml(row.evidencedRatePerHour==null?"Not established":fmt(row.evidencedRatePerHour))+'</td><td>'+escapeHtml(humanizeKey(row.rateBasis||"missing"))+'</td><td>'+escapeHtml(row.completionIso?planningShortDate(row.completionIso):"Not established")+'</td><td>'+escapeHtml(humanizeKey(row.state||"unresolved"))+'</td></tr>').join("")+'</tbody></table></div>':'<div class="notice info">No source productivity/remaining-quantity forecast is established. BOQ and installed quantities remain visible independently.</div>')+'</div></section>';
@@ -1953,8 +1955,8 @@ function renderWindowsVisual(data){
   return '<section class="planning-view windows-view">'+programmeContextHtml+planningKpis([
     ["Windows",p.windowCount,"established revision intervals"],["Schedule-comparison windows",p.completeWindowCount,"calculation complete; cause not proven"],["Partial windows",p.partialWindowCount,"",p.partialWindowCount?"warning":""],
     ["Gross analytical movement",p.grossAnalyticalMovementDays==null?"Not established":fmt(p.grossAnalyticalMovementDays)+" d","independent recalculation; not project delay or EOT"],
-    ["Positive submitted window movement",p.positiveProgrammeMovementDays==null?"Not established":fmt(p.positiveProgrammeMovementDays)+" d","sum of positive submitted completion shifts"],
-    ["Project Completion movement",p.projectCompletionMovementDays==null?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion"],
+    ["Positive submitted window movement",p.positiveProgrammeMovementDays==null?"Not established":fmt(p.positiveProgrammeMovementDays)+" d","sum of positive submitted completion shifts","",programmeRevisionReason(p.revisionCount,p.windowCount)],
+    ["Project Completion movement",p.projectCompletionMovementDays==null?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net first-to-latest submitted completion","",programmeRevisionReason(p.revisionCount,p.windowCount)],
     ["Window-associated events",p.associatedEventCount??(responseListPopulation(p.windows).total===p.windows.length?p.windows.reduce((sum,w)=>sum+responseListPopulation(w.delayEvents||[]).total,0):null),"temporal event-window associations; not distinct events or entitlement"]
   ])+note+evidenceChainHtml+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme movement by window</h4><p>Source forecast movement is shown first. It is schedule movement, not automatic delay entitlement.</p></div></div><div class="planning-panel-body">'+planningSignedBars(bars,"days")+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Window detail</h4></div></div><div class="planning-panel-body"><div class="window-strip">'+cards+'</div></div></section></section>';
 }
@@ -1996,13 +1998,14 @@ function renderDelayProgrammeContext(data){
   const chain=data?.delayEotEvidenceChain||null,context=chain?.programmeContext||data?.contextualProgrammeIntelligence||null;
   if(!context)return "";
   const count=(value,known)=>value==null?'Not established'+(known==null?'':' · '+fmt(known)+' known'):fmt(value);
+  const unresolvedWhy=(n,needs)=>typeof n==="number"&&n>0?fmt(n)+(n===1?" activity needs ":" activities need ")+needs:"";
   const movement=context.projectCompletionMovementDays,rows=Array.isArray(context.pressureRows)?context.pressureRows:[];
   const detail=rows.length?'<details class="source-scope"><summary>Review '+escapeHtml(fmt(rows.length))+' leading programme-pressure activities</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>WBS</th><th>Baseline finish</th><th>Current / forecast finish</th><th>Movement</th><th>Float</th></tr></thead><tbody>'+rows.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.baselineFinishIso?planningShortDate(row.baselineFinishIso):"—")+'</td><td>'+escapeHtml(planningShortDate(row.forecastFinishIso||row.currentFinishIso))+'</td><td>'+escapeHtml(row.varianceDays===null?"—":sourceWorkingDelay(row,"varianceDays"))+'</td><td>'+escapeHtml(sourceWorkingFloat(row))+'</td></tr>').join("")+'</tbody></table></div></details>':"";
   return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Best available programme context</h4><p><b>Schedule pressure is contextual programme intelligence, not a contractual delay event.</b> It remains visible even when a formal delay-event register is absent, incomplete or quarantined.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Project Completion movement",movement===null||movement===undefined?"Not established":(movement>0?"+":"")+fmt(movement)+" d","net submitted first-to-latest movement"],
-    ["Delayed open execution activities",count(context.delayedActivityCount,context.knownDelayedActivityCount),"unfinished execution work later than baseline"],
-    ["Negative-float activities",count(context.negativeFloatActivityCount,context.knownNegativeFloatActivityCount),"programme pressure; not contractual responsibility"],
-    ["Pressured milestones",count(context.pressuredMilestoneCount,context.knownPressuredMilestoneCount),"late and/or non-positive-float milestones and reviewed key dates"],
+    ["Project Completion movement",movement===null||movement===undefined?"Not established":(movement>0?"+":"")+fmt(movement)+" d","net submitted first-to-latest movement","",programmeRevisionReason(context.revisionCount,context.windowCount)],
+    ["Delayed open execution activities",count(context.delayedActivityCount,context.knownDelayedActivityCount),"unfinished execution work later than baseline","",unresolvedWhy(context.unresolvedDelayedActivityCount,"a baseline and forecast finish date and a clear status")],
+    ["Negative-float activities",count(context.negativeFloatActivityCount,context.knownNegativeFloatActivityCount),"programme pressure; not contractual responsibility","",unresolvedWhy(context.unresolvedNegativeFloatActivityCount,"total float and a clear status")],
+    ["Pressured milestones",count(context.pressuredMilestoneCount,context.knownPressuredMilestoneCount),"late and/or non-positive-float milestones and reviewed key dates","",context.milestonePopulationState==="partial"?"Confirm which activities are milestones":unresolvedWhy(context.unresolvedPressuredMilestoneCount,"a baseline date, float and a clear status")],
     ["Comparable revisions",count(context.revisionCount),"controlled schedule states"],
     ["Analytical windows",count(context.windowCount),"window availability; causation separate"]
   ])+detail+'</div></section>';
@@ -2051,15 +2054,16 @@ function renderDelayClaimsVisual(data){
   const activityGapCount=!sourcePopulationEstablished?null:(p.activityEvidenceInsufficientEventCount??events.filter(e=>(e.relatedActivityIds||[]).length===0).length);
   const incompleteDeterminationCount=!sourcePopulationEstablished?null:(p.determinationChainIncompleteEventCount??events.filter(e=>e.evidenceChainState==="determination_chain_incomplete").length);
   const movementEstablished=p.windowCount>0&&typeof p.observedPositiveProgrammeMovementDays==="number",populationValue=value=>sourcePopulationEstablished?value:withheld;
+  const popWhy=sourcePopulationEstablished?"":delayPopulationReason(chain?.populationState??(quarantined?"quarantined":"missing")),eventWhy=popWhy||(p.eventPopulationState==="not_established"?unknownReasonText(p.eventPopulationReason):""),moveWhy=movementEstablished?"":programmeRevisionReason(chain?.programmeContext?.revisionCount,p.windowCount);
   const kpis=planningKpis([
     ["Current delay events",populationValue(currentEventCount),"contractual events with evidence"],["Source delay-event rows",populationValue(sourceEventCount),"all retained contractual events"],["After Data Date",populationValue(futureEventCount),"retained outside current position"],["Event / awareness dates missing",eventDateMissingCount===null?withheld:eventDateMissingCount,"notice trigger dates of the current events"],[reporting?.events?.population&&reporting.events.population.dataDateIso==null?"Outside dated event position":"No dated event evidence",populationValue(undatedEventCount),reporting?.events?.population&&reporting.events.population.dataDateIso==null?"Reporting Data Date is not established":"no usable dated event, awareness or notice evidence; excluded from current position"],
-    ["Claims",quarantined?"Under review":p.claimCount===null||p.claimCount===undefined||(p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0)?"Not established":p.claimCount,quarantined?"source records held for review":"claim records",quarantined?"warning":""],
+    ["Claims",quarantined?"Under review":p.claimCount===null||p.claimCount===undefined||(p.contractorClaimEvidenceSubmitted===false&&p.claimCount===0)?"Not established":p.claimCount,quarantined?"source records held for review":"claim records",quarantined?"warning":"",popWhy],
     ...(quarantined?[["Quarantined source claim rows",integrity?.quarantinedClaimCount??chain?.quarantinedClaimCount,"kept for audit; left out of the reported figures","warning"]]:[]),
-    ["Claims linked to events",linked===null?withheld:linked,"matched by reference; cause not proven"],["Claims without event links",unlinked===null?withheld:unlinked,"identity gap; linked claims still need causation"],
+    ["Claims linked to events",linked===null?withheld:linked,"matched by reference; cause not proven","",popWhy],["Claims without event links",unlinked===null?withheld:unlinked,"identity gap; linked claims still need causation","",popWhy],
     ["Events linked to activities",populationValue(sourcePopulationEstablished?(p.activityLinkedEventCount??null):null),"schedule linkage"],["Activity evidence gaps",activityGapCount===null?withheld:activityGapCount,"events without activity links in the source"],
     ["Events linked to windows",populationValue(sourcePopulationEstablished?(p.windowLinkedEventCount??null):null),"matched by date only; not a cause"],["Events with register notice references",populationValue(sourcePopulationEstablished?(p.noticeLinkedEventCount??null):null),"notice identity"],["Determined events",populationValue(sourcePopulationEstablished?(p.determinationLinkedEventCount??null):null),"Engineer determination linkage"],["Incomplete determination chains",incompleteDeterminationCount===null?withheld:incompleteDeterminationCount,"required links missing"],
-    ["Positive submitted window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Not established","programme movement; not event attribution"],["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays==null?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement"]
-  ]);
+    ["Positive submitted window movement",movementEstablished?fmt(p.observedPositiveProgrammeMovementDays)+" d":"Not established","programme movement; not event attribution","",moveWhy],["Project Completion movement",!movementEstablished||p.projectCompletionMovementDays==null?"Not established":(p.projectCompletionMovementDays>0?"+":"")+fmt(p.projectCompletionMovementDays)+" d","net submitted completion movement","",moveWhy]
+  ],{reason:eventWhy});
   const warning=quarantined?'<div class="notice error"><b>Claim source integrity gate: '+escapeHtml(fmt(integrity?.quarantinedClaimCount??chain?.quarantinedClaimCount))+' source rows are quarantined.</b> Contractual delay-event, notice, linkage and entitlement counts are withheld rather than presented as zero until these records are verified.</div>':!sourcePopulationEstablished?'<div class="notice info"><b>No delay-event or claim source records are established.</b> Programme intelligence remains available below, but schedule pressure is not converted into a contractual delay event.</div>':'';
   const pipelineRows=data?.projectFacts?.claims?.pipeline?.rows||[];
   const claimRows=new Map(pipelineRows.map(row=>[row.claimId,row]));
@@ -2094,9 +2098,9 @@ function renderEotVisual(data){
   const kpis=planningKpis([
     ["Original contractual completion",p.originalContractualCompletionIso?planningShortDate(p.originalContractualCompletionIso):"Not established",humanizeKey(p.originalContractualCompletionState||"missing")],
     ["Current submitted finish",p.sourceForecastCompletionIso?planningShortDate(p.sourceForecastCompletionIso):"Not established","current contractor programme"],
-    ["Approved EOT",p.officialApprovedEotDays==null?"Not established":fmt(p.officialApprovedEotDays)+" d","dated determination authority through Data Date"],
-    ["Contract completion including awarded EOT",p.officialAdjustedCompletionIso?planningShortDate(p.officialAdjustedCompletionIso):"Not established","applicable contract date and separately reconciled awarded EOT"],
-    ["Observed programme movement",observed==null?"Not established":(observed>0?"+":"")+fmt(observed)+" d","net first-to-latest submitted Project Completion movement; not EOT",observed>0?"warning":""]
+    ["Approved EOT",p.officialApprovedEotDays==null?"Not established":fmt(p.officialApprovedEotDays)+" d","dated determination authority through Data Date","","Needs a dated Engineer determination on or before the Data Date"],
+    ["Contract completion including awarded EOT",p.officialAdjustedCompletionIso?planningShortDate(p.officialAdjustedCompletionIso):"Not established","applicable contract date and separately reconciled awarded EOT","",!p.originalContractualCompletionIso?"Needs the contractual completion date from the contract":p.officialApprovedEotDays==null?"Needs a dated awarded EOT":""],
+    ["Observed programme movement",observed==null?"Not established":(observed>0?"+":"")+fmt(observed)+" d","net first-to-latest submitted Project Completion movement; not EOT",observed>0?"warning":"",programmeRevisionReason(chain?.programmeContext?.revisionCount,chain?.programmeContext?.windowCount)]
   ]);
   const entitlementGate=moduleEvidenceGate([
     {label:"Event evidence",value:eventEstablished?"Established":"Not established",state:eventEstablished?"ready":"missing"},
@@ -2160,10 +2164,13 @@ function planningStateLabel(value){
   const key=String(value);
   return labels[key]||humanizeKey(key);
 }
-function planningKpis(items){
+// S1/N2: item = [label, value, basis, tone, reason]. An unknown value shows the
+// fact's reason (item[4], the value's own reason, or the group reason) before its
+// basis; a zero count of missing or unknown items reads "None".
+function planningKpis(items,options){
   const state=item=>managementValueState(item[1]);
   const available=items.filter(item=>state(item)==='value'),missing=items.filter(item=>state(item)!=='value');
-  const card=item=>'<div class="planning-kpi '+escapeHtml(item[3]||'')+'"><span>'+escapeHtml(item[0])+'</span><strong>'+escapeHtml(managementValue(item[1]))+'</strong>'+(item[2]?'<small>'+escapeHtml(humanizeIsoText(item[2]))+'</small>':'')+'</div>';
+  const card=item=>{const value=noneWhenZeroGap(item[1],item[0],item[2]),note=unknownTileNote(item[1],humanizeIsoText(item[2]||''),item[4]||unknownFactReason(item[1])||options?.reason);return '<div class="planning-kpi '+escapeHtml(item[3]||'')+'"><span>'+escapeHtml(item[0])+'</span><strong>'+escapeHtml(managementValue(value))+'</strong>'+(note?'<small>'+escapeHtml(note)+'</small>':'')+'</div>';};
   const primary=available.length?available:missing.slice(0,4),rest=available.length?missing:missing.slice(4);
   const more=rest.length?'<details class="planning-missing-kpis"><summary>'+rest.length+' additional measure'+(rest.length===1?' needs':'s need')+' more information</summary><div class="planning-missing-grid">'+rest.map(card).join('')+'</div></details>':'';
   return '<div class="planning-kpi-grid">'+primary.map(card).join('')+'</div>'+more;
@@ -2598,9 +2605,9 @@ function renderPmoVisual(data){
   const known=data.knownScheduleCounts||{};
   const knownValue=(total,value)=>total??(typeof value==='number'?fmt(value)+' known':null);
   const kpis=planningKpis([
-    ["Baseline finish",planningShortDate(p.programmeBaselineCompletionIso),"controlled baseline",""],
+    ["Baseline finish",planningShortDate(p.programmeBaselineCompletionIso),"controlled baseline","",baselineReason(data.baselineComparison)],
     ["Submitted activity finish",planningShortDate(p.forecast.sourceCompletionIso),"latest activity finish in the current programme",""],
-    ["Declared project finish",planningShortDate(data.projectFacts?.schedule?.declaredProjectFinishIso?.value),"project header in the submitted programme",""],
+    ["Declared project finish",planningShortDate(data.projectFacts?.schedule?.declaredProjectFinishIso?.value),"project header in the submitted programme","",data.projectFacts?.schedule?.declaredProjectFinishIso?.reason],
     ["Critical",knownValue(p.schedule.criticalCount,known.critical),"activities","danger"],
     ["Near-critical",knownValue(p.schedule.nearCriticalCount,known.nearCritical),"activities","warning"],
     ["Negative float",knownValue(p.schedule.negativeFloatCount,known.negativeFloat),"activities","danger"],
@@ -2674,7 +2681,8 @@ function renderProgrammeQuality(q){
  const formulaNames={leads:'Leads (negative lag)',lags:'Lags (positive lag)',sf_links:'Start-to-finish links',bei:'Baseline Execution Index (BEI)',submitted_cpli:'Submitted finish CPLI',independent_cpli:'Independent CPLI',driving_chain:'Driving chain',driving_stage:'Driving-chain stage',criticality:'Criticality',float_erosion:'Float erosion',turns_critical_by:'Turns critical by'};
  const formulaName=k=>(q.checks||[]).find(c=>c.key===k)?.label||formulaNames[k]||(k.charAt(0).toUpperCase()+k.slice(1)).replace(/_/g,' ');
  const rows=q.checks.map(c=>'<tr><td>'+escapeHtml(c.label)+'</td><td>'+fmt(c.count)+' / '+fmt(c.population)+'</td><td>'+escapeHtml(c.basis)+'</td><td>'+affectedList(c)+'</td></tr>').join('');
- return '<section class="planning-panel"><div class="planning-panel-head"><h4>Programme quality checks</h4></div><div class="planning-panel-body">'+planningKpis([['Baseline Execution Index (BEI)',q.bei.value,'Tasks completed by the Data Date / tasks baselined to finish by the Data Date'],['Submitted finish CPLI',q.cpli.value,'Required-date headroom on the terminal calendar'],['Independent CPLI',q.independentCpli?q.independentCpli.value:null,'Independent CPM driving path to the required date'],['Positive lags',experienceRecordCount(q.positiveLags),'relationships'],['Leads',experienceRecordCount(q.negativeLags),'negative-lag relationships']])+'<p>'+escapeHtml(q.basis)+'</p>'+(q.drivingChain?'<p>Driving chain to completion (independent CPM): '+(q.drivingChain.state==='calculated'?fmt(q.drivingChain.activityCount)+' activities to '+escapeHtml(planningShortDate(q.drivingChain.completionIso))+'.</p><details><summary>Driving chain activities</summary><p>'+escapeHtml(q.drivingChain.activityIds.join(' > '))+'</p></details>':'not established. '+escapeHtml(q.drivingChain.reason||'')+'</p>'):'')+programmeStageHtml+criticalityHtml+erosionHtml+q.updateGaps.map(g=>'<p class="notice warn">Programme update gap: '+fmt(g.calendarDays)+' calendar days, '+escapeHtml(planningShortDate(g.from))+' to '+escapeHtml(planningShortDate(g.to))+'. Review changes across this interval.</p>').join('')+basisTable(['Relationship','Count'],q.relationships.map(r=>[r.type,r.count]))+'<div class="table-wrap"><table><thead><tr><th>Check</th><th>Count / checked</th><th>Basis</th><th>Records</th></tr></thead><tbody>'+rows+'</tbody></table></div><details><summary>BEI and CPLI calculation basis</summary><p>'+(q.bei.formula?escapeHtml(q.bei.formula)+'. ':'')+escapeHtml(q.bei.basis)+' Completed '+fmt(q.bei.completed)+'; baselined to finish by the Data Date '+fmt(q.bei.planned)+'.'+(q.bei.value==null&&q.bei.reason?' Not established: '+escapeHtml(q.bei.reason):'')+'</p><p>'+escapeHtml(q.cpli.basis)+' Remaining '+fmt(q.cpli.remainingWorkingHours)+' h; headroom '+(q.cpli.totalFloatWorkingHours==null?'not established':fmt(q.cpli.totalFloatWorkingHours)+' h (working days need the critical-path calendar)')+'.</p>'+(q.independentCpli?'<p>'+escapeHtml(q.independentCpli.formula)+'. '+escapeHtml(q.independentCpli.basis)+'</p>':'')+(q.formulas?'<h5>Check formulas</h5><dl class="formula-list">'+Object.keys(q.formulas).map(k=>'<dt>'+escapeHtml(formulaName(k))+'</dt><dd>'+escapeHtml(q.formulas[k])+'</dd>').join('')+'</dl>':'')+'</details></div></section>';
+ const beiMissingRows=q.bei?.missingBaselineActivityIds||[],beiMissingBaseline=typeof listTotal==="function"?listTotal(beiMissingRows)??beiMissingRows.length:beiMissingRows.length;
+ return '<section class="planning-panel"><div class="planning-panel-head"><h4>Programme quality checks</h4></div><div class="planning-panel-body">'+planningKpis([['Baseline Execution Index (BEI)',q.bei.value,'Tasks completed by the Data Date / tasks baselined to finish by the Data Date','',q.bei.value!=null?'':beiMissingBaseline>0?fmt(beiMissingBaseline)+(beiMissingBaseline===1?' activity needs':' activities need')+' an adopted baseline finish':q.bei.planned===0?'Needs activities baselined to finish by the Data Date':''],['Submitted finish CPLI',q.cpli.value,'Required-date headroom on the terminal calendar'],['Independent CPLI',q.independentCpli?q.independentCpli.value:null,'Independent CPM driving path to the required date'],['Positive lags',experienceRecordCount(q.positiveLags),'relationships'],['Leads',experienceRecordCount(q.negativeLags),'negative-lag relationships']])+'<p>'+escapeHtml(q.basis)+'</p>'+(q.drivingChain?'<p>Driving chain to completion (independent CPM): '+(q.drivingChain.state==='calculated'?fmt(q.drivingChain.activityCount)+' activities to '+escapeHtml(planningShortDate(q.drivingChain.completionIso))+'.</p><details><summary>Driving chain activities</summary><p>'+escapeHtml(q.drivingChain.activityIds.join(' > '))+'</p></details>':'not established. '+escapeHtml(q.drivingChain.reason||'')+'</p>'):'')+programmeStageHtml+criticalityHtml+erosionHtml+q.updateGaps.map(g=>'<p class="notice warn">Programme update gap: '+fmt(g.calendarDays)+' calendar days, '+escapeHtml(planningShortDate(g.from))+' to '+escapeHtml(planningShortDate(g.to))+'. Review changes across this interval.</p>').join('')+basisTable(['Relationship','Count'],q.relationships.map(r=>[r.type,r.count]))+'<div class="table-wrap"><table><thead><tr><th>Check</th><th>Count / checked</th><th>Basis</th><th>Records</th></tr></thead><tbody>'+rows+'</tbody></table></div><details><summary>BEI and CPLI calculation basis</summary><p>'+(q.bei.formula?escapeHtml(q.bei.formula)+'. ':'')+escapeHtml(q.bei.basis)+' Completed '+fmt(q.bei.completed)+'; baselined to finish by the Data Date '+fmt(q.bei.planned)+'.'+(q.bei.value==null&&q.bei.reason?' Not established: '+escapeHtml(q.bei.reason):'')+'</p><p>'+escapeHtml(q.cpli.basis)+' Remaining '+fmt(q.cpli.remainingWorkingHours)+' h; headroom '+(q.cpli.totalFloatWorkingHours==null?'not established':fmt(q.cpli.totalFloatWorkingHours)+' h (working days need the critical-path calendar)')+'.</p>'+(q.independentCpli?'<p>'+escapeHtml(q.independentCpli.formula)+'. '+escapeHtml(q.independentCpli.basis)+'</p>':'')+(q.formulas?'<h5>Check formulas</h5><dl class="formula-list">'+Object.keys(q.formulas).map(k=>'<dt>'+escapeHtml(formulaName(k))+'</dt><dd>'+escapeHtml(q.formulas[k])+'</dd>').join('')+'</dl>':'')+'</details></div></section>';
 }
 function renderScheduleAnalyticsVisual(data){
   const p=projectionFor(data,"schedule_analytics");
@@ -3110,9 +3118,11 @@ function renderResourceVisual(data){
     };
   }).filter(Boolean).sort((a,b)=>b.value-a.value).slice(0,12);
 
+  const programmeResourceWhy=(p.diagnostics||[]).includes("RESOURCE_ASSIGNMENTS_AND_GOVERNED_WEEKLY_RESOURCE_EVIDENCE_NOT_ESTABLISHED")?"Needs resource definitions and assignments in the programme":"";
+  const weeklyCapacityWhy=weekly?"":"Needs a weekly resource capacity register";
   const kpis=planningKpis([
-    ["P6 resource master",p.p6ResourceMasterCount??p.resourceCount,"schedule resource definitions"],["Weekly observed resources",p.weeklyObservedResourceCount,"Resources in the capacity register"],
-    ["Assigned",p.assignedResourceCount,"with schedule assignments"],
+    ["P6 resource master",p.p6ResourceMasterCount??p.resourceCount,"schedule resource definitions","",programmeResourceWhy],["Weekly observed resources",p.weeklyObservedResourceCount,"Resources in the capacity register","",weeklyCapacityWhy],
+    ["Assigned",p.assignedResourceCount,"with schedule assignments","",programmeResourceWhy],
     ["Weekly register-row coverage",weekly?.capacityCoveragePercent==null?"Not established":fmt(weekly.capacityCoveragePercent)+"%","applicable resource-week rows"],
     ["Planned utilization",weekly?.plannedAverageToDataDate==null?"Not established":fmt(weekly.plannedAverageToDataDate)+"%","mean resource-week ratio to Data Date"+(weekly?.utilizationCapacityBasis==="stated_not_approved"?"; stated capacity, not approved":weekly?.utilizationCapacityBasis==="mixed"?"; partly stated capacity, not approved":"")],
     ["Actual utilization",weekly?.actualAverageToDataDate==null?"Not established":fmt(weekly.actualAverageToDataDate)+"%","approved usage to Data Date"+(weekly?.utilizationCapacityBasis==="stated_not_approved"?"; stated capacity, not approved":weekly?.utilizationCapacityBasis==="mixed"?"; partly stated capacity, not approved":"")],
@@ -3121,7 +3131,7 @@ function renderResourceVisual(data){
     ["Actual over capacity",checks?.actual?.comparableCount?fmt(checks.actual.exceededCount)+" / "+fmt(checks.actual.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.actual?.exceededCount?"warning":""],
     ["Planned over capacity",checks?.planned?.comparableCount?fmt(checks.planned.exceededCount)+" / "+fmt(checks.planned.comparableCount):"Not assessable","comparable resource-weeks through Data Date",checks?.planned?.exceededCount?"warning":""],
     ["Capacity units",weeklyUnits.length?weeklyUnits.map(resourceUnitLabel).join(" / "):"Not established","kept separate by source unit",weeklyUnits.length?"":"warning"]
-  ]);
+  ],{reason:weeklyCapacityWhy});
 
   const rows=[...p.rows].sort((a,b)=>(a.overloaded===true?0:a.state!=="capacity_based"?1:2)-(b.overloaded===true?0:b.state!=="capacity_based"?1:2)).map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(humanizeKey(r.businessClass||r.resourceType))+'</td><td>'+escapeHtml(r.assignmentCount)+'</td><td>'+escapeHtml(fmt(r.capacityUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakPlannedUnitsPerHour))+'</td><td>'+escapeHtml(fmt(r.peakRemainingUnitsPerHour))+'</td><td>'+escapeHtml(r.plannedUtilizationPercent===null?"—":fmt(r.plannedUtilizationPercent)+"%")+'</td><td>'+escapeHtml(r.remainingUtilizationPercent===null?"—":fmt(r.remainingUtilizationPercent)+"%")+'</td><td><span class="state-pill '+(r.overloaded===true?"blocked":r.state==="capacity_based"?"ready":"review")+'">'+escapeHtml(r.state==="not_capacity_resource"?"Not a capacity resource":r.overloaded===true?"Overloaded":r.state==="capacity_based"?"Capacity assessed":"Capacity not set")+'</span></td></tr>').join("");
   const managementRows=[...capacityEligibleRows].sort((a,b)=>(b.remainingCapacityGapUnitsPerHour??-Infinity)-(a.remainingCapacityGapUnitsPerHour??-Infinity)||(b.peakRemainingUnitsPerHour??0)-(a.peakRemainingUnitsPerHour??0)).map(r=>'<tr><td><b>'+escapeHtml(r.resourceId)+'</b><br><span class="muted">'+escapeHtml(r.resourceName||"")+'</span></td><td>'+escapeHtml(humanizeKey(r.businessClass||r.resourceType))+'</td><td>'+escapeHtml(r.peakRemainingUnitsPerHour==null?"Not established":fmt(r.peakRemainingUnitsPerHour)+"/h")+'</td><td>'+escapeHtml(r.capacityUnitsPerHour==null?"Not established":fmt(r.capacityUnitsPerHour)+"/h")+'</td><td class="'+((r.remainingCapacityGapUnitsPerHour??0)>0?"late-text":"")+'">'+escapeHtml(r.remainingCapacityGapUnitsPerHour==null?"Not assessable":(r.remainingCapacityGapUnitsPerHour>0?"+":"")+fmt(r.remainingCapacityGapUnitsPerHour)+"/h")+'</td><td>'+escapeHtml(r.peakRemainingAtIso?planningShortDate(r.peakRemainingAtIso):"Not established")+'</td><td>'+escapeHtml((r.affectedWbsIds||[]).join("; ")||(r.affectedActivityIds||[]).slice(0,4).join("; ")||"Not linked")+'</td><td>'+escapeHtml(r.programmeEffect||"Programme effect not established")+'</td><td>'+escapeHtml(r.managementAction||"Monitor resource demand.")+'</td></tr>').join("");
@@ -3197,7 +3207,7 @@ function renderProgressReportVisual(data){
   const physicalLabel="Physical progress";
   const kpis=planningKpis([
     ["Achieved progress",headline.valuePercent==null?"Not established":percent2(headline.valuePercent)+"%",headline.label+" · "+headline.basis,headline.valuePercent==null?"warning":"success"],
-    ["Baseline plan · original scope",baseline?.valuePercent==null?"Not established":percent2(baseline.valuePercent)+"%","baseline activities"],
+    ["Baseline plan · original scope",baseline?.valuePercent==null?"Not established":percent2(baseline.valuePercent)+"%","baseline activities","",unknownFactReason(baseline)||baselineReason(data.baselineComparison)],
     ["Current plan · current scope",current?.valuePercent==null?"—":percent2(current.valuePercent)+"%","contains actual dates; not an independent comparator"],
     ["Snapshot · current scope",snapshot?.valuePercent==null?"—":percent2(snapshot.valuePercent)+"%","duration-weighted source percent complete"],
     ...[[physicalLabel,physical],["Contractor reported",contractor],["Certified progress",certified],["Earned-value progress",earned]].filter(x=>typeof x[1]?.valuePercent==="number").map(x=>[x[0],percent2(x[1].valuePercent)+"%"+(x[1].query?" · queried":""),x[1].query?"Query: "+x[1].query:"separate source basis",x[1].query?"warning":""])
@@ -3382,7 +3392,7 @@ function renderVarianceTrendVisual(data){
       ["Current revision",latest.sequence??1,"current controlled programme"],
       ["Records finishing after baseline",latest.lateActivityCount??"Not established","current comparison position"],
       ["Project finish vs baseline",latest.projectCompletionVarianceDays==null?"Not established":fmt(latest.projectCompletionVarianceDays)+" d","current position; not a trend"]
-    ]):"")+'<p>Use Programme Changes for a specific revision-to-revision comparison and Revision History for chronology.</p></section>';
+    ],{reason:baselineReason(data.baselineComparison)}):"")+'<p>Use Programme Changes for a specific revision-to-revision comparison and Revision History for chronology.</p></section>';
   }
   const labels=p.revisionLabels||{};
   const points=p.points.map(x=>({...x,dateIso:x.dataDateIso||("R"+x.sequence)}));
@@ -3736,8 +3746,8 @@ const movementClusters=new Map();
   const repeatedMovementWarning=dominantMovement&&dominantMovement[0]!==0&&dominantMovement[1]>=5&&dominantMovement[1]/Math.max(1,p.openCount)>=0.2?'<div class="notice warn"><b>Common movement pattern detected.</b> '+escapeHtml(fmt(dominantMovement[1]))+' of '+escapeHtml(fmt(p.openCount))+' open milestones share exactly '+escapeHtml((dominantMovement[0]>0?"+":"")+fmt(dominantMovement[0]))+' days. CMeng is showing the source-derived date difference, but this repeated pattern requires investigation; it does not establish a common cause or '+escapeHtml(fmt(dominantMovement[1]))+' separate delay causes.</div>':'';
   const movementGroups='<section class="planning-panel"><div class="planning-panel-head"><h4>Milestone movement & criticality</h4></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Movement vs baseline</th><th>Open milestones</th><th>Share of open milestones</th></tr></thead><tbody>'+[...movementClusters.entries()].sort((a,b)=>b[1]-a[1]).map(([value,count])=>'<tr><td>'+escapeHtml((value>0?'+':'')+fmt(value)+' d')+'</td><td>'+escapeHtml(fmt(count))+'</td><td>'+escapeHtml(fmt(count/Math.max(1,p.openCount)*100)+'%')+'</td></tr>').join('')+'</tbody></table></div><p>Equal date movements do not prove a shared cause. Completed milestones are excluded from these groups.</p></div></section>';
   const authority=planningKpis([
-    ["Float threshold approval",humanizeKey(p.controlBasis?.state==="missing"?"not_established":p.controlBasis?.state||"not_established"),humanizeKey(p.controlBasis?.nearCriticalThresholdMethod||"unresolved"),p.controlBasis?.state==='official'?'':'warning'],
-    ["Contract completion",planningShortDate(p.contractualCompletionIso),"contract evidence, separate from activity names"],
+    ["Float threshold approval",humanizeKey(p.controlBasis?.state==="missing"?"not_established":p.controlBasis?.state||"not_established"),humanizeKey(p.controlBasis?.nearCriticalThresholdMethod||"unresolved"),p.controlBasis?.state==='official'?'':'warning',"Confirm the near-critical float threshold for this project"],
+    ["Contract completion",planningShortDate(p.contractualCompletionIso),"contract evidence, separate from activity names","",data.projectFacts?.time?.contractualCompletionIso?.reason||"Needs the contractual completion date from the contract"],
     ["Independent driving path",humanizeKey(p.independentDrivingPathState||"not_established"),p.independentDrivingPathReason||"Independent CPM evidence required","warning"]
   ]);
   const timeline=planningMilestoneTimeline(p,contractTimeLines(data));
@@ -3807,8 +3817,8 @@ const movementClusters=new Map();
     'Past-due open commitments require intervention; baseline slippage is a separate comparison. Completed milestones are historic actuals and have no live float exposure.',
     planningKpis([
       ['Open milestones past their current finish',p.lateOpenCount??unknownWithKnownText(full?.statusCounts?.overdue,'known'),'not completed at the reporting Data Date'],
-      ['Open milestones later than baseline',full?.identificationComplete!==false&&full?.openLateBaselineTotal!=null?full.openLateBaselineTotal:unknownWithKnownText(full?.openLateBaselineCount,'known'),'current versus controlled baseline; overlaps overdue milestones'],
-      ['Completed after baseline',full?.identificationComplete!==false&&full?.completedLateBaselineTotal!=null?full.completedLateBaselineTotal:unknownWithKnownText(full?.completedLateBaselineCount,'known'),'historical actual completion; not live float pressure']
+      ['Open milestones later than baseline',full?.identificationComplete!==false&&full?.openLateBaselineTotal!=null?full.openLateBaselineTotal:unknownWithKnownText(full?.openLateBaselineCount,'known'),'current versus controlled baseline; overlaps overdue milestones','',(typeof baselineReason==="function"?baselineReason:()=>"")(data.baselineComparison)],
+      ['Completed after baseline',full?.identificationComplete!==false&&full?.completedLateBaselineTotal!=null?full.completedLateBaselineTotal:unknownWithKnownText(full?.completedLateBaselineCount,'known'),'historical actual completion; not live float pressure','',(typeof baselineReason==="function"?baselineReason:()=>"")(data.baselineComparison)]
     ])+
     (openOverdueMilestones.length?basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openOverdueMilestones,50,'open')):((full?.overdueOpenCount??0)>0?'<p>Open overdue milestones exist in the full source register but are outside this preview. Download the complete register.</p>':p.lateOpenCount===0?'<p>No current open milestone finish date is overdue among the confirmed milestones.</p>':'<p>The complete overdue milestone count is not established; missing milestone, status or date evidence remains unresolved.</p>'))+
     (openBaselineLate.length?'<details><summary>Open milestones later than baseline · '+fmt(openBaselineLate.length)+'</summary>'+basisTable(['Milestone','Baseline date','Current finish','Change vs baseline','Required action'],rowDetail(openBaselineLate,50,'baseline'))+'</details>':'')+
@@ -3975,16 +3985,17 @@ function renderManhourVisual(data){
   const actualHistoryEstablished=["stored_financial_period_actuals","source_approved_weekly_usage"].includes(p.actualHistoryMethod);
   const actualHistoryLabel=p.actualHistoryMethod==="stored_financial_period_actuals"?"Financial-period history":p.actualHistoryMethod==="source_approved_weekly_usage"?"Approved weekly usage history":"Not established";
   const actualHistoryBasis=p.actualHistoryMethod==="stored_financial_period_actuals"?"stored financial periods":p.actualHistoryMethod==="source_approved_weekly_usage"?"confirmed weekly actuals":"no fabricated history";
+  const manWhy=(p.diagnostics||[]).includes("LABOR_ASSIGNMENTS_AND_GOVERNED_WEEKLY_HISTORY_NOT_ESTABLISHED")?"Needs hour-based labour assignments in the programme or a weekly labour register":"";
   const top=planningKpis([
     ["Planned labor hours",p.plannedHoursKnown===null?"—":fmt(p.plannedHoursKnown)+" h",weekly?"weekly demand over register period":"assignment plan"],
     ["Planned register-row coverage",planCoverage==null?"Not established":fmt(planCoverage)+"%",weekly?"source labor-resource periods":"labor assignments"],
-    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":sumBasisLabel({records:p.actualHoursBasis==="programme_recorded"?"programme-recorded (P6 actual hours); no register gives recorded hours":weekly?(typeof p.actualSourcePeriodCountToDataDate==="number"?fmt(p.actualSourcePeriodCountToDataDate)+" approved weekly usage periods":"approved weekly usage periods"):"labor assignment actuals, current known total",asOf:p.dataDateIso||null}),p.actualHoursKnownCurrent===null?"warning":"success"],
+    ["Actual labor hours",p.actualHoursKnownCurrent===null?"Not established":fmt(p.actualHoursKnownCurrent)+" h",p.actualHoursKnownCurrent===null?"missing, not zero":sumBasisLabel({records:p.actualHoursBasis==="programme_recorded"?"programme-recorded (P6 actual hours); no register gives recorded hours":weekly?(typeof p.actualSourcePeriodCountToDataDate==="number"?fmt(p.actualSourcePeriodCountToDataDate)+" approved weekly usage periods":"approved weekly usage periods"):"labor assignment actuals, current known total",asOf:p.dataDateIso||null}),p.actualHoursKnownCurrent===null?"warning":"success",(typeof unknownReasonText==="function"?unknownReasonText:()=>"")(p.actualHoursNotEstablishedReason)||manWhy],
     ["Actual register-row coverage",actualCoverage==null?"Not established":fmt(actualCoverage)+"%",weekly?"approved source periods through Data Date":"assignment coverage",p.actualAssignmentCoveragePercent!==null&&p.actualAssignmentCoveragePercent!==undefined&&p.actualAssignmentCoveragePercent<100?"warning":""],
     [weekly?"Weekly remaining-work forecast":"Remaining labor hours",p.remainingHoursKnown===null?"Not in the data":fmt(p.remainingHoursKnown)+" h",weekly?"remaining productive work not supplied":"assignment remainder"],
     ...(weekly?[["Planned to Data Date",p.plannedHoursToDataDate==null?"Not established":fmt(p.plannedHoursToDataDate)+" h","same source weeks as actual"],["Actual minus plan",p.actualMinusPlannedHoursToDataDate==null?"Not established":fmt(p.actualMinusPlannedHoursToDataDate)+" h","same reporting horizon"]]:[]),
-    ["Actual history",actualHistoryLabel,actualHistoryBasis,actualHistoryEstablished?"success":"warning"],
+    ["Actual history",actualHistoryLabel,actualHistoryBasis,actualHistoryEstablished?"success":"warning",manWhy||(actualEstablished?"Needs actual hours by reporting period":"")],
     ["Period actual coverage",periodCoverage==null?"Not established":fmt(periodCoverage)+"%",weekly?"source labor-resource periods through Data Date":"labor assignments with period actuals",p.periodActualAssignmentCoveragePercent!==null&&p.periodActualAssignmentCoveragePercent!==undefined&&p.periodActualAssignmentCoveragePercent<100?"warning":""]
-  ]);
+  ],{reason:manWhy});
   const unitNote=manhourUnitNote(p);
   const note=!actualEstablished
     ? manhourActualMissingNote(p)
@@ -4049,7 +4060,7 @@ function renderForecastHistoryVisual(data){
       ["Current revision",shortRevision(current.sourceRevisionId,labels),"single comparable programme state"],
       ["Data Date",planningShortDate(current.dataDateIso),"current recorded position"],
       ["Submitted finish",planningShortDate(current.sourceForecastCompletionIso),"source programme forecast"],
-      ["Programme calendar recalculation",(current.independentForecastCompletionIso?planningShortDate(current.independentForecastCompletionIso):'Not calculated'),"calculated only when available"]
+      ["Programme calendar recalculation",(current.independentForecastCompletionIso?planningShortDate(current.independentForecastCompletionIso):'Not calculated'),"calculated only when available","",current.calculationReason]
     ]):"";
     return '<section class="planning-view forecast-history-view"><div class="notice info"><b>Completion history is not yet a trend.</b><p>'+escapeHtml(availability.reason||"At least two comparable programme revisions are required.")+'</p></div>'+currentPosition+calculationChecks+'<details class="management-detail"><summary>History prerequisite</summary><p>CMeng keeps the current completion position visible, but does not draw a movement trend from a single observation.</p></details></section>';
   }
@@ -4078,10 +4089,11 @@ function renderNoticesClaimsVisual(data){
   const quarantined=chain?.populationState==="quarantined"||integrity?.state==="quarantined";
   const populationEstablished=chain?chain.populationState==="established":(!quarantined&&p.claimCount!==null);
   const withheld=quarantined?"Withheld — source records held for review":"Not established",count=value=>populationEstablished?(value==null?"Not established":value):withheld;
+  const popWhy=populationEstablished?"":delayPopulationReason(chain?.populationState??(quarantined?"quarantined":"missing")),eventWhy=unknownReasonText(p.eventPopulationReason)||popWhy;
   const summary=planningKpis([
-    ["Claims known by Data Date",count(p.claimCount),"established claim identities only"],
+    ["Claims known by Data Date",count(p.claimCount),"established claim identities only","",popWhy],
     ...(quarantined?[["Quarantined source claim rows",integrity?.quarantinedClaimCount??chain?.quarantinedClaimCount,"retained for audit; excluded from notice and entitlement conclusions","warning"]]:[]),
-    ["Events evidenced by Data Date",count(p.eventCount),"contractual event identities"],["Timely notices",count(p.timelyNoticeCount),"requires event date, rule and notice"],["Late notices",count(p.lateNoticeCount),"requires event date, rule and notice"],["Event / awareness dates missing",count(p.noticeEventDateMissingCount),"notice trigger dates"],["Notice rules missing",count(p.noticeRequirementMissingCount),"applicable contract rule not established"],["Notice rules need review",count(p.noticeRequirementConflictCount),"resolve applicability or conflicting versions"],["Determined days through DD",p.effectiveDeterminationDays==null?"Not established in dated determination evidence":fmt(p.effectiveDeterminationDays)+" d","determination register; amendment overlap separate"]
+    ["Events evidenced by Data Date",count(p.eventCount),"contractual event identities","",eventWhy],["Timely notices",count(p.timelyNoticeCount),"requires event date, rule and notice"],["Late notices",count(p.lateNoticeCount),"requires event date, rule and notice"],["Event / awareness dates missing",count(p.noticeEventDateMissingCount),"notice trigger dates"],["Notice rules missing",count(p.noticeRequirementMissingCount),"applicable contract rule not established"],["Notice rules need review",count(p.noticeRequirementConflictCount),"resolve applicability or conflicting versions"],["Determined days through DD",p.effectiveDeterminationDays==null?"Not established in dated determination evidence":fmt(p.effectiveDeterminationDays)+" d","determination register; amendment overlap separate","","Needs dated determinations on or before the Data Date"]
   ]);
   const integrityWarning=quarantined?'<div class="notice error"><b>Notice/claim assessment withheld for '+escapeHtml(fmt(integrity?.quarantinedClaimCount??chain?.quarantinedClaimCount))+' quarantined source claim rows.</b> The six Notice Compliance counts are withheld rather than displayed as zero until the applicable records are verified.</div>':'';
   const notAssessableNotice=!populationEstablished?'<div class="notice warn"><b>Notice performance is not zero; it is not assessable.</b> Establish the applicable events, notice trigger dates, contract rule and actual notice evidence before stating timely or late counts.</div>':'';
@@ -4184,9 +4196,9 @@ function renderCommercialVisual(key,data){
     ["Contract completion",t.contractualCompletion?.value?planningShortDate(t.contractualCompletion.value):"Not established",humanizeKey(t.contractualCompletion?.state||"not_submitted")],
     ["Awarded EOT",t.approvedEotDays?.value===null||t.approvedEotDays?.value===undefined?"Not established":fmt(t.approvedEotDays.value)+" d",humanizeKey(t.approvedEotDays?.state||"not_submitted")],
     ["Contract completion including awarded EOT",t.officialAdjustedCompletion?.value?planningShortDate(t.officialAdjustedCompletion.value):"Not established",commercialSourceState(t.officialAdjustedCompletion)],
-    ["Variations",countPosition(position.contractControls?.variations?.state,position.variationCount,"records"),"confirmed changes"],
-    ["Payment / IPC rows",countPosition(foundation?.paymentRegister?.state,foundation?.paymentRegister?.recordCount,"rows"),"source register rows"],
-    ["Commercial claims",countPosition(position.claimsNotices?.state,position.claimCommercialCount,"rows"),"claims with a money value"]
+    ["Variations",countPosition(position.contractControls?.variations?.state,position.variationCount,"records"),"confirmed changes","",evidenceStateReason(position.contractControls?.variations?.state??"not_submitted","a variation register")],
+    ["Payment / IPC rows",countPosition(foundation?.paymentRegister?.state,foundation?.paymentRegister?.recordCount,"rows"),"source register rows","",evidenceStateReason(foundation?.paymentRegister?.state??"not_submitted","a payment / IPC register")],
+    ["Commercial claims",countPosition(position.claimsNotices?.state,position.claimCommercialCount,"rows"),"claims with a money value","",position.claimsNotices?.state==="established"?"Needs claimed amounts in the claim register":evidenceStateReason(position.claimsNotices?.state??"not_submitted","a claim register")]
   ]);
   // F10: contract time and the commercial record counts are one shared position,
   // shown on Contract Particulars & Bonds; the other commercial pages link to it.
@@ -4276,7 +4288,7 @@ function renderCommercialVisual(key,data){
           ["CBS mapping",foundation.costRegister?.mappingCoveragePercent==null?"Not established":fmt(foundation.costRegister.mappingCoveragePercent)+"%","source rows mapped"],
           ["CBS nodes",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.nodeCount,"nodes"),"nodes in the hierarchy"],
           ["Unmapped",countPosition(foundation.cbsBreakdown?.state,foundation.cbsBreakdown?.unmappedCostMetricCount,"metrics"),"retained for correction"]
-        ])+
+        ],{reason:foundation.costRegister?.state==="missing"||!foundation.costRegister?"Needs a cost register":""})+
         table(["Cost code","Description","Parent","WBS","Currency","Tax basis","Current metrics","State"],costRows,"No cost-register source metrics are established.")+
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>CBS Breakdown</h4><p>Cost breakdown, WBS/BOQ/payment links and amounts by currency. Showing '+escapeHtml(fmt(cbsRows.length))+' of '+escapeHtml(fmt(responseListPopulation(foundation.cbsBreakdown?.nodes||[]).total))+' nodes; all nodes are available through Download Excel / Download data.</p></div></div><div class="planning-panel-body">'+
@@ -4289,6 +4301,7 @@ function renderCommercialVisual(key,data){
       const slaCounts=paymentRegister.slaCounts||{};
       const paymentSourceEstablished=knownCount(paymentRegister.sourceRecordCount)&&paymentRegister.sourceRecordCount>0;
       const paymentPopulationEstablished=paymentSourceEstablished&&knownCount(paymentRegister.recordCount);
+      const payWhy=paymentSourceEstablished?"":"Needs a payment / IPC register";
       const paymentLifecycleEstablished=paymentPopulationEstablished&&[
         lifecycleCounts.applied,lifecycleCounts.assessed,lifecycleCounts.certified,lifecycleCounts.paid
       ].every(knownCount);
@@ -4346,12 +4359,12 @@ function renderCommercialVisual(key,data){
       );
       foundationDetail='<section class="planning-panel primary payment-management-position"><div class="planning-panel-head"><div><h4>Payments & IPC Management Position</h4><p>Application, assessment, certification and payment remain separate. Due dates and SLA states come from evidenced event dates and contractual periods.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Certificate periods by Data Date",governedDisplayCount(paymentPopulationEstablished,paymentRegister.asOfRecordCount),"certificate periods on or before cutoff"],["Future / undated periods",unknownPairText(governedDisplayCount(paymentSourceEstablished,paymentRegister.futureRecordCount),governedDisplayCount(paymentSourceEstablished,paymentRegister.undatedRecordCount)),governedDisplayCount(paymentSourceEstablished,paymentRegister.sourceRecordCount)+" full source records retained"],
-          ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates"],
-          ["Stated component arithmetic",paymentPopulationEstablished&&knownCount(paymentRegister.asOfRecordCount)?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount):"Not established","gross work + variations − retention − advance recovery; omitted fields remain unconfirmed"],
-          ["Overdue unpaid",governedDisplayCount(paymentPopulationEstablished,slaCounts.overdueUnpaid),"past confirmed payment due date"],
-          ["Paid late",governedDisplayCount(paymentPopulationEstablished,slaCounts.paidLate),"actual payment after due date"],
-          ["SLA not confirmed",governedDisplayCount(paymentPopulationEstablished,slaCounts.notEstablished),"records without assessable due/payment dates",knownCount(slaCounts.notEstablished)&&slaCounts.notEstablished>0?"warning":""],
+          ["Certificate periods by Data Date",governedDisplayCount(paymentPopulationEstablished,paymentRegister.asOfRecordCount),"certificate periods on or before cutoff","",payWhy],["Future / undated periods",unknownPairText(governedDisplayCount(paymentSourceEstablished,paymentRegister.futureRecordCount),governedDisplayCount(paymentSourceEstablished,paymentRegister.undatedRecordCount)),governedDisplayCount(paymentSourceEstablished,paymentRegister.sourceRecordCount)+" full source records retained","",payWhy],
+          ["Stage coverage",paymentRegister.stageCoveragePercent==null?"Not established":fmt(paymentRegister.stageCoveragePercent)+"%","application / assessment / certification / payment dates","",payWhy||(paymentRegister.stageCoveragePercent==null?"Needs application, assessment, certification and payment dates":"")],
+          ["Stated component arithmetic",paymentPopulationEstablished&&knownCount(paymentRegister.asOfRecordCount)?fmt((paymentRegister.rows||[]).filter(row=>row.reportingScope==="as_of"&&row.componentArithmetic?.state==="matched").length)+" / "+fmt(paymentRegister.asOfRecordCount):"Not established","gross work + variations − retention − advance recovery; omitted fields remain unconfirmed","",payWhy],
+          ["Overdue unpaid",governedDisplayCount(paymentPopulationEstablished,slaCounts.overdueUnpaid),"past confirmed payment due date","",payWhy],
+          ["Paid late",governedDisplayCount(paymentPopulationEstablished,slaCounts.paidLate),"actual payment after due date","",payWhy],
+          ["SLA not confirmed",governedDisplayCount(paymentPopulationEstablished,slaCounts.notEstablished),"records without assessable due/payment dates",knownCount(slaCounts.notEstablished)&&slaCounts.notEstablished>0?"warning":"",payWhy],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
           ["Certification period",findingValue(terms.certificationPeriodDays,"days"),findingMeta(terms.certificationPeriodDays)]
         ])+
@@ -4373,7 +4386,7 @@ function renderCommercialVisual(key,data){
           ["Retention",findingValue(terms.retentionPercent,"%"),findingMeta(terms.retentionPercent)],
           ["Retention cap",findingValue(terms.retentionCapPercent,"%"),findingMeta(terms.retentionCapPercent)],
           ["Payment period",findingValue(terms.paymentPeriodDays,"days"),findingMeta(terms.paymentPeriodDays)],
-          ["Initial notice",terms.noticeVersions?.length?"See contract versions":findingValue(terms.noticePeriodDays,"days"),"Original and amended terms shown separately"],
+          ["Initial notice",terms.noticeVersions?.length?"See contract versions":findingValue(terms.noticePeriodDays,"days"),"Original and amended terms shown separately","",unknownFactReason(terms.noticePeriodDays)],
           ["LD rate",findingValue(terms.ldRate),findingMeta(terms.ldRate)],
           ["LD cap",findingValue(terms.ldCap),findingMeta(terms.ldCap)]
         ])+
@@ -4711,6 +4724,7 @@ function renderCommercialVisual(key,data){
       const stageCounts=vo.lifecycleStageCounts||{};
       const ageBands=vo.pendingAgeBands||{};
       const variationPopulationEstablished=knownCount(vo.recordCount);
+      const voWhy=vo.state==="missing"||!(Number(vo.sourceRecordCount??vo.recordCount)>0)?"Needs a variation register":"";
       const variationLifecycleCounts=[stageCounts.instruction,stageCounts.submitted,stageCounts.quoted,stageCounts.assessed,stageCounts.agreed,stageCounts.approved,stageCounts.rejected,stageCounts.withdrawn,stageCounts.unknown];
       const variationLifecycleEstablished=variationPopulationEstablished&&variationLifecycleCounts.every(knownCount)&&vo.changeRegister?.state!=="not_established";
       const lifecycleVisual=renderVisualPanel(
@@ -4785,6 +4799,7 @@ function renderCommercialVisual(key,data){
       });
       const si=contractControls.siteInstructions||{};
       const siteInstructionPopulationEstablished=knownCount(si.recordCount);
+      const siWhy=siteInstructionPopulationEstablished?"":"Needs a site instruction register";
       const siteInstructionBreakdownEstablished=siteInstructionPopulationEstablished&&[si.unquotedCount,si.overdueQuotationCount,si.convertedVariationCount].every(knownCount);
       const instructionPressure=renderVisualPanel(
         "Site Instruction conversion & quotation pressure",
@@ -4816,15 +4831,15 @@ function renderCommercialVisual(key,data){
         '<section class="planning-panel primary variation-management-position"><div class="planning-panel-head"><div><h4>Variations & Change Management Position</h4><p>Lifecycle, aging, contract-value effect and schedule/claim/payment links remain controlled separately.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
           ["Variations by Data Date",governedDisplayCount(variationPopulationEstablished,vo.recordCount),vo.changeRegister?.state==="not_established"?fmt(vo.recordCount)+" approved records supplied; the approved list is not the full change register":fmt(vo.sourceRecordCount??vo.recordCount)+" full source records retained"],
-          ["Approved by Data Date",governedDisplayCount(variationPopulationEstablished,vo.approvedCount),"dated approval event"],["Future / undated records",unknownPairText(fmt(vo.futureRecordCount??"Not established"),fmt(vo.undatedRecordCount??"Not established")),"retained outside current stage totals"],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
-          ["Known pending",pendingTotalEstablished&&pendingCount===0?0:pendingCount>0?pendingCount:"Not established","identified dated pre-approval rows; complete pending exposure is separate"],
-          ["Rejected",governedDisplayCount(variationPopulationEstablished,vo.rejectedCount),"closed without approval"],
-          ["Change register",vo.changeRegister?(vo.changeRegister.state==="not_established"||vo.changeRegister.state==="missing"?"Not established":(vo.changeRegister.stateCounts.instructed==null?[]:["Instructed "+fmt(vo.changeRegister.stateCounts.instructed)]).concat(["Submitted "+fmt(vo.changeRegister.stateCounts.submitted),"Under review "+fmt(vo.changeRegister.stateCounts.underReview),"Approved "+fmt(vo.changeRegister.stateCounts.approved),"Rejected "+fmt(vo.changeRegister.stateCounts.rejected),"Withdrawn "+fmt(vo.changeRegister.stateCounts.withdrawn)]).concat(vo.changeRegister.stateCounts.unknown?["Unknown "+fmt(vo.changeRegister.stateCounts.unknown)]:[]).join(" · ")):"Not established",vo.changeRegister?.consequence||(vo.changeRegister&&vo.changeRegister.stateCounts.instructed==null?"the source does not distinguish instructions, so they stay with submitted; approved is one state":"every variation counted by state; approved is one state")],
-          ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date"],
-          ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates"],
-          ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence"],
-          ["Claim linkage",vo.claimLinkCoveragePercent==null?"Not established":fmt(vo.claimLinkCoveragePercent)+"%","claim IDs"],
-          ["Payment linkage",vo.paymentLinkCoveragePercent==null?"Not established":fmt(vo.paymentLinkCoveragePercent)+"%","certificate/payment IDs"]
+          ["Approved by Data Date",governedDisplayCount(variationPopulationEstablished,vo.approvedCount),"dated approval event","",voWhy],["Future / undated records",unknownPairText(fmt(vo.futureRecordCount??"Not established"),fmt(vo.undatedRecordCount??"Not established")),"retained outside current stage totals","",voWhy],["Stage unknown at Data Date",vo.unknownAsOfStageCount??"Not established","future approval does not prove a prior pending stage"],
+          ["Known pending",pendingTotalEstablished&&pendingCount===0?0:pendingCount>0?pendingCount:"Not established","identified dated pre-approval rows; complete pending exposure is separate","",voWhy],
+          ["Rejected",governedDisplayCount(variationPopulationEstablished,vo.rejectedCount),"closed without approval","",voWhy],
+          ["Change register",vo.changeRegister?(vo.changeRegister.state==="not_established"||vo.changeRegister.state==="missing"?"Not established":(vo.changeRegister.stateCounts.instructed==null?[]:["Instructed "+fmt(vo.changeRegister.stateCounts.instructed)]).concat(["Submitted "+fmt(vo.changeRegister.stateCounts.submitted),"Under review "+fmt(vo.changeRegister.stateCounts.underReview),"Approved "+fmt(vo.changeRegister.stateCounts.approved),"Rejected "+fmt(vo.changeRegister.stateCounts.rejected),"Withdrawn "+fmt(vo.changeRegister.stateCounts.withdrawn)]).concat(vo.changeRegister.stateCounts.unknown?["Unknown "+fmt(vo.changeRegister.stateCounts.unknown)]:[]).join(" · ")):"Not established",vo.changeRegister?.consequence||(vo.changeRegister&&vo.changeRegister.stateCounts.instructed==null?"the source does not distinguish instructions, so they stay with submitted; approved is one state":"every variation counted by state; approved is one state"),"",unknownFactReason(vo.changeRegister)||voWhy],
+          ["Final-stage coverage",vo.finalStageCoveragePercent==null?"Not established":fmt(vo.finalStageCoveragePercent)+"%","stage evidenced on or before Data Date","",voWhy],
+          ["Full lifecycle coverage",vo.fullLifecycleCoveragePercent==null?"Not established":fmt(vo.fullLifecycleCoveragePercent)+"%","instruction / submission / assessment / closure dates","",voWhy],
+          ["Schedule linkage",vo.scheduleLinkCoveragePercent==null?"Not established":fmt(vo.scheduleLinkCoveragePercent)+"%","time/activity evidence","",voWhy],
+          ["Claim linkage",vo.claimLinkCoveragePercent==null?"Not established":fmt(vo.claimLinkCoveragePercent)+"%","claim IDs","",voWhy],
+          ["Payment linkage",vo.paymentLinkCoveragePercent==null?"Not established":fmt(vo.paymentLinkCoveragePercent)+"%","certificate/payment IDs","",voWhy]
         ])+
         '<div class="commercial-visual-grid variation-control-grid">'+lifecycleVisual+agingVisual+'</div>'+
         (bridgeVisuals?'<div class="commercial-visual-grid change-bridge-grid">'+bridgeVisuals+'</div>':"")+
@@ -4835,10 +4850,10 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Site Instructions</h4><p>An instruction is not automatically a variation or entitlement. Quotation aging uses actual issue and due dates.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Instructions",governedDisplayCount(siteInstructionPopulationEstablished,si.recordCount),"source records"],
-          ["Unquoted",governedDisplayCount(siteInstructionPopulationEstablished,si.unquotedCount),"quotation missing"],
-          ["Overdue quotations",governedDisplayCount(siteInstructionPopulationEstablished,si.overdueQuotationCount),"past due"],
-          ["Converted to VO",governedDisplayCount(siteInstructionPopulationEstablished,si.convertedVariationCount),"explicit link only"]
+          ["Instructions",governedDisplayCount(siteInstructionPopulationEstablished,si.recordCount),"source records","",siWhy],
+          ["Unquoted",governedDisplayCount(siteInstructionPopulationEstablished,si.unquotedCount),"quotation missing","",siWhy],
+          ["Overdue quotations",governedDisplayCount(siteInstructionPopulationEstablished,si.overdueQuotationCount),"past due","",siWhy],
+          ["Converted to VO",governedDisplayCount(siteInstructionPopulationEstablished,si.convertedVariationCount),"explicit link only","",siWhy]
         ])+
         instructionPressure+
         table(["Instruction","Issued","Description","Status","Quote due","Quoted","Timeliness","Open age","Estimate","Variation","Other links"],siRows,"No Site Instruction register is established.")+
@@ -4855,6 +4870,8 @@ function renderCommercialVisual(key,data){
       const bondsEstablished=Array.isArray(bi.bonds)&&bi.bonds.length>0;
       const insuranceEstablished=Array.isArray(bi.insurances)&&bi.insurances.length>0;
       const retentionRecordsEstablished=Number(ret.recordCount??(ret.rows||[]).length)>0;
+      // S1: each unknown control count names the register it needs.
+      const oblWhy=obligationsEstablished?"":"Needs a contract obligation register",bondWhy=bondsEstablished?"":"Needs a bond / security register",insuranceWhy=insuranceEstablished?"":"Needs an insurance policy register",retentionWhy=retentionRecordsEstablished?"":"Needs retention records",heldWhy=retentionRecordsEstablished?"Needs retention records with held balances":"Needs retention records";
       const retentionOverdueDisplay=ret.overdueCount===null||ret.overdueCount===undefined?"Not assessable":ret.overdueCount;
       const obligationVisual=renderVisualPanel(
         "Contract obligation control",
@@ -4934,13 +4951,13 @@ function renderCommercialVisual(key,data){
       contractControlDetail=
         '<section class="planning-panel primary contract-particulars-management"><div class="planning-panel-head"><div><h4>Contract Particulars, Securities & Obligations Management Position</h4><p>Contract value, obligations, LD scenarios, securities, insurance and retention are controlled as separate evidence-backed positions.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??null):"Not established","explicit register"],
-          ["Open obligations",obligationsEstablished?(obl.openCount??null):"Not established","controlled obligation register"],
-          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??null):"Not established","controlled obligation register"],
-          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not established"):"Not established","security register instruments"],
-          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not established"):"Not established","security register instruments"],
-          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not established"):"Not established","security register instruments"],
-          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??null):"Not established","deduction records do not prove held balances"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??null):"Not established","explicit register","",oblWhy],
+          ["Open obligations",obligationsEstablished?(obl.openCount??null):"Not established","controlled obligation register","",oblWhy],
+          ["Overdue obligations",obligationsEstablished?(obl.overdueCount??null):"Not established","controlled obligation register","",oblWhy],
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not established"):"Not established","security register instruments","",bondWhy],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not established"):"Not established","security register instruments","",bondWhy],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not established"):"Not established","security register instruments","",bondWhy],
+          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??null):"Not established","deduction records do not prove held balances","",heldWhy],
           ["Retention overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         (contractBridgeVisuals?'<div class="commercial-visual-grid contract-bridge-grid">'+contractBridgeVisuals+'</div>':"")+
@@ -4948,11 +4965,11 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Contract Obligations</h4><p>Explicit obligation controls remain separate from clause-derived candidates. A clause does not invent compliance status.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??null):"Not established","explicit register"],
+          ["Controlled obligation records",obligationsEstablished?(obl.explicitRecordCount??null):"Not established","explicit register","",oblWhy],
           ["Requirement wording groups",obl.clauseCandidateCount??null,"repeated source sections grouped; requires review"],
-          ["Open",obligationsEstablished?(obl.openCount??null):"Not established","controlled obligation register"],
-          ["Overdue",obligationsEstablished?(obl.overdueCount??null):"Not established","controlled obligation register"],
-          ["Complete",obligationsEstablished?(obl.completeCount??null):"Not established","controlled obligation register"]
+          ["Open",obligationsEstablished?(obl.openCount??null):"Not established","controlled obligation register","",oblWhy],
+          ["Overdue",obligationsEstablished?(obl.overdueCount??null):"Not established","controlled obligation register","",oblWhy],
+          ["Complete",obligationsEstablished?(obl.completeCount??null):"Not established","controlled obligation register","",oblWhy]
         ])+
         table(["Obligation","Origin","Clause","Requirement","Responsible","Due","Completed","Status","Days to due","Evidence"],obligationRows,"No controlled obligation register or promoted clause candidates are established. This does not mean the contract contains no obligations.")+
         '</div></section>'+
@@ -4970,12 +4987,12 @@ function renderCommercialVisual(key,data){
         '</div></section>')+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Bonds & Insurance</h4><p>Security values, cash balances, contractual requirements and expiry status remain distinct.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not established"):"Not established","security register records"],
-          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not established"):"Not established","security register records"],
-          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not established"):"Not established","security register records"],
-          ["Active policies",insuranceEstablished?(bi.activeInsuranceCount??"Not established"):"Not established","insurance register records"],
-          ["Expired policies",insuranceEstablished?(bi.expiredInsuranceCount??"Not established"):"Not established","insurance register records"],
-          ["Expiring policies",insuranceEstablished?(bi.expiringInsuranceCount??"Not established"):"Not established","insurance register records"]
+          ["Active bonds",bondsEstablished?(bi.activeBondCount??"Not established"):"Not established","security register records","",bondWhy],
+          ["Expired bonds",bondsEstablished?(bi.expiredBondCount??"Not established"):"Not established","security register records","",bondWhy],
+          ["Expiring bonds",bondsEstablished?(bi.expiringBondCount??"Not established"):"Not established","security register records","",bondWhy],
+          ["Active policies",insuranceEstablished?(bi.activeInsuranceCount??"Not established"):"Not established","insurance register records","",insuranceWhy],
+          ["Expired policies",insuranceEstablished?(bi.expiredInsuranceCount??"Not established"):"Not established","insurance register records","",insuranceWhy],
+          ["Expiring policies",insuranceEstablished?(bi.expiringInsuranceCount??"Not established"):"Not established","insurance register records","",insuranceWhy]
         ])+
         '<div class="notice info"><b>Performance requirement:</b> '+escapeHtml(findingValue(bi.performanceBondRequirement))+' · '+escapeHtml(findingMeta(bi.performanceBondRequirement))+'<br><b>Advance-payment requirement:</b> '+escapeHtml(findingValue(bi.advancePaymentBondRequirement))+' · '+escapeHtml(findingMeta(bi.advancePaymentBondRequirement))+'<br><b>Contract insurance requirements:</b> '+escapeHtml(bi.insuranceRequirementCount>0?bi.insuranceRequirementCount:'Not established')+'</div>'+
         table(["Bond","Type","Status","Amount","Expiry","Days","Expiry state","Action"],bondRows,"No bond/security register is established.")+
@@ -4985,10 +5002,10 @@ function renderCommercialVisual(key,data){
         planningKpis([
           ["Retention rate",findingValue(ret.retentionPercent,"%"),findingMeta(ret.retentionPercent)],
           ["Retention cap",findingValue(ret.retentionCapPercent,"%"),findingMeta(ret.retentionCapPercent)],
-          ["Records by Data Date",retentionRecordsEstablished?(ret.recordCount??null):"Not established",fmt(ret.sourceRecordCount??ret.recordCount)+" full source records"],["Future / undated records",fmt(experienceRecordCount(ret.futureRows))+" / "+fmt(experienceRecordCount(ret.undatedRows)),"excluded from current totals"],
-          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??null):"Not established","deductions excluded from held count"],
-          ["Released",retentionRecordsEstablished?(ret.releasedCount??null):"Not established","explicit release state"],
-          ["Dated",retentionRecordsEstablished?(ret.dueCount??null):"Not established","release date/trigger established"],
+          ["Records by Data Date",retentionRecordsEstablished?(ret.recordCount??null):"Not established",fmt(ret.sourceRecordCount??ret.recordCount)+" full source records","",retentionWhy],["Future / undated records",fmt(experienceRecordCount(ret.futureRows))+" / "+fmt(experienceRecordCount(ret.undatedRows)),"excluded from current totals"],
+          ["Reconciled held records",retentionRecordsEstablished&&(ret.rows||[]).some(r=>r.origin!=="payment_deduction")?(ret.heldCount??null):"Not established","deductions excluded from held count","",heldWhy],
+          ["Released",retentionRecordsEstablished?(ret.releasedCount??null):"Not established","explicit release state","",retentionWhy],
+          ["Dated",retentionRecordsEstablished?(ret.dueCount??null):"Not established","release date/trigger established","",retentionWhy],
           ["Overdue",retentionOverdueDisplay,"requires release due dates"]
         ])+
         table(["Retention","Origin","Certificate","State","Trigger","Amount","Due","Released","Days to due"],retentionRows,"No retention calendar records are established.")+
@@ -5010,8 +5027,8 @@ function renderCommercialVisual(key,data){
     detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Variation register</h4><p>Approved and pending change remain separate and retain source lineage.</p></div></div><div class="planning-panel-body">'+table(["Variation","State","Amount","Currency","Source"],rows,"No confirmed variation records are established.")+'</div></section>';
   }
   if(key==="payments"){
-    const rows=(registers.invoices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.invoiceId)+'</b>'+(row.sourceAnalyticalNote?' <span class="muted">· '+escapeHtml(row.sourceAnalyticalNote)+'</span>':'')+'</td><td>'+escapeHtml(planningShortDate(row.certificateDateIso))+'</td><td>'+escapeHtml(fmt(row.certifiedAmount))+'</td><td>'+escapeHtml(fmt(row.paidAmount))+'</td><td>'+escapeHtml(fmt(row.retentionAmount))+'</td><td>'+escapeHtml(fmt(row.advanceRecoveryAmount))+'</td><td>'+escapeHtml(fmt(row.advanceBalance))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(planningShortDate(row.paymentDateIso))+'</td></tr>');
-    detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Certificate and payment source register</h4><p>Source certificate rows remain available beneath the confirmed payment lifecycle; values are not re-summed in the browser.</p></div></div><div class="planning-panel-body">'+table(["Certificate","Certificate date","Certified","Paid","Retention","Advance recovery","Advance balance","Currency","Payment date"],rows,"Certificate amounts are not yet confirmed. The complete register is retained below.")+'</div></section>';
+    const rows=(registers.invoices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.invoiceId)+'</b>'+(row.sourceAnalyticalNote?' <span class="muted">· '+escapeHtml(row.sourceAnalyticalNote)+'</span>':'')+'</td><td>'+escapeHtml(planningShortDate(row.certificateDateIso))+'</td><td>'+escapeHtml(row.currency)+'</td><td>'+escapeHtml(fmt(row.certifiedAmount))+'</td><td>'+escapeHtml(fmt(row.paidAmount))+'</td><td>'+escapeHtml(fmt(row.retentionAmount))+'</td><td>'+escapeHtml(fmt(row.advanceRecoveryAmount))+'</td><td>'+escapeHtml(fmt(row.advanceBalance))+'</td><td>'+escapeHtml(planningShortDate(row.paymentDateIso))+'</td></tr>');
+    detail='<section class="planning-panel"><div class="planning-panel-head"><div><h4>Certificate and payment source register</h4><p>Source certificate rows remain available beneath the confirmed payment lifecycle; values are not re-summed in the browser.</p></div></div><div class="planning-panel-body">'+table(["Certificate","Certificate date","Currency","Certified","Paid","Retention","Advance recovery","Advance balance","Payment date"],rows,"Certificate amounts are not yet confirmed. The complete register is retained below.")+'</div></section>';
   }
   if(key==="commercial-claims-notices"){
     const cn=position.claimsNotices||p.focus?.claimsNotices||{};
@@ -5062,7 +5079,8 @@ function renderCommercialVisual(key,data){
         {label:"Determination",value:kindCounts.determination??null,tone:"success"}
       ],"records"):'<div class="empty-visual">No confirmed notice/correspondence register is established. Type counts are not confirmed.</div>'
     );
-    const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td><td>'+escapeHtml(row.currency||"Not established")+'</td></tr>');
+    // N3: the currency column comes before the amounts it qualifies.
+    const financialRows=(registers.claims||[]).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.currency||"Not established")+'</td><td>'+escapeHtml(row.claimedAmount===null||row.claimedAmount===undefined?"Not established":fmt(row.claimedAmount))+'</td><td>'+escapeHtml(row.assessedAmount===null||row.assessedAmount===undefined?"Not established":fmt(row.assessedAmount))+'</td></tr>');
     const lifecycleRows=(cn.claims||[]).map(row=>({...row,...(row.sourceRegister||{}),state:row.sourceRegister?.sourceStatus||row.state})).map(row=>'<tr><td><b>'+escapeHtml(row.claimId)+'</b></td><td>'+escapeHtml(row.title||"")+'</td><td>'+escapeHtml(humanizeKey(row.state))+'</td><td>'+escapeHtml(planningShortDate(row.submittedAt))+'</td><td>'+escapeHtml(row.claimedDays===null||row.claimedDays===undefined?"Not established":fmt(row.claimedDays)+" d")+'</td><td>'+escapeHtml(row.assessedDays===null||row.assessedDays===undefined?"Not established":fmt(row.assessedDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.assessedDaysState||"missing"))+'</td><td>'+escapeHtml((row.eventIds||[]).join(", ")||"Not linked")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
     const assessmentRows=(cn.noticeAssessments||[]).map(row=>'<tr><td><b>'+escapeHtml(row.eventId)+'</b></td><td>'+escapeHtml(row.eventTitle||"")+'</td><td>'+escapeHtml(row.requirementId||"Not established")+'</td><td>'+escapeHtml(row.requiredNoticeDays===null||row.requiredNoticeDays===undefined?"Not established":fmt(row.requiredNoticeDays)+" d")+'</td><td>'+escapeHtml(planningShortDate(row.eventStartIso))+'</td><td>'+escapeHtml(row.noticeId||"Not issued")+'</td><td>'+escapeHtml(planningShortDate(row.noticeIssuedAt))+'</td><td>'+escapeHtml(row.elapsedDays===null||row.elapsedDays===undefined?"Not established":fmt(row.elapsedDays)+" d")+(row.elapsedDays===null||row.elapsedDays===undefined?"":'<br><span class="muted">'+escapeHtml(sumBasisLabel({records:"notice "+String(row.noticeIssuedAt||"").slice(0,10)+" minus "+(row.elapsedFromBasis==="awareness"?"awareness date ":"event start ")+(row.elapsedFromIso?String(row.elapsedFromIso).slice(0,10):"not established")+", calendar days",asOf:null}))+'</span>')+'</td><td>'+escapeHtml(humanizeKey(row.timeliness))+'</td><td>'+escapeHtml(humanizeKey(row.requirementState||"missing"))+'</td></tr>');
     const noticeRows=(cn.notices||[]).map(row=>'<tr><td><b>'+escapeHtml(row.noticeId)+'</b></td><td>'+escapeHtml(humanizeKey(row.kind))+'</td><td>'+escapeHtml(row.eventId||"—")+'</td><td>'+escapeHtml(row.claimId||"—")+'</td><td>'+escapeHtml(planningShortDate(row.actualIssuedAt))+'</td><td>'+escapeHtml(planningShortDate(row.actualReceivedAt))+'</td><td>'+escapeHtml(row.subject||"")+'</td><td>'+escapeHtml((row.clauseIdentifiers||[]).join(", ")||"—")+'</td></tr>');
@@ -5072,22 +5090,23 @@ function renderCommercialVisual(key,data){
       ...(cn.notices||[]).map(row=>({type:"Notice",id:row.noticeId,refs:row.sourceRefs||[]}))
     ].filter(row=>row.refs.length).map(row=>'<tr><td>'+escapeHtml(row.type)+'</td><td><b>'+escapeHtml(row.id)+'</b></td><td>'+escapeHtml(row.refs.join(", "))+'</td></tr>');
     const evidenceTrace='<details class="management-detail"><summary>Evidence & technical trace <span>'+escapeHtml(fmt(evidenceTraceRows.length))+' linked records</span></summary><div class="planning-panel-body">'+table(["Record type","Record","Evidence references"],evidenceTraceRows,"No technical evidence references are attached.")+'</div></details>';
+    const cnWhy=evidenceStateReason(cn.state,"a claim register"),eventWhy=unknownReasonText(cn.eventPopulationReason)||cnWhy;
     detail='<section class="planning-panel primary commercial-claims-management"><div class="planning-panel-head"><div><h4>Financial claim review</h4><p>This is the financial view of the same claim identities used in Delay & Time Entitlement. Counts are shared, not additional claims; reported register amounts and dated decisions remain separate.</p></div></div><div class="planning-panel-body">'+
       planningKpis([
-        ["Lifecycle claims by Data Date",countPosition(cn.state,cn.lifecycleClaimCount,"claims"),"current claims; historical stage dates incomplete"],
-        ["Full source claim register",countPosition(cn.state,cn.sourceClaimCount??cn.lifecycleClaimCount,"claims"),"includes future and undated claim identities"],
-        ["Commercial claim rows",countPosition(cn.state,cn.commercialClaimCount,"rows"),"currency-specific money register"],
-        ["Events",countPosition(cn.state,cn.eventCount,"events"),"recorded delay events"],
-        ["Notices by Data Date",cn.asOfNoticeCount??"Not established","full source: "+fmt(cn.sourceNoticeCount)+" · determinations separate"],["Future / undated notices",unknownPairText(screenCountText(cn.futureNoticeCount),screenCountText(cn.undatedNoticeCount)),"excluded from current notice assessment"],["Event dates missing",cn.dimensionalEvidenceGaps?.eventDateMissing??"Not established","overlaps other evidence gaps"],
+        ["Lifecycle claims by Data Date",countPosition(cn.state,cn.lifecycleClaimCount,"claims"),"current claims; historical stage dates incomplete","",cnWhy],
+        ["Full source claim register",countPosition(cn.state,cn.sourceClaimCount??cn.lifecycleClaimCount,"claims"),"includes future and undated claim identities","",cnWhy],
+        ["Commercial claim rows",countPosition(cn.state,cn.commercialClaimCount,"rows"),"currency-specific money register","",cnWhy],
+        ["Events",countPosition(cn.state,cn.eventCount,"events"),"recorded delay events","",eventWhy],
+        ["Notices by Data Date",cn.asOfNoticeCount??"Not established","full source: "+fmt(cn.sourceNoticeCount)+" · determinations separate"],["Future / undated notices",unknownPairText(screenCountText(cn.futureNoticeCount),screenCountText(cn.undatedNoticeCount)),"excluded from current notice assessment"],["Event dates missing",cn.dimensionalEvidenceGaps?.eventDateMissing??"Not established","overlaps other evidence gaps","",eventWhy],
         ["Notice evidence gaps",noticeAssessmentPopulationEstablished?noticeEvidenceGapCount:"Not assessable","requirement / event date / notice date",noticeEvidenceGapCount?"warning":""],
-        ["Money ↔ lifecycle linkage",cn.commercialLifecycleLinkCoveragePercent===null||cn.commercialLifecycleLinkCoveragePercent===undefined?"Not established":fmt(cn.commercialLifecycleLinkCoveragePercent)+"%","claim ID correspondence"],
+        ["Money ↔ lifecycle linkage",cn.commercialLifecycleLinkCoveragePercent===null||cn.commercialLifecycleLinkCoveragePercent===undefined?"Not established":fmt(cn.commercialLifecycleLinkCoveragePercent)+"%","claim ID correspondence","",cnWhy||(cn.commercialClaimCount===0?"Needs claimed amounts in the claim register":"")],
         ["Financial exposure",position.currencies.some(r=>r.claimedAmount?.value!=null)?"See currency positions":"Not established","claim amounts and cost linkage required"],["Determination records",kindCounts.determination??null,"separate from notice count"]
       ])+
       '<div class="notice info"><b>Latest extracted notice period: '+escapeHtml(foundation?.commercialTerms?.noticePeriodDays?.value==null?'Not established':fmt(foundation.commercialTerms.noticePeriodDays.value)+' days')+'</b>. Earlier contract versions can have different periods. The dated rule groups above and each claim’s recorded event or awareness date determine the applicable notice assessment. Evidence gaps are independent and can overlap. Source claim final stages and determination records have different identities and dates. Final source stages are not reconstructed historical stages at the Data Date.</div>'+
       (noticeEvidenceGapCount?'<div class="notice warn"><b>Notice compliance requires evidence review.</b> '+escapeHtml(fmt(noticeEvidenceGapCount))+' event assessment(s) are missing the applicable requirement, event date or notice date. These remain evidence gaps rather than zero or compliant outcomes.</div>':'')+
       '<div class="commercial-visual-grid claims-lifecycle-grid">'+claimLifecycleVisual+noticeTimelinessVisual+noticeKindVisual+'</div>'+
       '<div class="section-heading compact"><div><h5>Commercial claim money register</h5><p>Amounts are shown from the controlled currency register; partial coverage is not promoted to a complete total.</p></div><span class="badge">'+escapeHtml(fmt(responseListPopulation(registers.claims||[]).total))+' records</span></div>'+
-      table(["Claim","Claimed","Assessed","Currency"],financialRows,"No confirmed commercial claim money rows are established.")+commercialRegisterCoverage(registers.claims||[],"Browse all commercial claim money records")+
+      table(["Claim","Currency","Claimed","Assessed"],financialRows,"No confirmed commercial claim money rows are established.")+commercialRegisterCoverage(registers.claims||[],"Browse all commercial claim money records")+
       '<p>Time-claim amounts, statuses and notice evidence above refer to the same identities used in the time assessment. '+managementModuleLink('notices-claims','Open claim and notice records')+'</p>'+
       evidenceTrace+
       ((cn.diagnostics||[]).length?'<div class="notice info">Claim amounts are linked to claim history by claim ID. Notice timing uses the applicable contract period and actual event and notice dates. Claims without matching financial records remain listed with amounts unconfirmed.</div>'+experienceDisclosure("Calculation notes",'<p>'+escapeHtml(cn.diagnostics.map(humanizeKey).join("; "))+'</p>',"Original checks and matching rules"):"")+
@@ -5171,7 +5190,7 @@ function renderCommercialVisual(key,data){
   if(key==="payments"){
     const linkage=position.paymentLinkage;
     const linkageHtml=linkage?managementPanel('Payment-to-certificate linkage',linkage.basis,
-      planningKpis([['Payments matched to certificates',linkage.linked,'of '+fmt(linkage.total)+' dated source payments'],['Payment linkage',linkage.coveragePercent,'% · exact reference and compatible dates']])+
+      planningKpis([['Payments matched to certificates',linkage.linked,'of '+fmt(linkage.total)+' dated source payments'],['Payment linkage',linkage.coveragePercent==null?'Not established':fmt(linkage.coveragePercent)+'%','exact reference and compatible dates','',linkage.total===0?'Needs dated actual payment records':'']])+
       basisTable(['Payment reference','Certificate','Payment date','Match','Basis'],linkage.rows.map(r=>[r.reference,r.certificateReference||r.certificateNumber,planningShortDate(r.paymentDate),humanizeKey(r.state),r.basis])),true):'';
     const paymentTiming=foundation?.paymentRegister;
     const paymentTimingHtml=paymentTiming?planningKpis([
@@ -5207,9 +5226,10 @@ function renderCommercialVisual(key,data){
   }
   if(key==="contract-particulars-bonds"){
     const bi=contractControls?.bondsInsurance;
+    const bondRegisterWhy=Array.isArray(bi?.bonds)&&bi.bonds.length?"":"Needs a bond / security register",insuranceRegisterWhy=Array.isArray(bi?.insurances)&&bi.insurances.length?"":"Needs an insurance policy register";
     const validity=data.projectFacts?.commercial?.securityValidity||[];
     const validityPanel=validity.length?managementPanel('Performance security through completion and defects','Expiry status and compliance with the contractual release condition are separate checks.', '<div class="table-wrap"><table><thead><tr><th>Security</th><th>Expiry</th><th>After programme finish</th><th>Contract requirement and action</th></tr></thead><tbody>'+validity.map(row=>'<tr><td>'+escapeHtml(row.bondId)+'</td><td>'+escapeHtml(planningShortDate(row.expiryIso))+'</td><td>'+escapeHtml(row.daysAfterProgrammeFinish==null?'Finish not supplied':fmt(row.daysAfterProgrammeFinish)+' calendar days')+'</td><td>'+escapeHtml((row.coverageState==='gap'?row.coverageReason+' ':'')+row.finding)+' '+escapeHtml(row.action)+(row.assumedDefectsEndIso?'<br>Defects-period planning end: '+escapeHtml(planningShortDate(row.assumedDefectsEndIso)):'')+'<br><small>'+escapeHtml(row.basis)+'</small>'+(row.sourceAnalyticalNote?'<br><small>'+escapeHtml(row.sourceAnalyticalNote)+'</small>':'')+(row.sourceConflictNote?'<br><small>'+escapeHtml(row.sourceConflictNote)+'</small>':'')+'</td></tr>').join('')+'</tbody></table></div>',true):'';
-    return '<section class="planning-view commercial-view contract-particulars-enterprise">'+planningKpis([["Active bonds",bi?.activeBondCount,"security register"],["Expired bonds",bi?.expiredBondCount,"at the Data Date"],["Expiring bonds",bi?.expiringBondCount,"security register"],["Active insurance policies",bi?.activeInsuranceCount,"insurance register"],["Expired insurance policies",bi?.expiredInsuranceCount,"at the Data Date"]])+validityPanel+temporalWarning+temporalScope+
+    return '<section class="planning-view commercial-view contract-particulars-enterprise">'+planningKpis([["Active bonds",bi?.activeBondCount,"security register","",bondRegisterWhy],["Expired bonds",bi?.expiredBondCount,"at the Data Date","",bondRegisterWhy],["Expiring bonds",bi?.expiringBondCount,"security register","",bondRegisterWhy],["Active insurance policies",bi?.activeInsuranceCount,"insurance register","",insuranceRegisterWhy],["Expired insurance policies",bi?.expiredInsuranceCount,"at the Data Date","",insuranceRegisterWhy]])+validityPanel+temporalWarning+temporalScope+
       commercialSummaryPanel('Contract Value & Security Position by Currency','Contract and security amounts are shown by currency, with the status of each supporting record.')+
       '<div class="notice info"><b>'+fmt(contractControls?.contractObligations?.candidateCount??contractControls?.contractObligations?.rows?.filter(r=>r.origin==='contract_clause_candidate').length??0)+' requirement wording groups</b><p>Source wording is available for review. Obligation owners, due dates, compliance and security instruments require their own records.</p></div>'+
       experienceDisclosure('Contract wording, obligations and securities',contractControlDetail+foundationDetail+detail+renderContractSourceContext(data.contractSourceContext),'Complete wording, document references and missing records')+
@@ -5344,10 +5364,10 @@ function renderOperationalReporting(report){
   const riskStates=report.risk.undatedStatusCounts||{};
   return '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Operational register date coverage</h4><p>Raised dates and closure/response dates reconstruct the position at '+escapeHtml(planningShortDate(report.dataDateIso))+'. Later closures cannot close earlier records.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Major / critical NCRs open at DD",report.counts.openCriticalMajorNcrCount??(report.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(report.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not established"),report.counts.openCriticalMajorNcrCount===null?screenCountText(report.knownCounts?.uncertainCriticalMajorNcrCount)+" current records uncertain; full count not confirmed":"dated NCR lifecycle"],
-    ["NCRs with unclear status at DD",report.knownCounts?.unclearNcrCount??"Not established","counted neither open nor closed; reasons listed below"],
-    ["RFIs open at DD",report.counts.openRfiCount??"Not established","dated RFI lifecycle"],
-    ["RFIs overdue at DD",report.counts.overdueRfiCount??"Not established","open with due date before DD"],
-    ["Risks open at DD",report.counts.openRiskCount??"Not established","dated risk lifecycle or status snapshot"]
+    ["NCRs with unclear status at DD",report.knownCounts?.unclearNcrCount??"Not established","counted neither open nor closed; reasons listed below","",(report.quality?.reason||registerScopeReason(report.quality,"an NCR register"))],
+    ["RFIs open at DD",report.counts.openRfiCount??"Not established","dated RFI lifecycle","",(report.rfi?.reason||registerScopeReason(report.rfi,"an RFI register"))],
+    ["RFIs overdue at DD",report.counts.overdueRfiCount??"Not established","open with due date before DD","",(report.rfi?.reason||registerScopeReason(report.rfi,"an RFI register"))],
+    ["Risks open at DD",report.counts.openRiskCount??"Not established","dated risk lifecycle or status snapshot","",(report.risk?.reason||registerScopeReason(report.risk,"a risk register"))]
   ])+'<div class="table-wrap"><table><thead><tr><th>Register</th><th>Programme records</th><th>Known by DD</th><th>Future</th><th>Date missing</th><th>Status unresolved at DD</th><th>Evidence state</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+((report.quality.unclearStatusRecords||[]).length?'<div class="table-wrap"><table><thead><tr><th>NCR</th><th>Unclear status reason</th></tr></thead><tbody>'+report.quality.unclearStatusRecords.map(r=>'<tr><td>'+escapeHtml(r.ncrId)+'</td><td>'+escapeHtml(r.reason)+'</td></tr>').join("")+'</tbody></table></div>':'')+(report.risk.undatedRecordCount?'<p>Undated risk snapshot, excluded from current totals: '+escapeHtml(Object.entries(riskStates).map(([key,n])=>key+' '+fmt(n)).join(' · '))+'. A due date does not establish when a risk was raised or its historical status.</p>':'')+'</div></section>';
 }
 
@@ -5558,7 +5578,7 @@ function renderPmcDriverBoards(data){
  const change=vc.changes||{},changeHtml=planningKpis([
    ["Added activities",change.addedActivityCount,"latest comparison","accent"],["Removed",change.removedActivityCount,"latest comparison","neutral"],["Modified",change.modifiedActivityCount,"tracked fields","warning"],
    ["Logic links added",change.addedRelationshipCount,"relationships","accent"],["Logic links removed",change.removedRelationshipCount,"relationships","warning"],["Source target dates changed",change.sourceTargetDateChangeCount,"source fields","warning"]
- ]);
+ ],{reason:typeof change.revisionCount==="number"&&change.revisionCount<2?programmeRevisionReason(change.revisionCount):""});
  return '<div class="pmc-chart-grid">'+
    managementPanel("Current driving priorities","Completion-driving activities are consolidated by driver/WBS group, package candidate and milestone consequence. Activity IDs remain visible underneath.",pathHtml)+
    managementPanel("Where delay is concentrated","Top WBS concentrations from the existing activity comparison.",wbsHtml)+
@@ -5772,12 +5792,12 @@ function renderManagementControlVisual(key,data){
   if(key==="command-center"){
     const ctrl=data.controls||null;
     const controlsBody=ctrl?planningKpis([
-      ["Open risks",ctrl.riskEvidenceState==="established"?ctrl.openRiskCount:"Not established","Risk register and rating method",ctrl.riskEvidenceState==="established"?"":"warning"],
+      ["Open risks",ctrl.riskEvidenceState==="established"?ctrl.openRiskCount:"Not established","Risk register and rating method",ctrl.riskEvidenceState==="established"?"":"warning",data.operationalReporting?.risk?(data.operationalReporting.risk.reason||registerScopeReason(data.operationalReporting.risk,"a risk register")):evidenceStateReason(ctrl.riskEvidenceState,"a risk register")],
       ["Major / critical NCR",ctrl.openCriticalMajorNcrCount??(data.operationalReporting?.knownCounts?.openCriticalMajorNcrCount!==undefined?fmt(data.operationalReporting.knownCounts.openCriticalMajorNcrCount)+" confirmed":"Not established"),ctrl.openCriticalMajorNcrCount===null?"Known subset; full total not confirmed":"quality evidence",ctrl.openCriticalMajorNcrCount?"danger":""],
-      ["Overdue RFI",ctrl.rfiEvidenceState==="established"?ctrl.overdueRfiCount:"Not established","RFI evidence",ctrl.overdueRfiCount?"danger":""],
-      ["Permit issues",ctrl.permitEvidenceState==="established"?ctrl.overduePermitCount:"Not established","permit evidence",ctrl.overduePermitCount?"danger":""],
-      ["Expired bonds",ctrl.bondEvidenceState==="established"?ctrl.expiredBondCount:"Not established","security evidence",ctrl.expiredBondCount?"danger":""],
-      ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Not established","next 30 days",ctrl.expiringBondCount30Days?"warning":""]
+      ["Overdue RFI",ctrl.rfiEvidenceState==="established"?ctrl.overdueRfiCount:"Not established","RFI evidence",ctrl.overdueRfiCount?"danger":"",data.operationalReporting?.rfi?(data.operationalReporting.rfi.reason||registerScopeReason(data.operationalReporting.rfi,"an RFI register")):evidenceStateReason(ctrl.rfiEvidenceState,"an RFI register")],
+      ["Permit issues",ctrl.permitEvidenceState==="established"?ctrl.overduePermitCount:"Not established","permit evidence",ctrl.overduePermitCount?"danger":"",evidenceStateReason(ctrl.permitEvidenceState,"a permit register")],
+      ["Expired bonds",ctrl.bondEvidenceState==="established"?ctrl.expiredBondCount:"Not established","security evidence",ctrl.expiredBondCount?"danger":"",evidenceStateReason(ctrl.bondEvidenceState,"a bond / security register")],
+      ["Expiring bonds",ctrl.bondEvidenceState==="established"?ctrl.expiringBondCount30Days:"Not established","next 30 days",ctrl.expiringBondCount30Days?"warning":"",evidenceStateReason(ctrl.bondEvidenceState,"a bond / security register")]
     ]):'<div class="empty">Project Director control position is not confirmed.</div>';
     return '<div class="planning-view management-view command-center-view">'+
       managementPanel("Actions requiring management attention","Issue → consequence → affected scope → owner → action → due date → escalation. Missing ownership or dates are shown, never invented.",renderCommandActionTable(data),true)+
@@ -5807,7 +5827,7 @@ function renderManagementControlVisual(key,data){
       renderMcpProgrammeControl(data)+
       managementPanel("Programme basis","Current programme, controlled baseline and project structure supporting the integrated control sequence.",planningKpis([
         ["Project",s.project||data.projectId,"Current project"],
-        ["Programme membership",humanizeKey(s.programmeMembershipState||"not_established"),s.programme||"Programme membership is not established in the supplied project records",s.programmeMembershipState==="established"?"":"warning"],
+        ["Programme membership",humanizeKey(s.programmeMembershipState||"not_established"),s.programme||"Programme membership is not established in the supplied project records",s.programmeMembershipState==="established"?"":"warning","Needs the parent programme named in the project records"],
         ["Current programme",r.currentLabel?planningRevisionLabel(r.currentLabel):"Not established",r.currentDataDateIso?planningShortDate(r.currentDataDateIso):"no Data Date",r.currentRevisionId?"success":"warning"],
         ["Controlled baseline",r.baselineLabel?planningRevisionLabel(r.baselineLabel):"Not established",r.baselineRevisionId?"Baseline revision; full document reference in details":"no confirmed baseline",r.baselineRevisionId?"success":"warning"],
         ["Programme revisions",r.governedRevisionCount??null,"non-recovery revisions"],
@@ -5880,14 +5900,14 @@ function renderRecoveryAccelerationVisual(data){
   return '<section class="planning-view recovery-view">'+targetPanel+sixthDayControl+'<div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+planningKpis([
     ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":assessment==="supporting_basis_incomplete"?"Not established":"None qualify","on the CPM path to completion, with a CPM completion gain"],
     ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":"None identified","not quantified until assumptions are established"],
-    ["Eligibility checks performed",count(eligibility.actualEligibilityChecksPerformed),"linked activity, package timing and explicit workfront checks"],
+    ["Eligibility checks performed",count(eligibility.actualEligibilityChecksPerformed),"linked activity, package timing and explicit workfront checks","",eligibility.supportingBasisAvailable===false?"Needs quantity, procurement or workfront evidence linked to programme activities":""],
     ["Data Date",planningShortDate(p.dataDateIso),"current project position"]
   ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Eligibility evidence</h4><p>Missing supporting basis is different from a checked zero.</p></div></div><div class="planning-panel-body">'+planningKpis([
-    ["Activity feasibility checks",count(eligibility.activityFeasibilityCheckCount,eligibility.knownActivityFeasibilityCheckCount),"quantity / productivity / resource checks"],
+    ["Activity feasibility checks",count(eligibility.activityFeasibilityCheckCount,eligibility.knownActivityFeasibilityCheckCount),"quantity / productivity / resource checks","",eligibility.feasibilitySourceRowCount===0?"Needs BOQ quantities with productivity or resource evidence linked to activities":eligibility.unlinkedFeasibilityRowCount>0?fmt(eligibility.unlinkedFeasibilityRowCount)+(eligibility.unlinkedFeasibilityRowCount===1?" source item needs":" source items need")+" an activity link":""],
     ["Crew acceleration candidates",count(eligibility.crewAccelerationCandidateCount,eligibility.knownCrewAccelerationCandidateCount),"submitted crew below calculated need"],
-    ["Late procurement packages",count(eligibility.lateProcurementPackageCount,eligibility.knownLateProcurementPackageCount),"undelivered packages late against their need date"],
+    ["Late procurement packages",count(eligibility.lateProcurementPackageCount,eligibility.knownLateProcurementPackageCount),"undelivered packages late against their need date","",eligibility.deliveryPackagePopulationCount===0?"Needs a procurement register with need dates":""],
     ["Checks needing basis",count(eligibility.unresolvedFeasibilityCheckCount,eligibility.knownUnresolvedFeasibilityCheckCount),"working-time / productivity / resource input"+(eligibility.unlinkedFeasibilityRowCount>0?"; "+fmt(eligibility.unlinkedFeasibilityRowCount)+" source item(s) still need activity links":"")],
-    ["Resequencing-enabled workfronts",count(eligibility.governedResequencingWorkfrontCount,eligibility.knownGovernedResequencingWorkfrontCount),"explicit governed permission"],
+    ["Resequencing-enabled workfronts",count(eligibility.governedResequencingWorkfrontCount,eligibility.knownGovernedResequencingWorkfrontCount),"explicit governed permission","",eligibility.workfrontPopulationCount===0?"Needs workfront records that state resequencing permission":eligibility.coverage?.workfrontAssessmentComplete===false?"Needs resequencing permission stated on every workfront record":""],
     ...(p.heldDataCandidates?[["Crew candidates from the data held",p.heldDataCandidates.crewCandidateTotal==null?"Not assessable":fmt(p.heldDataCandidates.crewCandidateTotal),"crew need, second-crew sequences, trade chains and stated labour on the driving network"]]:[])
   ])+'</div></section><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Recovery scenarios</h4><p>Days recovered remain local to the affected activity/package unless project-completion effect is separately proven.</p></div></div><div class="planning-panel-body">'+table+(p.heldDataCandidates?recoveryHeldDataPanel(p.heldDataCandidates):'')+'</div></section><details class="source-scope"><summary>Calculation basis and limits</summary><p>'+escapeHtml(p.basis||"")+'</p></details></section>';
 }
@@ -5900,7 +5920,7 @@ function renderInterfaceIntelligenceVisual(data){
   const rows=(p.rows||[]).map(r=>'<tr><td><b>'+escapeHtml(interfaceDisplay(r.interfaceId,'Interface'))+'</b><br><span class="state-pill '+(r.authority==='confirmed'?(r.state==='blocked'||r.state==='overdue'?'blocked':r.state==='closed'?'ready':'review'):'not_applicable')+'">'+escapeHtml(r.authority==='confirmed'?humanizeKey(r.state):r.authority==='source'?'From register · '+humanizeKey(r.state):'Calculated link · review acceptance')+'</span></td><td>'+escapeHtml(interfaceDisplay(r.givingParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.receivingParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.package))+'</td><td>'+escapeHtml(interfaceDisplay(r.discipline))+'</td><td>'+escapeHtml(interfaceDisplay(r.system))+'</td><td>'+escapeHtml(interfaceDisplay(r.location))+'</td><td>'+escapeHtml(interfaceDisplay(r.requiredDeliverable,'Not established'))+'</td><td>'+escapeHtml(r.requiredDate?planningShortDate(r.requiredDate):'Not established')+'</td><td>'+escapeHtml(interfaceDisplay(r.responsibleParty,'Not established'))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedActivity))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedRfi))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedSubmittal))+'</td><td>'+escapeHtml(interfaceDisplay(r.linkedRisk))+'</td><td>'+escapeHtml(interfaceDisplay(r.consequence))+'</td><td>'+escapeHtml(interfaceDisplay(r.escalation))+'</td></tr>').join('');
   return '<section class="planning-view interface-view"><div class="notice '+((p.knownBlockerCount??p.blockerCount)>0?'warn':'info')+'"><h4>Interface position</h4><p>'+escapeHtml(p.managementPosition)+'</p>'+upload+'</div>'+planningKpis([
     ["Interfaces from registers",(p.knownCount??p.confirmedCount)>0?p.knownCount??p.confirmedCount:population.state==="established"?0:"Not established","known source and reviewed records"],["Blocked / overdue",count(p.blockerCount,p.knownBlockerCount),"source or reviewed interfaces requiring action"],["Candidate interfaces",p.candidateCount??null,"derived for review, not confirmed"],["Linked activities",count(p.linkedActivityCount,p.knownLinkedActivityCount),"verified programme links in register records and contract-stated links; package-pair candidates are not counted"]
-  ])+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Interface register & candidates</h4><p>Source records, reviewed interfaces and derived candidates retain their own authority. Showing '+fmt(sourceRows.length)+' of '+fmt(responseListPopulation(sourceRows).total)+' rows.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Interface ID</th><th>Giving party</th><th>Receiving party</th><th>Package</th><th>Discipline</th><th>System</th><th>Location</th><th>Required deliverable</th><th>Required date</th><th>Responsible party</th><th>Activity</th><th>RFI</th><th>Submittal</th><th>Risk</th><th>Consequence</th><th>Escalation</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+sourcePopulationControl(sourceRows,'Browse all interfaces and candidates')+'</div></section><details class="source-scope"><summary>Interface derivation basis</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
+  ],{reason:population.state==="established"?"":(p.knownCount??p.confirmedCount)>0?"Confirm the complete interface population":"Needs an interface register"})+'<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Interface register & candidates</h4><p>Source records, reviewed interfaces and derived candidates retain their own authority. Showing '+fmt(sourceRows.length)+' of '+fmt(responseListPopulation(sourceRows).total)+' rows.</p></div></div><div class="planning-panel-body"><div class="table-wrap"><table><thead><tr><th>Interface ID</th><th>Giving party</th><th>Receiving party</th><th>Package</th><th>Discipline</th><th>System</th><th>Location</th><th>Required deliverable</th><th>Required date</th><th>Responsible party</th><th>Activity</th><th>RFI</th><th>Submittal</th><th>Risk</th><th>Consequence</th><th>Escalation</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+sourcePopulationControl(sourceRows,'Browse all interfaces and candidates')+'</div></section><details class="source-scope"><summary>Interface derivation basis</summary><p>'+escapeHtml(p.basis||'')+'</p></details></section>';
 }
 let accountabilityDetailsView=null,accountabilityDetailsTicket=0;
 function accountabilityEvidenceLink(row){
@@ -6556,7 +6576,8 @@ async function loadModule(key){
     if(current())setBusy("");
   }
 }
-function kpi(label,value,sub=""){if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value))value=planningShortDate(value);return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(value))+'</div><div class="kpi-sub">'+escapeHtml(sub)+'</div></div>'}
+// S1/N2: an unknown value shows its reason before the basis; a zero count of missing or unknown items reads "None".
+function kpi(label,value,sub="",reason=""){if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value))value=planningShortDate(value);const note=unknownTileNote(value,String(sub??""),reason||unknownFactReason(value));return'<div class="card kpi-card"><div class="kpi-label">'+escapeHtml(label)+'</div><div class="kpi-value">'+escapeHtml(fmt(noneWhenZeroGap(value,label,sub)))+'</div><div class="kpi-sub">'+escapeHtml(note)+'</div></div>'}
 function evidenceCount(state,value,knownSubset){if(state==="established"&&value!==null&&value!==undefined)return fmt(value);if(typeof knownSubset==="number")return fmt(knownSubset)+" confirmed; full total not confirmed";if(state==="submitted_unparsed")return"Source submitted · count not confirmed";return"Not established"}
 function renderDirector(d){
   if(!d){el("director").innerHTML='<div class="card"><div class="empty">Open a project to load its management detail.</div></div>';return}

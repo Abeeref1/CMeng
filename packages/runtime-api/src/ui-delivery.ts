@@ -263,7 +263,7 @@ function renderDelivery(result){const raw=result.data;if(raw?.deliveryPage==='de
   (fullFindingTotal>6?'<details><summary>Review source exceptions · '+fmt(p.findings.length)+' initially shown of '+fmt(fullFindingTotal)+'</summary>'+deliveryObjectDetail(p.findings,findingsPointer)+'</details>':'')+'</section>':'';
 
  const populationAction=ownsRegister&&p.reviewRecords.length&&p.population.state!=='established'?'<section class="notice info"><b>Confirm register completeness</b><p>CMeng is using '+screenCountText(p.population.knownRecordCount??listTotal(p.rows))+' usable records in the '+escapeHtml(kindLabel)+' register. Confirming that this is the complete register lets CMeng report percentages.</p><button class="btn" id="deliveryConfirmSummary">Confirm these records are complete</button></section>':'';
- const kpiGrid='<div class="grid kpi" aria-label="'+escapeHtml(p.title+' figures')+'">'+p.metrics.map(m=>kpi(m.label,m.value===null?'Not established':m.value,m.unit+' · '+m.basis)).join('')+'</div>';
+ const kpiGrid='<div class="grid kpi" aria-label="'+escapeHtml(p.title+' figures')+'">'+p.metrics.map(m=>kpi(m.label,m.value===null?'Not established':m.value,m.value===null||!m.unit?m.basis:m.unit+' · '+m.basis,m.reason)).join('')+'</div>';
  // The procurement register figures are one shared position (Procurement Packages).
  const kpis=p.metricsScope==='procurement_register'?ownedBlock('delivery-procurement-position',kpiGrid,p.metrics.slice(0,2).map(m=>m.label+' '+(m.value===null?'Not established':fmt(m.value)+(m.unit==='%'?'%':''))).join(' · '),page):kpiGrid;
  const taskScope=renderProgrammeTaskScope(p.programmeTaskScope),taskFigure=p.programmeTaskScope?fmt(p.programmeTaskScope.selectedCount)+' selected tasks':'';
@@ -391,12 +391,12 @@ function renderDeliveryDashboard(p){if(!p)return '';
  const packageBasis=p.confirmedPackageCount!==null&&p.confirmedPackageCount!==undefined?'confirmed package register':p.knownPackageRecordCount?'from register, not yet confirmed':p.candidatePackageCount?'BOQ-derived package candidates':procurement?.readableRowCount!==null&&procurement?.readableRowCount!==undefined?'source procurement rows':'package register not established';
  const longLead=p.candidateLongLeadCount??'Not established',scheduleLongLead=p.scheduleLongLeadCandidateCount??'Not established';
  return '<section class="card delivery-dashboard-summary"><h4>Construction Delivery</h4><p>Best available evidence is shown first; governed lifecycle and schedule-impact conclusions stay separate.</p><div class="grid kpi">'+
-   kpi('Procurement scope available',packageValue,packageBasis)+
-   kpi('BOQ long-lead candidates',longLead,p.candidateLongLeadCount!==null&&p.candidateLongLeadCount!==undefined?'professional screening of BOQ descriptions; not confirmed late packages':'not yet established')+
-   kpi('Schedule / WBS long-lead',scheduleLongLead,p.scheduleLongLeadCandidateCount!==null&&p.scheduleLongLeadCandidateCount!==undefined?'schedule-derived scope candidates; not confirmed procurement packages':'not yet established')+
-   kpi('Late packages · known subset',p.latePackageKnownCount??'Not established','Open packages with missed required-on-site dates or late forecasts; source-reported deliveries without an actual date are excluded')+
-   kpi('Design source rows',design?.readableRowCount??(design?.documentCount?design.documentCount+' document(s)':'Not established'),design?.basis||'design control records not established')+
-   kpi('Quality source rows',quality?.readableRowCount??(quality?.documentCount?quality.documentCount+' document(s)':'Not established'),quality?.basis||'quality control records not established')+
-   kpi('Handover readiness',p.handoverReadinessPercent??'Not established','% of confirmed requirements only')+
+   kpi('Procurement scope available',packageValue,packageBasis,'Needs a procurement register or a readable BOQ')+
+   kpi('BOQ long-lead candidates',longLead,p.candidateLongLeadCount!==null&&p.candidateLongLeadCount!==undefined?'professional screening of BOQ descriptions; not confirmed late packages':'not yet established','Needs a readable BOQ with long-lead scope')+
+   kpi('Schedule / WBS long-lead',scheduleLongLead,p.scheduleLongLeadCandidateCount!==null&&p.scheduleLongLeadCandidateCount!==undefined?'schedule-derived scope candidates; not confirmed procurement packages':'not yet established','Needs long-lead WBS or activities marked in the programme')+
+   kpi('Late packages · known subset',p.latePackageKnownCount??'Not established','Open packages with missed required-on-site dates or late forecasts; source-reported deliveries without an actual date are excluded','Needs a procurement register with required-on-site and delivery dates')+
+   kpi('Design source rows',design?.readableRowCount??(design?.documentCount?design.documentCount+' document(s)':'Not established'),design?.basis||'design control records not established','Needs an RFI / design register')+
+   kpi('Quality source rows',quality?.readableRowCount??(quality?.documentCount?quality.documentCount+' document(s)':'Not established'),quality?.basis||'quality control records not established','Needs an NCR / inspection register')+
+   kpi('Handover readiness',p.handoverReadinessPercent??'Not established','% of confirmed requirements only','Needs the confirmed handover requirements and dated acceptance evidence')+
    '</div><button class="btn" onclick="selected=\'delivery-control\';syncBrowserRoute();loadModule(selected);renderNav()">Open Delivery Control</button></section>';}
 `;}

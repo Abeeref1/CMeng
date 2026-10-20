@@ -64,11 +64,15 @@ function readerAuditAction(value){
 function renderProgrammeCashScenario(scenario){
  if(!scenario?.groups?.length)return scenario?'<p>Future receipts cannot be calculated. Missing: '+escapeHtml((scenario.missingInputs||[]).join('; '))+'</p>':'';
  return '<section class="planning-panel"><h4>Future receipts · programme planning scenario</h4>'+
- scenario.groups.map(group=>planningKpis([
-  ['Remaining gross work',group.remainingGross,group.currency],
-  ['Future retention',group.retention,group.currency],
-  ['Advance recovery',group.advanceRecovery,group.currency],
-  ['Indicative net receipts',group.netReceipts,group.currency]
+ scenario.groups.map(group=>{
+ // N3/S1: the currency is the unit of a known amount; an unknown amount shows why instead.
+ const reason=String(group.notEstablishedReason||'').trim(),why=reason?reason.charAt(0).toUpperCase()+reason.slice(1):group.missingInputs?.length?'Needs '+group.missingInputs.join('; '):'';
+ const money=(label,value)=>[label,value,value===null||value===undefined?'':group.currency,'',why];
+ return planningKpis([
+  money('Remaining gross work',group.remainingGross),
+  money('Future retention',group.retention),
+  money('Advance recovery',group.advanceRecovery),
+  money('Indicative net receipts',group.netReceipts)
  ])+(group.notEstablishedReason?'<p><b>Future receipts not established:</b> '+escapeHtml(group.notEstablishedReason.charAt(0).toUpperCase()+group.notEstablishedReason.slice(1))+'</p>':'')+(group.missingInputs?.length?'<p>Missing inputs: '+escapeHtml(group.missingInputs.join('; '))+'. Gross and net scenarios remain separate.</p>':'')+(group.rows?.length?
   (typeof renderLineChart==='function'?renderLineChart(group.curvePoints||group.rows.map(row=>({dateIso:row.periodEndIso,grossValuation:row.grossValuation,netReceipt:row.netReceipt})),[{key:'grossValuation',label:'Cumulative gross valuation',color:'#506579'},{key:'netReceipt',label:'Cumulative receipts after payment period',color:'#2c7a57'}],null,{title:'Forward receipts · '+group.currency,unit:group.currency,dataDateIso:scenario.dataDateIso,dateKey:'dateIso'}):'')+
   experienceDisclosure('Monthly assumed receipts · '+group.currency,
@@ -79,7 +83,7 @@ function renderProgrammeCashScenario(scenario){
   '<p><b>Receipts scenario cannot yet be priced.</b> '+escapeHtml(group.certificateCount??'Recorded')+
   ' payment certificates retained. Source inputs required: '+escapeHtml((group.missingInputs||[]).join('; ')||'Confirm comparable contract, certification and submitted programme dates')+
   '. Existing payments and unpaid certificates remain separately visible; no unsupported amount is converted into zero.</p>'
- )).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
+ );}).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
 }
 // F34: the basis of a section's contract date (stated date, or Commencement Date +
 // the stated period) and of its governing date (with the EOT awarded for the

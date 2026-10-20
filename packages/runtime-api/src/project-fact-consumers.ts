@@ -61,7 +61,7 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
   bind('commercial.expiredBondCount',['controls.expiredBondCount']);
   if(key==='delivery-quality'&&Array.isArray(at(data,'metrics'))){
     const metrics=at(data,'metrics'),index=metrics.length;
-    data=write(data,['metrics'],[...metrics,{label:'Open critical / major NCRs',value:facts.controls.openCriticalMajorNcrCount.value,unit:'records',state:facts.controls.openCriticalMajorNcrCount.state,basis:facts.controls.openCriticalMajorNcrCount.basis}]);
+    data=write(data,['metrics'],[...metrics,{label:'Open critical / major NCRs',value:facts.controls.openCriticalMajorNcrCount.value,unit:'records',state:facts.controls.openCriticalMajorNcrCount.state,basis:facts.controls.openCriticalMajorNcrCount.basis,...(facts.controls.openCriticalMajorNcrCount.reason?{reason:facts.controls.openCriticalMajorNcrCount.reason}:{})}]);
     bind('controls.openCriticalMajorNcrCount',['metrics.'+index+'.value']);
   }
   // F04: one RFI / NCR count on every page. The register pages read the same
@@ -80,8 +80,8 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
       const own=at(data,'registerIdentity')===register.identity?metrics.findIndex(m=>m?.label===pageLabel):-1;
       const index=own>=0?own:metrics.length;
       data=write(data,['metrics'],own>=0
-        ?metrics.map((m,i)=>i===index?{...m,value:fact.value,state:fact.state,basis:fact.basis}:m)
-        :[...metrics,{label:registerLabel,value:fact.value,unit:'records',state:fact.state,basis:fact.basis}]);
+        ?metrics.map((m,i)=>i===index?{...m,value:fact.value,state:fact.state,basis:fact.basis,...(fact.reason?{reason:fact.reason}:{})}:m)
+        :[...metrics,{label:registerLabel,value:fact.value,unit:'records',state:fact.state,basis:fact.basis,...(fact.reason?{reason:fact.reason}:{})}]);
       bind(factPath,['metrics.'+index+'.value']);
     }
   }
