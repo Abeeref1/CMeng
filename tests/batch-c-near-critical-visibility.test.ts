@@ -47,7 +47,7 @@ for(const [authority,label] of [
 test('Batch C: unestablished float coverage never says the whole population is classifiable',()=>{
   const visible=visibleWithoutOpeningDetails(render({classificationCoveragePercent:null,floatCoveragePercent:null}));
   assert.match(visible,/Float classification coverage: Not established/);
-  assert.doesNotMatch(visible,/execution population is fully classifiable/);
+  assert.doesNotMatch(visible,/All execution activities can be classified/);
   assert.match(visible,/project-wide classification is not established/i);
 });
 
@@ -55,5 +55,5 @@ test('Batch C: partial coverage and unknown population remain ahead of managemen
   const visible=visibleWithoutOpeningDetails(render({classificationCoveragePercent:62.5,unresolvedActivityCount:3}));
   assert.match(visible,/62.5%/);
   assert.match(visible,/3 execution activities still lack/);
-  assert.doesNotMatch(visible,/execution population is fully classifiable/);
+  assert.doesNotMatch(visible,/All execution activities can be classified/);
 });

@@ -205,7 +205,7 @@ function buildActivityFloatReconciliation(model:CanonicalScheduleModel,forecast:
     ?'Submitted total float and CMeng independent source-calendar CPM are compared for the same open activity and revision using the same critical and near-critical thresholds. Completed activities are outside the live float-comparison denominator.'
     :scenarioComparable
       ?'Open-activity submitted float is compared with CMeng source-calendar CPM using the assumptions stated in the calculation. The comparison remains visible as a qualified scenario and is not promoted to official CPM authority. Completed activities are not counted as unresolved float comparisons.'
-      :'Independent source-calendar CPM is not established for the comparable open-activity population. Completed activities are outside the live float-comparison denominator.',
+      :'Independent source-calendar CPM is not established for the comparable open activities. Completed activities are outside the live float-comparison denominator.',
   toleranceHours:0.000001,rows:comparableRows.filter(row=>row.floatReconciliationState!=='matched')}};
 }
 

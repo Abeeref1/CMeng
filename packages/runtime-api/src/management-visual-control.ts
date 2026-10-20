@@ -303,7 +303,7 @@ export function managementVisualControl(
     });
   const sourceRowsFact=(domain:string,key:string,label:string)=>{
     const src=sourceDomain(domain),value=typeof src?.readableRowCount==='number'?src.readableRowCount:null;
-    return numericFact(key,label,value,src?.basis??'No readable source population is established.','source','partial',
+    return numericFact(key,label,value,src?.basis??'No readable source records are established.','source','partial',
       {known:value??0,total:value??0});
   };
   const pick=<T>(rows:Array<ManagementFactView<T>|null>)=>bestAvailableFact(rows.filter((row):row is ManagementFactView<T>=>row!==null));
@@ -329,7 +329,7 @@ export function managementVisualControl(
     sourceRowsFact('variations','variation-source-rows','Readable variation/change source rows'),
   ];
   const claimsCandidates:Array<ManagementFactView<number>|null>=[
-    numericFact('current-claim-count','Current governed claims',claims.currentClaimCount,'Current governed claim population at the Data Date.','source','partial'),
+    numericFact('current-claim-count','Current governed claims',claims.currentClaimCount,'Current confirmed claims at the Data Date.','source','partial'),
     numericFact('source-claim-count','Source claims',claims.sourceClaimCount,'Readable claim records; source availability does not establish entitlement.','source',claims.integrityState==='quarantined'?'quarantined':'partial'),
     sourceRowsFact('claims','claim-source-rows','Readable Claims/EOT source rows'),
   ];

@@ -170,8 +170,8 @@ function probabilisticComparator(
       p80CompletionIso: null,
       p90CompletionIso: null,
       assumptions: [
-        "Probabilistic comparator requires a valid Data Date, deterministic future completion and valid triangular duration factors.",
-        "This comparator does not replace deterministic CPM and is not an entitlement or contractual forecast.",
+        "Probabilistic comparator requires a valid Data Date, a standard CPM future completion and valid triangular duration factors.",
+        "This comparator does not replace the standard CPM calculation and is not an entitlement or contractual forecast.",
       ],
     };
   }
@@ -223,10 +223,10 @@ function probabilisticComparator(
     p90CompletionIso:
       toIso(percentile(completions, 0.9)),
     assumptions: [
-      "P50/P80/P90 are limited duration-factor comparators around the deterministic CPM remaining duration.",
+      "P50/P80/P90 are limited duration-factor comparators around the standard CPM remaining duration.",
       "The comparator is seeded and reproducible.",
       "The comparator does not model activity-by-activity uncertainty or correlations and remains non-official.",
-      "Deterministic CPM remains the canonical independent forecast.",
+      "The standard CPM calculation remains the main independent forecast.",
     ],
   };
 }

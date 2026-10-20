@@ -551,7 +551,7 @@ if(require.main===module){
   const root=process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim()||process.env.CMENG_DATA_DIR?.trim()||join(process.cwd(),'.cmeng-runtime');
   void createProjectGateway(root).then(gateway=>{
     const port=Number(process.env.PORT??3000),host=process.env.HOST??'0.0.0.0';
-    gateway.server.listen(port,host,()=>{console.log('CMeng runtime listening on '+host+':'+port);void probeConfiguredProvider(root,calculationRelease()).catch(()=>console.warn('AI provider self-check unavailable; deterministic calculations remain enabled.'));});
+    gateway.server.listen(port,host,()=>{console.log('CMeng runtime listening on '+host+':'+port);void probeConfiguredProvider(root,calculationRelease()).catch(()=>console.warn('AI provider self-check unavailable; CMeng calculations remain enabled.'));});
     process.once('SIGTERM',()=>{void gateway.close().then(()=>process.exit(0));});
   }).catch(error=>{console.error('CMENG_STARTUP_FAILED',error);process.exitCode=1;});
 }

@@ -125,7 +125,7 @@ export function riskRegisterForState(state:ProjectRuntimeState):ModuleRuntimeRes
   };});
   return {key:'risk-register',status:risk.state==='established'?'ready':rows.length?'partial':'blocked',engineState:'ready',evidenceState:rows.length?(risk.complete?'established':'partial'):'missing',
     professionalState:risk.validation?.state==='conflicted'?'review_required':rows.length?'defensible':'not_defensible',
-    reason:rows.length?(risk.validation?.explanation??null):'No governed risk-register population is established.',
+    reason:rows.length?(risk.validation?.explanation??null):'No confirmed risk register records are established.',
     dependencies:['risk register','dated risk status','documented rating method'],
     data:{projectionKey:'risk_register_control',schemaVersion:'1.0',projectId:state.projectId,dataDateIso:reporting.dataDateIso,state:risk.state,
       // F07: the same register row counts as Delivery risks and the project facts.
@@ -139,7 +139,7 @@ export function contractRiskForState(state:ProjectRuntimeState):ModuleRuntimeRes
   const items:Array<{id:string;area:string;condition:string;state:'action'|'review'|'information';basis:string;action:string}>=[];
   const push=(id:string,area:string,condition:string,stateValue:'action'|'review'|'information',basis:string,action:string)=>items.push({id,area,condition,state:stateValue,basis,action});
   if((controls.contractObligations.overdueCount??0)>0)push('overdue-obligations','Contract obligations',controls.contractObligations.overdueCount+' obligations are overdue.','action','Explicit obligation due dates and current status.','Resolve or formally update the overdue obligations and retain completion evidence.');
-  if(controls.contractObligations.state!=='established')push('obligations-coverage','Contract obligations','Obligation population is not fully established.','review','Contract obligation evidence state: '+controls.contractObligations.state+'.','Complete the obligations register or confirm the applicable clause population.');
+  if(controls.contractObligations.state!=='established')push('obligations-coverage','Contract obligations','The full set of obligations is not established.','review','Contract obligation evidence state: '+controls.contractObligations.state+'.','Complete the obligations register or confirm the clauses that apply.');
   if((controls.siteInstructions.overdueQuotationCount??0)>0)push('si-overdue-quotes','Site instructions',controls.siteInstructions.overdueQuotationCount+' instructions are past the evidenced quotation due date.','action','Instruction and quotation dates in the current register.','Complete the quotation response or record the agreed commercial treatment.');
   if((controls.variations.knownPendingCount??controls.variations.pendingCount??0)>0)push('pending-variations','Variations',(controls.variations.knownPendingCount??controls.variations.pendingCount)+' known variations remain pending.','review','Current variation lifecycle at the Data Date.','Progress assessment/agreement/approval and reconcile linked schedule and payment records.');
   if((controls.bondsInsurance.expiredBondCount??0)>0)push('expired-bonds','Bonds',controls.bondsInsurance.expiredBondCount+' bonds are expired in the current record.','action','Explicit bond expiry dates.','Confirm renewal, release or replacement evidence.');
@@ -151,10 +151,10 @@ export function contractRiskForState(state:ProjectRuntimeState):ModuleRuntimeRes
   for(const [id,label,term] of [['completion','Contract completion',terms.contractualCompletionDate],['notice','Notice period',terms.noticePeriodDays],['ld-rate','LD rate',terms.ldRate],['ld-cap','LD cap',terms.ldCap]] as const)
     if(term.value===null)push('missing-'+id,label,label+' is not established.','review','Commercial Terms evidence.','Confirm the applicable dated contract term.');
   return {key:'contract-risk',status:items.length?'partial':'ready',engineState:'ready',evidenceState:'partial',professionalState:'review_required',
-    reason:items.length?items.length+' contract-control conditions require attention or confirmation.':'No exception was identified by the listed deterministic contract-control checks.',
+    reason:items.length?items.length+' contract-control conditions require attention or confirmation.':'No exception was identified by the listed rule-based contract-control checks.',
     dependencies:['commercial terms','contract controls','current schedule/claims where applicable'],
     data:{projectionKey:'contract_risk',schemaVersion:'1.0',projectId:state.projectId,dataDateIso:projectDataDate(state),itemCount:items.length,items,
-      basis:'This is a deterministic contract-control exception lens. It does not assign legal probability, liability or entitlement and does not replace legal review.'}};
+      basis:'This is a rule-based contract-control exception view. It does not assign legal probability, liability or entitlement and does not replace legal review.'}};
 }
 
 export function finalAccountForState(state:ProjectRuntimeState):ModuleRuntimeResult{
@@ -167,7 +167,7 @@ export function finalAccountForState(state:ProjectRuntimeState):ModuleRuntimeRes
   check('variations','Variations',(knownPending??0)>0?'open':variations.pendingCount==null?'unresolved':'clear',(knownPending??0)>0?knownPending+' known pending variation(s); complete exposure remains subject to source coverage.':'Pending variation exposure is not established from the supplied lifecycle records.','Variations & Change');
   const obligations=controls.contractObligations;
   check('obligations','Contract obligations',obligations.state==='missing'?'unresolved':(obligations.openCount??0)>0||(obligations.overdueCount??0)>0?'open':'clear',
-    obligations.state==='missing'?'Obligation population not established.':String(obligations.openCount??0)+' open · '+String(obligations.overdueCount??0)+' overdue.','Contract Obligations');
+    obligations.state==='missing'?'Full set of obligations not established.':String(obligations.openCount??0)+' open · '+String(obligations.overdueCount??0)+' overdue.','Contract Obligations');
   const retention=controls.retentionCalendar;
   check('retention','Retention',retention.state==='missing'?'unresolved':(retention.heldCount??0)>0||(retention.overdueCount??0)>0?'open':'clear',
     retention.state==='missing'?'Retention calendar not established.':String(retention.heldCount??0)+' held · '+String(retention.overdueCount??0)+' overdue release(s).','Retention Calendar');
@@ -183,5 +183,5 @@ export function finalAccountForState(state:ProjectRuntimeState):ModuleRuntimeRes
     reason:stateValue==='clear'?null:unresolved+' final-account control areas are unresolved and '+open+' remain open.',
     dependencies:['commercial position','variations','payments','retention','obligations','construction closeout/handover'],
     data:{projectionKey:'final_account_closeout',schemaVersion:'1.0',projectId:state.projectId,dataDateIso:projectDataDate(state),state:stateValue,checks,currencies,
-      basis:'Final-account readiness is withheld where an applicable population is not established. Currency positions remain separate; open items are not assumed settled.'}};
+      basis:'Final-account readiness is withheld where the full set of applicable records is not established. Currency positions remain separate; open items are not assumed settled.'}};
 }

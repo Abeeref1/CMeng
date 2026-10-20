@@ -82,7 +82,9 @@ test('F38: driving chain to completion and independent CPLI come from the indepe
   assert.match(html, /<kpi>Independent CPLI=1\.3333333333333333<\/kpi>/);
   assert.match(html, /Driving chain to completion \(independent CPM\): 3 activities/);
   assert.match(html, /Independent CPLI = \(working hours from the Data Date/);
-  assert.match(html, /missed_tasks: count of detail tasks due by the Data Date/);
+  // W1: each formula is listed under its check's name, never under its field key ('missed_tasks').
+  assert.match(html, /<dt>Missed tasks \(DCMA 11\)<\/dt><dd>count of detail tasks due by the Data Date/);
+  assert.doesNotMatch(html, /missed_tasks|hard_constraints|sf_links/);
 
   const none = pmcScheduleRules(model, [], '2027-01-13');
   assert.match(renderQuality(none), /Driving chain to completion \(independent CPM\): not established/);

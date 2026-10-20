@@ -42,7 +42,7 @@ test('batch review preserves individual decisions and exceptions, and cannot edi
  for(const invalid of [{note:''},{previewFingerprint:'old'},{sourceHash:'wrong'},{state:'verified'},{fields:{commissioned:'Yes'}},{recordIds:[first.recordId]},{expectedVersion:f.state.version-1}])assert.throws(()=>f.change({...input,...invalid}));
  const bytes=readFileSync(f.doc.storedPath);writeFileSync(f.doc.storedPath,'changed');assert.throws(()=>f.change(input),/bytes/);writeFileSync(f.doc.storedPath,bytes);assert.equal(JSON.stringify(f.state.delivery),before);
  f.change(input);all=deliveryRecords(f.state).records;assert.equal(all.find(r=>r.reference==='A0')!.state,'working');assert.equal(all.find(r=>r.reference==='A0')!.fields.description,'Individually retained');assert.equal(all.find(r=>r.reference==='A1')!.fields.commissioned,'Unclear');assert.equal(all.find(r=>r.reference==='A1')!.state,'governed');assert.equal(all.filter(r=>r.state==='conflicted').length,2);assert.equal(f.state.delivery!.populations.length,0);
- assert.equal(deliveryBatchReview(f.state,f.source).eligibleCount,0);assert.throws(()=>f.change(input),/population changed/);
+ assert.equal(deliveryBatchReview(f.state,f.source).eligibleCount,0);assert.throws(()=>f.change(input),/source records for this review changed/);
 });
 test('incomplete physical reading leaves all asset records for individual attention',async t=>{
  const f=await fixture(t,['A1,Pump,Yes,No,']);f.doc.fullTextRead={result:{complete:false}} as any;f.store.touch(f.state);

@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import type {AnalysisResult,AnalysisTable,AnalysisChart,Cell} from '../../project-ask/src/types';
 import {AskError} from '../../project-ask/src/catalogue';
+import {unknownWithUnit} from './unknown-reason';
 const font=join(process.cwd(),'packages/project-ask/assets/DejaVuSans.ttf');
 const colors=['#336b91','#bb7938','#5d927f','#9c5e80'];
 const display=(v:Cell|undefined)=>v===null||v===undefined?'Not established':String(v);
@@ -115,7 +116,7 @@ async function workbook(result:AnalysisResult,view?:AskExportView){
   for(const n of result.narrative)report.addRows([[n.heading],[n.text]]);
   const metrics=book.addWorksheet('KPI Dashboard');metrics.addRow(['Metric','Value','Unit','Evidence state','Basis','Evidence reference']);
   for(const m of result.sections.flatMap(s=>s.metrics))metrics.addRow([m.label,m.value??'Not established',m.unit??'',m.state,m.basis,m.traceId]);
-  const index=book.addWorksheet('Dataset Index');index.addRow(['Worksheet','Analysis table','Rows','Source population','Excluded','Basis']);
+  const index=book.addWorksheet('Dataset Index');index.addRow(['Worksheet','Analysis table','Rows','Source records','Excluded','Basis']);
   let number=0;for(const table of rows(result)){
     const name=String(++number).padStart(2,'0')+' '+table.title.replace(/[\\/?*\[\]:]/g,' ').slice(0,27);const sheet=book.addWorksheet(name);
     sheet.addRow(table.columns.map(c=>c.label+(c.unit?' ('+c.unit+')':'')));
@@ -124,7 +125,7 @@ async function workbook(result:AnalysisResult,view?:AskExportView){
   }
   const findings=book.addWorksheet('Findings and Actions');findings.addRow(['Finding','Explanation','Action','Owner','Due basis','Evidence']);for(const f of result.sections.flatMap(s=>s.findings))findings.addRow([f.title,f.explanation,f.action,f.owner??'Not assigned',f.dueBasis??'Not established',f.traceIds.join('; ')]);
   const gaps=book.addWorksheet('Evidence Gaps');gaps.addRow(['Unresolved information']);result.unresolved.forEach(g=>gaps.addRow([g]));
-  if(result.coverage){const coverage=book.addWorksheet('Evidence Coverage');coverage.addRow(['Population','Source','Applicable','Relevant','Direct','Aggregated','Supporting omitted','Mandatory','Mandatory represented','State','Basis']);for(const c of result.coverage.entries)coverage.addRow([c.id,c.sourcePopulation,c.applicablePopulation,c.relevantPopulation,c.directlyRepresented,c.aggregated,c.supportingOmitted,c.mandatoryPopulation,c.mandatoryRepresented,c.state,c.omissionBasis]);}
+  if(result.coverage){const coverage=book.addWorksheet('Evidence Coverage');coverage.addRow(['Record set','Source','Applicable','Relevant','Direct','Aggregated','Supporting omitted','Mandatory','Mandatory represented','State','Basis']);for(const c of result.coverage.entries)coverage.addRow([c.id,c.sourcePopulation,c.applicablePopulation,c.relevantPopulation,c.directlyRepresented,c.aggregated,c.supportingOmitted,c.mandatoryPopulation,c.mandatoryRepresented,c.state,c.omissionBasis]);}
   const trace=book.addWorksheet('Evidence Trace');trace.addRow(['Reference','Authority','Source module','Path','Data Date','Evidence state','Basis','Source references','Exclusions']);for(const t of result.sections.flatMap(s=>s.traces))trace.addRow([t.id,t.authorityId,t.module,t.path,t.dataDate??'Not established',t.state,t.basis,t.sourceRefs.join('; '),t.exclusions.join('; ')]);
   for(const sheet of book.worksheets){sheet.views=[{state:'frozen',ySplit:1}];sheet.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};sheet.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF24384A'}};sheet.getRow(1).height=30;(sheet.columns??[]).forEach((c,i)=>c.width=i===0?32:24);sheet.eachRow(row=>row.eachCell(c=>{c.alignment={vertical:'top',wrapText:true};if(typeof c.value==='number')c.numFmt='0.##########';if(typeof c.value==='string'&&c.value.length>32767)c.value=c.value.slice(0,32730)+' [text shortened; see JSON export]';}));if(!['Executive Summary'].includes(sheet.name)&&sheet.rowCount>1)sheet.autoFilter={from:{row:1,column:1},to:{row:sheet.rowCount,column:Math.max(1,sheet.columnCount)}};}
   report.getColumn(1).width=36;report.getColumn(2).width=110;report.eachRow(row=>{if(typeof row.getCell(1).value==='string'&&String(row.getCell(1).value).length>60){row.height=Math.min(220,Math.ceil(String(row.getCell(1).value).length/120)*18);report.mergeCells(row.number,1,row.number,5);}});
@@ -140,7 +141,7 @@ async function pdf(result:AnalysisResult,view?:AskExportView){
   doc.fontSize(13).fillColor('#547d98').text('CMeng | PROJECT INTELLIGENCE');doc.moveDown(1.2).fontSize(25).fillColor('#24384a').text(result.presentation.title,{width:490});if(view?.subtitle){doc.moveDown(.35);para(view.subtitle,10);}doc.moveDown();
   for(const [key,value]of metadata(result).filter(([k])=>!['Source snapshot','Scope','Grouping'].includes(String(k))))para(key+': '+value);
   for(const block of result.narrative){heading(block.heading);para(block.text);}
-  heading('Key figures');for(const m of result.sections.flatMap(s=>s.metrics)){para(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);}
+  heading('Key figures');for(const m of result.sections.flatMap(s=>s.metrics)){para(m.label+': '+unknownWithUnit(display(m.value),m.value,m.unit)+' · '+m.state);}
   for(const chart of result.sections.flatMap(s=>s.charts)){const table=rows(result).find(t=>t.id===chart.tableId);if(!table)continue;if(doc.y>470)doc.addPage();doc.image(askChartPng(chart,table,{...(view?.chartLimits?.[chart.id]!==undefined?{limit:view.chartLimits[chart.id]}:{})}),44,doc.y,{width:507});doc.y+=248;para(chart.basis,8);}
   for(const table of rows(result).filter(t=>t.rows.length)){
     heading(table.title);para(table.basis,8);para('Showing '+Math.min(40,table.rows.length)+' of '+table.rows.length+' result rows. The Excel and structured exports contain every result row.',8);
@@ -160,7 +161,7 @@ function wordParagraph(text:string,style='Normal'){return '<w:p><w:pPr><w:pStyle
 async function word(result:AnalysisResult,view?:AskExportView){
   const zip=new (jsZip())();let body=wordParagraph('CMeng | '+result.presentation.title,'Title');if(view?.subtitle)body+=wordParagraph(view.subtitle);for(const [k,v]of metadata(result).filter(([key])=>!['Source snapshot','Analysis','Project version','Programme revision','Scope'].includes(String(key))))body+=wordParagraph(k+': '+v);
   for(const n of result.narrative)body+=wordParagraph(n.heading,'Heading1')+wordParagraph(n.text);
-  body+=wordParagraph('Key figures','Heading1');for(const m of result.sections.flatMap(s=>s.metrics))body+=wordParagraph(m.label+': '+display(m.value)+(m.unit?' '+m.unit:'')+' · '+m.state);
+  body+=wordParagraph('Key figures','Heading1');for(const m of result.sections.flatMap(s=>s.metrics))body+=wordParagraph(m.label+': '+unknownWithUnit(display(m.value),m.value,m.unit)+' · '+m.state);
   const relationships:string[]=[];let imageIndex=0;
   for(const chart of result.sections.flatMap(s=>s.charts)){const table=rows(result).find(t=>t.id===chart.tableId);if(!table)continue;const id='rIdChart'+(++imageIndex);zip.file('word/media/chart'+imageIndex+'.png',askChartPng(chart,table,{...(view?.chartLimits?.[chart.id]!==undefined?{limit:view.chartLimits[chart.id]}:{})}));relationships.push('<Relationship Id="'+id+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/chart'+imageIndex+'.png"/>');body+=wordParagraph(chart.title,'Heading1')+'<w:p><w:r><w:drawing><wp:inline><wp:extent cx="5486400" cy="2560320"/><wp:docPr id="'+imageIndex+'" name="Chart '+imageIndex+'"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="'+imageIndex+'" name="chart.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="'+id+'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="5486400" cy="2560320"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'+wordParagraph(chart.basis);}
   for(const table of rows(result).filter(t=>t.rows.length)){body+=wordParagraph(table.title,'Heading1')+wordParagraph(table.basis)+wordParagraph('Showing '+Math.min(100,table.rows.length)+' of '+table.rows.length+' result rows; all result rows are in Excel and structured exports.');

@@ -327,7 +327,7 @@ export function scheduleScopeClassification(model:CanonicalScheduleModel):Schedu
     ['phase','Phase','Explicit Phase wording found in source WBS or activity text'],
     ['section','Section','Explicit Section wording found in source WBS or activity text'],
     ['chainage','Chainage','Explicit Chainage/CH wording found in source WBS or activity text'],
-    ['discipline','Discipline','Programme Discipline/Trade activity code; else deterministic source-text classification from WBS/activity terminology; ambiguous multi-discipline rows remain unclassified'],
+    ['discipline','Discipline','Programme Discipline/Trade activity code; else rule-based source-text classification from WBS/activity terminology; ambiguous multi-discipline rows remain unclassified'],
     ['trade','Trade','Explicit Trade wording found in source WBS or activity text'],
     ['system','System','Explicit System wording found in source WBS or activity text'],
     ['package','Package','Explicit Package/PKG wording found in source WBS or activity text'],

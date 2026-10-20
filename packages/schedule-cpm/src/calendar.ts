@@ -45,7 +45,7 @@ const workSegmentCache =
 
 export const ELAPSED_24H_CALENDAR: CanonicalCalendar = {
   calendarId: "__ELAPSED_24H__",
-  name: "24/7 elapsed-time fallback",
+  name: "24/7 elapsed time",
   semanticComplete: true,
   weeklyWorkMinutes: [
     1440, 1440, 1440, 1440, 1440, 1440, 1440,

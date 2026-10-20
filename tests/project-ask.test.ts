@@ -372,7 +372,7 @@ test('Ask retains programme and asset comparison populations without summing the
  const table=section.tables.find(t=>t.id==='handover.source-comparison')!;assert.ok(table);
  assert.equal(table.rows.find(r=>r.key==='commissioned')!.percent,50);assert.equal(table.rows.find(r=>r.key==='handover')!.denominator,1);
  assert.equal(table.columns.find(c=>c.key==='percent')!.aggregate,'none');assert.equal(table.columns.find(c=>c.key==='numerator')!.aggregate,'none');
- assert.match(table.basis,/different populations/);assert.match(table.basis,/no status date/);
+ assert.match(table.basis,/different sets of records/);assert.match(table.basis,/no status date/);
  assert.ok(section.metrics.every(m=>m.unit!=='%'||m.value===null),'source flags do not turn into handover acceptance');
 });
 

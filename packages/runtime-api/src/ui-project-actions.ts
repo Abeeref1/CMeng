@@ -141,7 +141,7 @@ function actionResolutionHtml(a){
   const schedule=t.uploadMode==='schedule';
   return '<div class="action-resolution">'+(a.category==='review'?'<p class="action-correction-note"><b>Only if the existing evidence is wrong or incomplete:</b> upload a corrected document. First compare the findings above with the retained source and any applicable amendment. Uploading does not establish which contract clause or record has authority.</p>':'<p>'+escapeHtml(r.instruction||'Upload the evidence needed to complete this action.')+'</p>')+'<div class="action-resolution-grid"><label>'+escapeHtml(t.uploadHint||'Evidence')+'<input type="file" class="action-upload-file" '+(schedule?'accept=".xer,.xml,.xlsx,.xlsm,.csv"':'accept=".zip,.csv,.pdf,.docx,.xlsx,.xlsm,.xer,.xml,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp"')+'></label>'+(schedule?'<label>Programme purpose<select class="action-upload-role">'+programmePurposeOptions(t.scheduleRole||'update')+'</select></label><label>Baseline approval reference<input type="text" class="action-upload-approval" placeholder="Required only for baseline / revised baseline"></label>':'')+'</div><button class="btn primary" data-resolve-upload="'+escapeHtml(a.id)+'">'+escapeHtml(a.category==='review'?'Upload replacement only if needed':t.label||'Upload evidence')+'</button><p class="action-inline-message" role="status"></p></div>';
  }
- if(t.type==='delivery'&&t.population)return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm that the current records are the complete reporting population.')+'</p><button class="btn primary" data-resolve-population="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Confirm complete population')+'</button><p class="action-inline-message" role="status"></p></div>';
+ if(t.type==='delivery'&&t.population)return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm that the current records are the complete register for reporting.')+'</p><button class="btn primary" data-resolve-population="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Confirm complete register')+'</button><p class="action-inline-message" role="status"></p></div>';
  if(t.type==='inline'&&t.kind==='contract-completion'){
   const candidate=typeof t.suggestedDateIso==='string'?t.suggestedDateIso.slice(0,10):'';
   const candidateNote=candidate?'<p><b>Suggested candidate:</b> '+escapeHtml(planningShortDate(candidate))+' from the current submitted programme finish. This is not treated as contractual unless you confirm it.</p>':'';
@@ -319,7 +319,7 @@ async function resolvePopulationAction(id){
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
  setActionBusy(id,true);actionMessage(id,'Saving confirmation…');
  try{
-  await api('/api/projects/'+encodeURIComponent(owner)+'/delivery/records',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,action:'confirm_population',kind:a.target.kind,note:'Confirmed complete population in Actions required.'})});
+  await api('/api/projects/'+encodeURIComponent(owner)+'/delivery/records',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,action:'confirm_population',kind:a.target.kind,note:'Confirmed complete register in Actions required.'})});
   if(project()===owner)await refresh(false);
  }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
 }

@@ -226,7 +226,7 @@ test('unknown activity types qualify an empty milestone population instead of pr
  const ast=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
  const fn=ast.statements.filter(isFunctionDeclaration).filter(n=>['renderMilestonesVisual','renderMilestoneReview'].includes(n.name?.text??'')).map(n=>n.getText(ast)).join('\n');
  const html=runInNewContext(fn+';renderMilestonesVisual(p)',{p,projectionFor:(v:any)=>v,escapeHtml:String,fmt:String});
- assert.match(html,/Milestone population is not established/);assert.doesNotMatch(html,/attention-clear|No current open milestone/);
+ assert.match(html,/The full set of milestones is not established/);assert.doesNotMatch(html,/attention-clear|No current open milestone/);
 });
 test('float trend compares shares of remaining work so completed activities do not imply improvement',()=>{
  const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;

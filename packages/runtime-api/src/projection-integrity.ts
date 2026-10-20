@@ -212,7 +212,7 @@ export function checkProjectionIntegrity(result: ModuleRuntimeResult, model: Can
   const contract = { schemaVersion: '1.0', state: failures.length ? 'failed' : checks.length ? 'verified_for_checked_metrics' : 'not_checked',
     sourceRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
     population: execution.contract, checks, failureCount: failures.length,
-    scope: 'Only the listed population, arithmetic, coverage and time-boundary checks are certified. Source truth, evidence completeness and causal or contractual conclusions are not certified.' };
+    scope: 'Only the listed record-count, arithmetic, coverage and time-boundary checks are certified. Source truth, evidence completeness and causal or contractual conclusions are not certified.' };
   return { ...result, data: { ...data, systemEvidenceContract: contract },
     ...(failures.length ? { status: 'partial' as const, professionalState: 'review_required' as const,
       reason: 'Shared calculation consistency failed: ' + failures.map(x => x.metric).join(', ') } : {}) };

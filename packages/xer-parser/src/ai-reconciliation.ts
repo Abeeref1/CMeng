@@ -54,7 +54,7 @@ export function assessAiRowRepair(
     accepted: true,
     status: "suggested",
     reasons: [
-      "Proposal is structurally admissible but remains non-authoritative until deterministic confirmation.",
+      "Proposal is structurally admissible but remains a suggestion until CMeng rule checks confirm it.",
     ],
   };
 }

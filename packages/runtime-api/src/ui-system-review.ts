@@ -39,7 +39,7 @@ function readerReference(value){
    const bare=id.replace(/^evidence-document:/,'');
    if(/^schedrev_|^rev_/i.test(bare))return 'Programme revision (source reference in details)';
    if(/^(?:boqitem|quantityitem)_/i.test(bare))return 'BOQ item (source reference in details)';
-   if(/^population[:_]/i.test(bare))return 'Reporting population (source reference in details)';
+   if(/^population[:_]/i.test(bare))return 'Record group (source reference in details)';
    if(/^delivery:/i.test(bare))return 'Source record (reference in details)';
    if(/^(?:evidence|doc)_/i.test(bare))return 'Source document (record reference in details)';
    return 'Source record (reference in details)';
@@ -64,11 +64,15 @@ function readerAuditAction(value){
 function renderProgrammeCashScenario(scenario){
  if(!scenario?.groups?.length)return scenario?'<p>Future receipts cannot be calculated. Missing: '+escapeHtml((scenario.missingInputs||[]).join('; '))+'</p>':'';
  return '<section class="planning-panel"><h4>Future receipts · programme planning scenario</h4>'+
- scenario.groups.map(group=>planningKpis([
-  ['Remaining gross work',group.remainingGross,group.currency],
-  ['Future retention',group.retention,group.currency],
-  ['Advance recovery',group.advanceRecovery,group.currency],
-  ['Indicative net receipts',group.netReceipts,group.currency]
+ scenario.groups.map(group=>{
+ // N3/S1: the currency is the unit of a known amount; an unknown amount shows why instead.
+ const reason=String(group.notEstablishedReason||'').trim(),why=reason?reason.charAt(0).toUpperCase()+reason.slice(1):group.missingInputs?.length?'Needs '+group.missingInputs.join('; '):'';
+ const money=(label,value)=>[label,value,value===null||value===undefined?'':group.currency,'',why];
+ return planningKpis([
+  money('Remaining gross work',group.remainingGross),
+  money('Future retention',group.retention),
+  money('Advance recovery',group.advanceRecovery),
+  money('Indicative net receipts',group.netReceipts)
  ])+(group.notEstablishedReason?'<p><b>Future receipts not established:</b> '+escapeHtml(group.notEstablishedReason.charAt(0).toUpperCase()+group.notEstablishedReason.slice(1))+'</p>':'')+(group.missingInputs?.length?'<p>Missing inputs: '+escapeHtml(group.missingInputs.join('; '))+'. Gross and net scenarios remain separate.</p>':'')+(group.rows?.length?
   (typeof renderLineChart==='function'?renderLineChart(group.curvePoints||group.rows.map(row=>({dateIso:row.periodEndIso,grossValuation:row.grossValuation,netReceipt:row.netReceipt})),[{key:'grossValuation',label:'Cumulative gross valuation',color:'#506579'},{key:'netReceipt',label:'Cumulative receipts after payment period',color:'#2c7a57'}],null,{title:'Forward receipts · '+group.currency,unit:group.currency,dataDateIso:scenario.dataDateIso,dateKey:'dateIso'}):'')+
   experienceDisclosure('Monthly assumed receipts · '+group.currency,
@@ -79,7 +83,7 @@ function renderProgrammeCashScenario(scenario){
   '<p><b>Receipts scenario cannot yet be priced.</b> '+escapeHtml(group.certificateCount??'Recorded')+
   ' payment certificates retained. Source inputs required: '+escapeHtml((group.missingInputs||[]).join('; ')||'Confirm comparable contract, certification and submitted programme dates')+
   '. Existing payments and unpaid certificates remain separately visible; no unsupported amount is converted into zero.</p>'
- )).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
+ );}).join('')+'<p>'+escapeHtml(scenario.basis)+'</p><small>'+escapeHtml(scenario.exclusions)+'</small></section>';
 }
 // F34: the basis of a section's contract date (stated date, or Commencement Date +
 // the stated period) and of its governing date (with the EOT awarded for the
@@ -156,7 +160,7 @@ function renderRegisterContractQueries(data){
     // R12: a certified figure from a net or unlabelled column carries its shared label.
     const shown=key==='grossCertifiedAmount'&&row.grossCertifiedAmountColumn&&row.grossCertifiedAmountColumn!=='gross'&&row.grossCertifiedAmountLabel?row.grossCertifiedAmountLabel:name;
     exceptions.push({currency:row.currency,name:shown,total:value,current:sum,difference:value-sum,
-      basis:fact?.basis||'Source population/period basis must be checked'});
+      basis:fact?.basis||'Source records and period basis must be checked'});
   }
  }
  if(!exceptions.length)return '';
@@ -282,7 +286,7 @@ function readerIssue(i){
     else if(/liquidated|ldrate|ldcap/.test(path))action='Provide the contract clause stating the delay damages rate and cap.';
   }
   if(!action&&i.action==='Reconcile the retained source records; do not replace them with a silent default.')action='Compare the conflicting records, confirm the applicable value and document the reason for the decision.';
-  if(!action&&i.action==='Correct or govern the specific source record, then rerun the same validation.')action='Check the records listed below, correct the inconsistent details and repeat the check.';
+  if(!action&&/^Correct or (?:govern|confirm) the specific source record, then (?:rerun the same validation|run the same check again)\.$/.test(String(i.action??'')))action='Check the records listed below, correct the inconsistent details and repeat the check.';
   if(!action&&i.action==='Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.')action='Provide '+(subject?subject.toLowerCase():'the missing information')+' with the applicable date and supporting record. Leave the value unconfirmed until it is available.';
   action=action||words(i.action);
   const moduleKeys=(i.moduleKeys??[]).map(value=>String(value).toLowerCase()).join(' ');
@@ -313,10 +317,10 @@ function renderSourceQuality(data){
   const failures=managementPanel('System failures','CMeng is responsible for correcting these calculation failures.',rows(data.systemFailures||[]));
   // F10: the Actions required page owns the shared Actions and Data gaps list;
   // other pages link to it (reviewItemsLinkAttrs).
-  return '<section class="source-quality-page" data-owner-topic="review-items"><div id="projectActionPanel">'+(typeof renderProjectActionList==='function'?renderProjectActionList():'')+'</div><details class="management-detail"><summary>Supporting findings, source references and system checks</summary><p>The action list above is the place to complete your decisions. Identical requests are counted once; all record references remain available. These details retain the original checks and source references.</p><div class="source-quality-counts">'+[['Information items',data.sourceIssues],['System failures',data.systemFailures],['Reviews / approvals',data.reviewActions],['Checks not yet complete',data.pendingChecks]].map(([label,items])=>'<div>'+label+'<b>'+screenCountText(listTotal(items))+'</b></div>').join('')+'</div>'+(Array.isArray(data.systemFailures)?(data.systemFailures.length?failures:experienceDisclosure('System checks',failures,'No failures in the listed completed checks')):'<div class="notice warn">System failure check is not established. An absent check result does not mean zero failures or a passed calculation.</div>')+managementPanel('Information and actions','Open an item to see what to provide, who should act and which pages it affects.',Array.isArray(data.sourceIssues)?groups.map(([label,kind])=>{const items=data.sourceIssues.filter(i=>i.kind===kind),total=sourceIssueKindTotal(data,kind,items);return experienceDisclosure(label,(total!==null&&total>items.length?'<p class="source-population">Showing '+fmt(items.length)+' of '+fmt(total)+' items. The complete list is in the downloads.</p>':'')+rows(items),screenCountText(total)+' items');}).join(''):'<p>Source issue population is not established; no source conflict or missing information has been cleared.</p>')+dateDetail+experienceDisclosure('Reviews and approvals',rows(data.reviewActions||[]),(Array.isArray(data.reviewActions)?screenCountText(listTotal(data.reviewActions)):'Not established')+' items')+experienceDisclosure('Figures compared across pages',basisTable(['Measure','Result','Page values'],(data.pageValueChecks||[]).map(c=>[c.metric,humanizeKey(c.state),c.values.map(v=>(names[v.page]||v.page)+': '+(typeof v.value==='object'?JSON.stringify(v.value).slice(0,200)+' (full value in data download)':v.value)).join(' · ')])),'Results and value previews; full records in data download')+experienceDisclosure('Calculation checks',rows(data.pendingChecks||[])+(data.coverage||[]).map(r=>'<details><summary>'+escapeHtml(names[r.key]||r.key)+' · '+escapeHtml(humanizeKey(r.state))+' · '+screenCountText(listTotal(r.checks))+' checks</summary>'+basisTable(['Measure','Expected','Actual','Result'],r.checks.map(c=>[c.metric,JSON.stringify(c.expected),JSON.stringify(c.actual),c.passed?'Passed':'Failed']))+'</details>').join(''),'Checks completed and work still pending')+experienceDisclosure('Project documents',basisTable(['Document','Type','Status','Uploaded'],(data.documents||[]).map(d=>[d.name,humanizeKey(d.type),humanizeKey(d.state),formatDocumentTime(d.uploadedAt)])),(Array.isArray(data.documents)?screenCountText(listTotal(data.documents)):'Not established')+' documents')+'</details></section>';
+  return '<section class="source-quality-page" data-owner-topic="review-items"><div id="projectActionPanel">'+(typeof renderProjectActionList==='function'?renderProjectActionList():'')+'</div><details class="management-detail"><summary>Supporting findings, source references and system checks</summary><p>The action list above is the place to complete your decisions. Identical requests are counted once; all record references remain available. These details retain the original checks and source references.</p><div class="source-quality-counts">'+[['Information items',data.sourceIssues],['System failures',data.systemFailures],['Reviews / approvals',data.reviewActions],['Checks not yet complete',data.pendingChecks]].map(([label,items])=>'<div>'+label+'<b>'+screenCountText(listTotal(items))+'</b></div>').join('')+'</div>'+(Array.isArray(data.systemFailures)?(data.systemFailures.length?failures:experienceDisclosure('System checks',failures,'No failures in the listed completed checks')):'<div class="notice warn">System failure check is not established. An absent check result does not mean zero failures or a passed calculation.</div>')+managementPanel('Information and actions','Open an item to see what to provide, who should act and which pages it affects.',Array.isArray(data.sourceIssues)?groups.map(([label,kind])=>{const items=data.sourceIssues.filter(i=>i.kind===kind),total=sourceIssueKindTotal(data,kind,items);return experienceDisclosure(label,(total!==null&&total>items.length?'<p class="source-population">Showing '+fmt(items.length)+' of '+fmt(total)+' items. The complete list is in the downloads.</p>':'')+rows(items),screenCountText(total)+' items');}).join(''):'<p>The full set of source issues is not established; no source conflict or missing information has been cleared.</p>')+dateDetail+experienceDisclosure('Reviews and approvals',rows(data.reviewActions||[]),(Array.isArray(data.reviewActions)?screenCountText(listTotal(data.reviewActions)):'Not established')+' items')+experienceDisclosure('Figures compared across pages',basisTable(['Measure','Result','Page values'],(data.pageValueChecks||[]).map(c=>[c.metric,humanizeKey(c.state),c.values.map(v=>(names[v.page]||v.page)+': '+(typeof v.value==='object'?JSON.stringify(v.value).slice(0,200)+' (full value in data download)':v.value)).join(' · ')])),'Results and value previews; full records in data download')+experienceDisclosure('Calculation checks',rows(data.pendingChecks||[])+(data.coverage||[]).map(r=>'<details><summary>'+escapeHtml(names[r.key]||r.key)+' · '+escapeHtml(humanizeKey(r.state))+' · '+screenCountText(listTotal(r.checks))+' checks</summary>'+basisTable(['Measure','Expected','Actual','Result'],r.checks.map(c=>[c.metric,JSON.stringify(c.expected),JSON.stringify(c.actual),c.passed?'Passed':'Failed']))+'</details>').join(''),'Checks completed and work still pending')+experienceDisclosure('Project documents',basisTable(['Document','Type','Status','Uploaded'],(data.documents||[]).map(d=>[d.name,humanizeKey(d.type),humanizeKey(d.state),formatDocumentTime(d.uploadedAt)])),(Array.isArray(data.documents)?screenCountText(listTotal(data.documents)):'Not established')+' documents')+'</details></section>';
 }
 function renderDashboardDecisions(data){
-  if(!Array.isArray(data?.actions))return managementPanel('Source decisions','Not established','<p>Source decision population is not established. Missing action data does not mean no review is needed.</p>');
+  if(!Array.isArray(data?.actions))return managementPanel('Source decisions','Not established','<p>The full set of source decisions is not established. Missing action data does not mean no review is needed.</p>');
   const decisions=data.actions.filter(row=>row.recordKey?.startsWith('review|'));
   const body=decisions.length?'<div class="decision-list">'+decisions.slice(0,5).map(row=>'<article><b>'+escapeHtml(readerText(row.issue))+'</b><p>'+escapeHtml(readerText(row.consequence||row.requiredAction))+'</p>'+managementModuleLink('source-quality','Review findings and existing evidence before deciding')+'</article>').join('')+'</div>':'<p>No source confirmation is awaiting action.</p>';
   // T05/N1: data.actions is a 25-row preview on large projects. A subset of it
@@ -325,7 +329,7 @@ function renderDashboardDecisions(data){
   return managementPanel('Source decisions',(decisionTotal===null?fmt(decisions.length)+' source reviews among the '+fmt(data.actions.length)+' of '+screenCountText(listTotal(data.actions))+' shared project actions received here.':fmt(decisionTotal)+' source reviews within the shared project action list.'),body);
 }
 function renderDashboardExceptions(data){
-  if(!Array.isArray(data?.actions))return managementPanel('Priority project actions','Not established','<p>Project action population is not established. Missing action data is not a cleared project position.</p>',true);
+  if(!Array.isArray(data?.actions))return managementPanel('Priority project actions','Not established','<p>The full set of project actions is not established. Missing action data is not a cleared project position.</p>',true);
   const actions=data.actions;
   const table=rows=>basisTable(['Action','Effect','Owner','Due','Next step'],rows.map(row=>[readerText(row.issue),row.priorityBasis?.drivingPath?'Driving network':row.priorityBasis?.linkedFloatHours!=null?sourceWorkingFloatField(row.priorityBasis,'linkedFloatHours')+' float':(row.moneyAtRisk||[]).map(m=>fmt(m.amount)+' '+m.currency).join(', ')||readerText(row.consequence),(typeof apiOwnerText==='function'?apiOwnerText(row):row.owner)||(typeof pmcDisplayOwner==='function'?pmcDisplayOwner(row.owningModule||'project controls'):'PMC Project Controls Manager'),actionDeadlineText(row),readerText(row.requiredAction)]));
   const actionTotal=listTotal(actions);

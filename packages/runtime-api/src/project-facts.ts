@@ -35,6 +35,7 @@ import {pendingEotScenario,type PendingEotScenario} from './pending-eot-scenario
 import {contractTimeDatesFrom} from './contract-time-reader';
 import {extractContractLdTerms} from '../../contract-commercial/src';
 import {certifiedAmountLabel} from '../../commercial-control/src';
+import {registerScopeReason} from './unknown-reason';
 
 export type ProjectFactState =
   | 'confirmed'
@@ -48,6 +49,8 @@ export interface ProjectFact<T> {
   state:ProjectFactState;
   complete:boolean;
   basis:string;
+  /** S1: why the value is unknown or qualified and what is needed, in plain words. */
+  reason?:string;
   sourceRefs:string[];
   diagnostics:string[];
 }
@@ -202,6 +205,12 @@ function fact<T>(
   return {value,valueState,state:value===null?'missing':state,complete:value===null?false:complete,basis,sourceRefs:[...new Set(sourceRefs)],diagnostics:[...new Set(diagnostics)]};
 }
 
+/** S1: a missing or qualified fact carries why and what is needed; a complete
+ * fact is returned unchanged. */
+function withFactReason<T>(item:ProjectFact<T>,reason:string):ProjectFact<T>{
+  return !reason||item.value!==null&&item.complete?item:{...item,reason};
+}
+
 function aggregateFact(
   aggregate:{value:number|null;knownCount:number|null;unresolvedCount:number|null;populationCount:number|null},
   basis:string,
@@ -238,12 +247,14 @@ function sourceCount(
   known:number|null,
   complete:boolean,
   basis:string,
+  reason='',
 ):ProjectFact<number>{
   if(official!==null)return fact(official,basis,'confirmed',true);
+  const why=reason?{reason}:{};
   // A zero known subset cannot establish that nothing is open when dates,
   // severity or status are unresolved. Positive known records remain usable.
-  if(known!==null&&known>0)return fact(known,basis+' The register is readable but the total remains qualified.','from_register_not_confirmed',complete);
-  return fact<number>(null,basis,'missing',false);
+  if(known!==null&&known>0)return {...fact(known,basis+' The register is readable but the total remains qualified.','from_register_not_confirmed',complete),...why};
+  return {...fact<number>(null,basis,'missing',false),...why};
 }
 
 function projectedCount(
@@ -461,10 +472,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         dataDateIso!==null,
         current?['schedule-revision:'+current.revision.revisionId]:[],
       ),
-      declaredProjectFinishIso:fact(model?.declaredProjectFinishIso??null,
+      declaredProjectFinishIso:withFactReason(fact(model?.declaredProjectFinishIso??null,
         'Project finish explicitly recorded in the submitted programme header; separate from activity-derived completion and independent CPM.',
         model?.declaredProjectFinishIso?'confirmed':'missing',model?.declaredProjectFinishIso!=null,
-        model?.declaredProjectFinishIso?['schedule-revision:'+model.sourceRevisionId+':PROJECT.plan_end_date']:[]),
+        model?.declaredProjectFinishIso?['schedule-revision:'+model.sourceRevisionId+':PROJECT.plan_end_date']:[]),'Needs a project finish date in the programme header'),
       submittedProgrammeCompletionIso:fact(
         submittedFinish?.dateIso??null,
         submittedFinish?.method??'Current submitted programme completion is not established.',
@@ -475,27 +486,27 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       criticalActivityCount:aggregateFact(
         canonicalCritical,
         authoritativeIndependent
-          ?'Unfinished execution activities classified critical by deterministic independent source-calendar CPM.'
+          ?'Unfinished execution activities classified critical by the standard independent CPM on the source calendars.'
              :'Unfinished execution activities classified critical from '+governedCriticality.floatLabel+'.',
       ),
       nearCriticalActivityCount:aggregateFact(
         canonicalNearCritical,
         authoritativeIndependent
-          ?'Unfinished execution activities classified near-critical by deterministic independent source-calendar CPM using the shared threshold.'
+          ?'Unfinished execution activities classified near-critical by the standard independent CPM on the source calendars, using the shared threshold.'
              :'Unfinished execution activities classified near-critical from '+governedCriticality.floatLabel+'.',
       ),
       negativeFloatActivityCount:aggregateFact(
         canonicalNegativeFloat,
         authoritativeIndependent
-          ?'Unfinished execution activities with deterministic independent CPM total float below zero.'
+          ?'Unfinished execution activities with standard independent CPM total float below zero.'
              :'Unfinished execution activities with '+governedCriticality.floatLabel+'.',
       ),
-      submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical population retained for reconciliation.'),
-      submittedNearCriticalActivityCount:aggregateFact(submittedNearCritical,'Submitted/source total-float near-critical population retained for reconciliation.'),
-      submittedNegativeFloatActivityCount:aggregateFact(submittedNegativeFloat,'Submitted/source negative-float population retained for reconciliation.'),
-      independentCriticalActivityCount:aggregateFact(independentCritical,'Independent CPM critical population; unavailable until the independent calculation covers the open execution population.'),
-      independentNearCriticalActivityCount:aggregateFact(independentNearCritical,'Independent CPM near-critical population; unavailable until the independent calculation covers the open execution population.'),
-      independentNegativeFloatActivityCount:aggregateFact(independentNegativeFloat,'Independent CPM negative-float population; unavailable until the independent calculation covers the open execution population.'),
+      submittedCriticalActivityCount:aggregateFact(submittedCritical,'Submitted/source total-float critical activities retained for reconciliation.'),
+      submittedNearCriticalActivityCount:aggregateFact(submittedNearCritical,'Submitted/source total-float near-critical activities retained for reconciliation.'),
+      submittedNegativeFloatActivityCount:aggregateFact(submittedNegativeFloat,'Submitted/source negative-float activities retained for reconciliation.'),
+      independentCriticalActivityCount:aggregateFact(independentCritical,'Independent CPM critical activities; unavailable until the independent calculation covers all open execution activities.'),
+      independentNearCriticalActivityCount:aggregateFact(independentNearCritical,'Independent CPM near-critical activities; unavailable until the independent calculation covers all open execution activities.'),
+      independentNegativeFloatActivityCount:aggregateFact(independentNegativeFloat,'Independent CPM negative-float activities; unavailable until the independent calculation covers all open execution activities.'),
       delayedOpenActivityCount:aggregateFact(
         delayedOpen,
         'All unfinished programme records, including level-of-effort records, whose effective finish is later than the adopted baseline finish.',
@@ -511,7 +522,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
       submittedDaysAfterCurrentContract:fact(calendarDifference(submittedFinish?.dateIso,currentContractCompletion),'Submitted finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       independentDaysAfterCurrentContract:fact(calendarDifference(independentFinish,currentContractCompletion),'Calendar recalculation finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       submittedDaysAfterExtendedCompletion:fact(submittedFinish?.dateIso&&extendedCompletion?(Date.parse(submittedFinish.dateIso.slice(0,10))-Date.parse(extendedCompletion.slice(0,10)))/86400000:null,'Submitted finish less contract completion including awarded EOT, in calendar days.','calculated_with_stated_basis'),
-      contractualCompletionIso:commercialFact(
+      contractualCompletionIso:withFactReason(commercialFact(
         commercial.timeExposure.contractualCompletion,
         // T04: every page, report and Ask answer reading this fact shows the label.
         (contractTime?.contractualCompletionSourceUse==='qualified_source_read'
@@ -519,13 +530,15 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
           :'Canonical contract-time position used by every consumer.')+
         // F34: a date computed from the Commencement Date and a stated period states that basis; an unknown date states why.
         (completionPeriod?.label?' Basis: '+completionPeriod.label+'.':completionPeriod?.reason?' '+completionPeriod.reason:''),
-      ),
+      ),completionPeriod?.reason||'Needs the contractual completion date from the contract'),
       ...(completionPeriod?{completionPeriod}:{}),
       awardedEotDays:commercialFact(
         commercial.timeExposure.approvedEotDays,
         'Official awarded EOT through the project Data Date.',
       ),
-      extendedContractCompletionIso:presentedExtension,
+      extendedContractCompletionIso:withFactReason(presentedExtension,presentedExtension.value===null
+        ?(presentedExtension.diagnostics.some(d=>d.startsWith('ADJUSTED_COMPLETION_REQUIRES_CONTRACTUAL_COMPLETION'))?'Needs the contractual completion date and a dated awarded EOT':'Needs awarded EOT days from a dated determination')
+        :provisionalExtendedDate!==null?'Review the amendment and determination overlap before this becomes the governing date':''),
       governingContractCompletionIso:governingCompletion,
     },
     controls:{
@@ -535,36 +548,42 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         openRfiKnown,
         operations.rfi.complete,
         'Current RFI register as of the project Data Date.',
+        registerScopeReason(operations.rfi,'an RFI register'),
       ),
       overdueRfiCount:sourceCount(
         operations.counts.overdueRfiCount,
         overdueRfiKnown,
         operations.rfi.complete,
         'Open RFIs whose required response date is before the project Data Date.',
+        registerScopeReason(operations.rfi,'an RFI register'),
       ),
       openNcrCount:sourceCount(
         operations.counts.openNcrCount,
         operations.knownCounts.openNcrCount,
         operations.quality.complete,
         'Current NCR register open records through the project Data Date, all severities.',
+        registerScopeReason(operations.quality,'an NCR register'),
       ),
       overdueNcrCount:sourceCount(
         operations.counts.overdueNcrCount,
         operations.knownCounts.overdueNcrCount,
         operations.quality.complete,
         'Open NCRs whose required closure date precedes the project Data Date.',
+        registerScopeReason(operations.quality,'an NCR register'),
       ),
       openCriticalMajorNcrCount:sourceCount(
         operations.counts.openCriticalMajorNcrCount,
         operations.knownCounts.openCriticalMajorNcrCount,
         operations.quality.complete,
         'Current NCR register, open Major/Critical records only.',
+        registerScopeReason(operations.quality,'an NCR register'),
       ),
       openRiskCount:sourceCount(
         operations.counts.openRiskCount,
         openRiskKnown,
         operations.risk.complete,
         'Current risk register open records.',
+        registerScopeReason(operations.risk,'a risk register'),
       ),
     },
     claims:{

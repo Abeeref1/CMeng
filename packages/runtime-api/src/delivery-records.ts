@@ -222,7 +222,7 @@ export function deliveryBatchReview(state:ProjectRuntimeState,input:{documentId:
  const eligibleIds=new Set(rows.filter(r=>r.eligible).map(r=>r.recordId));
  const previewFingerprint=deliveryHash(['asset-batch-review-v1',state.projectId,doc.documentId,doc.sourceHashSha256,deliveryPopulationFingerprint(records),rows.map(r=>[r.recordId,r.eligible,r.reason])]);
  return {projectId:state.projectId,projectVersion:state.version,kind:'asset',documentId:doc.documentId,sourceHash:doc.sourceHashSha256,filename:doc.sourceFilename,previewFingerprint,total:rows.length,eligibleCount:eligibleIds.size,retainedCount:rows.length-eligibleIds.size,rows,
-  basis:'Review the listed source records together. Original fields and unknown values remain unchanged. Existing decisions and exceptions remain separate; this review does not verify commissioning, accept handover or establish population completeness.',
+  basis:'Review the listed source records together. Original fields and unknown values remain unchanged. Existing decisions and exceptions remain separate; this review does not verify commissioning, accept handover or confirm that the register is complete.',
   eligibleRecords:records.filter(r=>eligibleIds.has(r.recordId))};
 }
 
@@ -281,7 +281,7 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   if(!String(input.note??'').trim())throw new Error('Enter the source batch review reference.');
   if(input.state!==undefined&&input.state!=='governed'||input.fields!==undefined||input.links!==undefined||input.recordIds!==undefined)throw new Error('Batch review retains the previewed source fields and relationships; it cannot verify or edit records.');
   const preview=deliveryBatchReview(state,input);
-  if(input.previewFingerprint!==preview.previewFingerprint)throw new Error('The source review population changed; reload its preview.');
+  if(input.previewFingerprint!==preview.previewFingerprint)throw new Error('The source records for this review changed; reload its preview.');
   if(!preview.eligibleCount)throw new Error('No source records are eligible for this batch review.');
   const batchId='delivery-batch:'+randomUUID(),ids=new Set(preview.eligibleRecords.map(r=>r.recordId));
   // Preserve an existing explicit completeness decision only when its exact
@@ -301,10 +301,10 @@ export function changeDelivery(state:ProjectRuntimeState,input:any){
   if(Object.keys(previous?.valueMappings??{}).length&&!String(input.reference??'').trim())throw new Error('Enter the source interpretation reference when changing or clearing a saved value mapping.');
   (store.mappings??=[]).push({documentId:doc.documentId,sourceHash:doc.sourceHashSha256,kind:input.kind,columns:columns as Record<string,string>,...values,...(input.reference?{reference:String(input.reference).trim()}:{}),actorId,recordedAt});
  }else if(input.action==='confirm_population'){
-  if(!deliveryKinds.includes(input.kind)||!String(input.note??'').trim())throw new Error('Select a population and record its completeness basis.');
+  if(!deliveryKinds.includes(input.kind)||!String(input.note??'').trim())throw new Error('Select a record type and record how its completeness was checked.');
   const rows=all.filter(r=>r.kind===input.kind&&deliveryCurrentRecord(r)&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId)));
-  if(!input.scopeId&&source.documents.some(d=>d.kind===input.kind&&d.readingComplete===false))throw new Error('Complete the physical-page reading before confirming this register population.');
-  if(input.scopeId&&!all.some(r=>r.recordId===input.scopeId&&['governed','verified'].includes(r.state)))throw new Error('Population scope must be a governed record in this project.');
+  if(!input.scopeId&&source.documents.some(d=>d.kind===input.kind&&d.readingComplete===false))throw new Error('Complete the physical-page reading before confirming this register is complete.');
+  if(input.scopeId&&!all.some(r=>r.recordId===input.scopeId&&['governed','verified'].includes(r.state)))throw new Error('The scope record must be a reviewed record in this project.');
   const unresolved=all.filter(r=>r.kind===input.kind&&(!input.scopeId||r.links.packageIds.includes(input.scopeId)||r.links.recordIds.includes(input.scopeId))&&!deliveryCurrentRecord(r)&&!['superseded','scenario'].includes(r.state));
   if(unresolved.length)throw new Error('Resolve these records before confirming completeness: '+unresolved.map(r=>(r.reference??r.recordId)+': '+(r.diagnostics.join('; ')||r.state)).join(' | '));
   store.populations.push({kind:input.kind,scopeId:input.scopeId??null,recordIds:rows.map(r=>r.recordId),fingerprint:deliveryPopulationFingerprint(rows),note:String(input.note),actorId,recordedAt});
