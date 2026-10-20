@@ -116,6 +116,7 @@ test('R1 R3 a mixed delivery workbook: every column is read or shown as not used
   assert.match(document.readReview.note,/1 cover sheet read as text/);
   // The Delivery reader's own receipt says the same thing.
   const receipts=deliveryRecords(runtimeProjects.get(projectId)!).documents.filter(r=>r.documentId===document.documentId);
-  const packageReceipt=receipts.find(r=>r.kind==='package')!;
-  assert.deepEqual(packageReceipt.columnsNotUsed,['Extra_0','Comment 0']);
+  for(const receipt of receipts)for(const read of ['Delivered Quantity','Delivery Actual Date','PO Planned Date','Lifecycle ID','PO Duration'])
+    assert.ok(!(receipt.columnsNotUsed??[]).includes(read),read+' is never listed as not used by the Delivery reader');
+  assert.ok(receipts.some(r=>r.kind==='package'&&JSON.stringify(r.columnsNotUsed)===JSON.stringify(['Extra_0','Comment 0'])));
 });
