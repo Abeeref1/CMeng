@@ -90,17 +90,17 @@ class Txt{nodeType=3;parentNode:El|null=null;constructor(public data:string){}ge
 class El{
  nodeType=1;parentNode:El|null=null;childNodes:(El|Txt)[]=[];attrs:Record<string,string>={};
  constructor(public tagName:string,public ownerDocument:any){}
- get children(){return this.childNodes.filter((n):n is El=>n instanceof El);}
- get firstChild(){return this.childNodes[0]??null;}
+ get children():El[]{return this.childNodes.filter((n):n is El=>n instanceof El);}
+ get firstChild():El|Txt|null{return this.childNodes[0]??null;}
  get className(){return this.attrs.class??'';}set className(v:string){this.attrs.class=v;}
  get classList(){const list=()=>this.className.split(/\s+/).filter(Boolean);return {contains:(c:string)=>list().includes(c),add:(c:string)=>{if(!list().includes(c))this.className=[...list(),c].join(' ');},remove:(c:string)=>{this.className=list().filter(x=>x!==c).join(' ');}};}
  get colSpan(){return Number(this.attrs.colspan??1);}get rowSpan(){return Number(this.attrs.rowspan??1);}
  get textContent():string{return this.childNodes.map(n=>n.textContent).join('');}
  set textContent(v:string){this.childNodes=[];this.appendChild(new Txt(v));}
- get tHead(){return this.children.find(c=>c.tagName==='THEAD')??null;}
- get tBodies(){return this.children.filter(c=>c.tagName==='TBODY');}
- get rows(){return this.children.filter(c=>c.tagName==='TR');}
- get cells(){return this.children.filter(c=>c.tagName==='TH'||c.tagName==='TD');}
+ get tHead():El|null{return this.children.find(c=>c.tagName==='THEAD')??null;}
+ get tBodies():El[]{return this.children.filter(c=>c.tagName==='TBODY');}
+ get rows():El[]{return this.children.filter(c=>c.tagName==='TR');}
+ get cells():El[]{return this.children.filter(c=>c.tagName==='TH'||c.tagName==='TD');}
  get nextElementSibling():El|null{const s=this.parentNode?.children??[];return s[s.indexOf(this)+1]??null;}
  getAttribute(n:string){return n in this.attrs?this.attrs[n]!:null;}setAttribute(n:string,v:string){this.attrs[n]=String(v);}hasAttribute(n:string){return n in this.attrs;}
  appendChild(n:El|Txt){if(n.parentNode)n.parentNode.childNodes=n.parentNode.childNodes.filter(x=>x!==n);n.parentNode=this;this.childNodes.push(n);return n;}
