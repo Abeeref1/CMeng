@@ -3,6 +3,7 @@ import {activityNearCriticalThresholdHours,sourceFloatCriticality} from '../../s
 import {addWorkingHours,parseScheduleInstant,resolveWorkingCalendar,workingHoursBetween} from '../../schedule-cpm/src/calendar';
 import {programmeControlStageClassifier,programmeControlStageLabel} from './management-context';
 import {codeGroup,DISCIPLINE_CODE_TYPES,LOCATION_CODE_TYPES} from './schedule-scope-classification';
+import {floatHoursToWorkingDays,sourceCalendarWorkingDays} from './activity-float-reconciliation';
 
 /** PMC screening rules, not contractual compliance thresholds. BEI follows
  * GAO-16-89G pp.144/188; technical checks follow its Appendix VII categories.
@@ -130,7 +131,13 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  let length:number|null=null,float:number|null=null;
  const calendar=model&&latest&&calendarIds.size===1?resolveWorkingCalendar(latest.activity.calendarId,model.calendars,false)?.calendar:null;
  if(calendar&&cutoff&&latest&&requiredFinishIso){try{length=workingHoursBetween(calendar,Date.parse(cutoff),Date.parse(latest.finish));float=workingHoursBetween(calendar,Date.parse(latest.finish),Date.parse(requiredFinishIso.slice(0,10)+'T23:59:59Z'));}catch{length=null;float=null;}}
- const cpli={value:length!==null&&length>0&&float!==null?(length+float)/length:null,remainingWorkingHours:length,totalFloatWorkingHours:float,finishActivityIds:terminals.map(t=>t.activity.activityId),requiredFinishIso,
+ // T06/N7: the same two values in working days of that one terminal calendar
+ // (its source working-day length; unknown stays null, never an 8-hour day). Additive.
+ const terminalDayHours=calendar&&latest?sourceCalendarWorkingDays(model!).workingDayHours(latest.activity.calendarId):null;
+ const cpli={value:length!==null&&length>0&&float!==null?(length+float)/length:null,remainingWorkingHours:length,totalFloatWorkingHours:float,
+  remainingWorkingDays:floatHoursToWorkingDays(length,terminalDayHours),totalFloatWorkingDays:floatHoursToWorkingDays(float,terminalDayHours),
+  workingDaysBasis:terminalDayHours===null?'calendar_working_day_not_established':'terminal_activity_calendar',
+  finishActivityIds:terminals.map(t=>t.activity.activityId),requiredFinishIso,
   basis:'Submitted finish CPLI = (remaining working time to the terminal finish + working time from that finish to the required date) / remaining working time. Uses one explicit terminal calendar; this source-programme indicator does not certify the independent driving path.'};
  // F38 additions. One shared module; each formula is in PROGRAMME_QUALITY_FORMULAS.
  // Logic counts when the other end is an execution activity of this programme or an

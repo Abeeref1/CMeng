@@ -33,7 +33,7 @@ test('float histogram retains the full source hours when calendar screening rows
  const {floatHourHistogram}=await import('../packages/near-critical-analysis/src/projector');
  const values=Array.from({length:7446},(_,i)=>i%2===0?-40:650),histogram=floatHourHistogram([...values,null]);
  const html=runInNewContext(functions(['planningFloatHistogram'])+';planningFloatHistogram([],null,histogram)',{...common,histogram});
- assert.match(html,/7446 known; 1 missing/);assert.match(html,/-40 h/);assert.match(html,/650 h/);assert.doesNotMatch(html,/not available/);
+ assert.match(html,/7446 known; 1 missing/);assert.match(html,/-40 original h/);assert.match(html,/650 original h/);assert.doesNotMatch(html,/not available/);
  const absent=runInNewContext(functions(['planningFloatHistogram'])+';planningFloatHistogram([{totalFloatHours:null}],null)',common);assert.match(absent,/not available/);
  const many=floatHourHistogram(Array.from({length:240},(_,i)=>i-120));assert.equal(many.groups.length,10);assert.equal(many.groups.reduce((n,g)=>n+g.count,0),240);
  assert.equal(many.groups[0]!.lowerHours,-120);assert.equal(many.groups.at(-1)!.upperHours,119);

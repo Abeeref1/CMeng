@@ -76,8 +76,9 @@ export function lagCalendarName(basisOrRule:unknown):string{
 export function lagHoursText(hours:number|null|undefined,dayHours:number|null|undefined,calendarLabel='successor calendar'):string{
  if(typeof hours!=='number'||!Number.isFinite(hours))return 'lag not established';
  const days=floatHoursToWorkingDays(hours,dayHours);
- return days===null?'lag working days not established ('+calendarLabel+' hours per day not read) · '+hours+' h'
-  :'lag '+Number(days.toFixed(2))+' working days ('+calendarLabel+') · '+hours+' h';
+ // N7: working days on screen; the source hours stay as the audit, in the shared "original h" form.
+ return days===null?'lag working days not established ('+calendarLabel+' hours per day not read) · '+hours+' original h'
+  :'lag '+Number(days.toFixed(2))+' working days ('+calendarLabel+') · '+hours+' original h';
 }
 
 /** T06/N7: a delay between two source dates of one activity, in working days

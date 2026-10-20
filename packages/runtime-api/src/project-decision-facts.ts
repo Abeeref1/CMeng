@@ -124,7 +124,10 @@ export function buildNegativeFloatConstraint(model:any){
  if(!(lowest<0))return null;
  const labels:Record<string,string>={CS_MSO:'Start on',CS_MEO:'Finish on',CS_MEOB:'Finish on or before',CS_MANDSTART:'Mandatory start',CS_MANDFIN:'Mandatory finish',CS_MSOB:'Start on or before'};
  const constraints=open.filter((a:any)=>a.totalFloatHours===lowest).flatMap((a:any)=>(a.sourceConstraints??[]).filter((c:any)=>LATE_DATE_CONSTRAINTS.has(c.type)).map((c:any)=>({activityReference:a.activityId,activityName:a.name??null,type:c.type,typeLabel:labels[c.type]!,dateIso:date(c.dateIso)})));
- return {lowestFloatHours:lowest,activityCountAtLowestFloat:open.filter((a:any)=>a.totalFloatHours===lowest).length,constraints,
+ // T06/N7: the calendars of the activities at that float, so the shared float-days step
+ // gives it in working days when they share one working-day length (never an 8-hour day).
+ const lowestFloatCalendarIds=[...new Set(open.filter((a:any)=>a.totalFloatHours===lowest).map((a:any)=>a.calendarId??null))];
+ return {lowestFloatHours:lowest,lowestFloatCalendarIds,activityCountAtLowestFloat:open.filter((a:any)=>a.totalFloatHours===lowest).length,constraints,
   state:constraints.length?'named':'not_identified_in_source',
   basis:'Lowest total float among unfinished activities in the current submitted programme, and the explicit late-date constraint on an activity at that float. Submitted float in hours; not a contract amendment.'};
 }
