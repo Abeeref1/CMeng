@@ -2420,7 +2420,7 @@ export async function identifyEvidenceDocument(
     const claimLifecycle=h.includes('claim id')&&h.includes('event')&&h.includes('notice date');
     const found=claimLifecycle?schemas.find(([id])=>id==='claim id'):schemas.find(([id])=>h.includes(id));
     if(h.includes('delivery record type')&&h.includes('record reference'))classification={documentType:'delivery_register',category:'other',confidence:0.99,signals:['Explicit Delivery record schema; record adoption and relationships require review']};
-    else if(['measurement date','item no','cumulative installed qty','unit'].every(key=>h.includes(key)))classification={documentType:'installed_measurement_register',category:'boq_cost',confidence:0.99,signals:['Dated cumulative installed quantities; separate from contract BOQ quantities']};
+    else if(['measurement date','cumulative installed qty','unit'].every(key=>h.includes(key))&&(h.includes('item no')||h.includes('boq item no')))classification={documentType:'installed_measurement_register',category:'boq_cost',confidence:0.99,signals:['Dated cumulative installed quantities; separate from contract BOQ quantities']};
     else if(semanticRoute)classification={documentType:semanticRoute.documentType,category:semanticRoute.category as EvidenceCategory,confidence:semanticRoute.confidence,signals:semanticRoute.basis};
     else if(found)classification={documentType:found[1],category:found[2],confidence:0.96,signals:['Recognised register fields: '+h.join(', ')]};
     else if(h.includes('certificate no')&&h.includes('net certified'))classification={documentType:'payment_certificates',category:'boq_cost',confidence:0.96,signals:['Recognised payment register fields']};

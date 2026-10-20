@@ -94,7 +94,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
    }
 
    const reference=cell(row,'record reference',...kindIdentities[k])||null;
-   const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id','boq item','boq items','boq ref','boq reference','boq item ref','boq item reference'));
+   const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id','boq item','boq items','boq item no','boq ref','boq reference','boq item ref','boq item reference'));
    if(k!=='package')links.packageIds=split(cell(row,'package id','procurement package id'));
    if(k!=='supplier')links.supplierIds=split(cell(row,'supplier id','subcontractor id'));
    if(k!=='location')links.locationIds=split(cell(row,'location id'));

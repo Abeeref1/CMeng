@@ -231,6 +231,9 @@ export interface CanonicalClaimRecord {
   state: ClaimState;
   eventIds: string[];
   submittedAt: string | null;
+  /** The register's own Notice Date and Submitted Date, each only when that column is stated. */
+  noticeDate?: string | null;
+  submittedDate?: string | null;
   /** Dated professional assessment; final register status alone is not authority. */
   assessedAt?: string | null;
   claimedDays: number | null;

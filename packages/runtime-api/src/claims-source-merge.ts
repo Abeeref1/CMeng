@@ -152,8 +152,11 @@ export function unionRefs(...lists: ReadonlyArray<readonly DelayEvidenceRef[]>):
 const unionText = (...lists: ReadonlyArray<readonly string[] | undefined>) => [...new Set(lists.flatMap((list) => list ?? []))];
 
 export const CLAIM_RECORD_SPEC: StatedFieldSpec = {
-  fields: ['title', 'state', 'submittedAt', 'assessedAt', 'claimedDays', 'claimedAmount', 'assessedDays', 'assessedAmount', 'eventIds', 'clauseIdentifiers'],
-  follow: { assessedDays: ['assessedDaysState'], assessedAmount: ['assessedAmountState'] },
+  fields: ['title', 'state', 'submittedAt', 'noticeDate', 'submittedDate', 'assessedAt', 'claimedDays', 'claimedAmount', 'assessedDays', 'assessedAmount', 'eventIds', 'clauseIdentifiers'],
+  // The stated notice date and submitted date are separate fields, each listed
+  // as a query on conflict. The claim date follows a stated submitted date, so
+  // a later file stating only a notice date never overwrites it.
+  follow: { assessedDays: ['assessedDaysState'], assessedAmount: ['assessedAmountState'], submittedDate: ['submittedAt'] },
   stated: (field, value, record) => !(field === 'state' && value === 'unknown') && !(field === 'title' && value === record.claimId),
   // A record-level submittedAt can come from a notice date or a submission date
   // column (one file each), so its difference is not a stated conflict.

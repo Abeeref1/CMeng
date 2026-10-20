@@ -1299,6 +1299,13 @@ export function deriveControlsFromCsv(
         headers,
         ["notice date", "submitted date"],
       );
+    // F06: a register can state both a notice date and a submitted date. Each
+    // is its own stated field; a register stating only one keeps reading it
+    // for both the claim date and its notice, exactly as before.
+    const noticeOnlyIndex = indexOf(headers, ["notice date"]);
+    const submittedOnlyIndex = indexOf(headers, ["submitted date"]);
+    const claimDateIndex = submittedOnlyIndex >= 0 ? submittedOnlyIndex : noticeDateIndex;
+    const noticeIssueIndex = noticeOnlyIndex >= 0 ? noticeOnlyIndex : noticeDateIndex;
     const claimedDaysIndex =
       indexOf(
         headers,
@@ -1595,9 +1602,13 @@ export function deriveControlsFromCsv(
             iso(
               value(
                 row,
-                noticeDateIndex,
+                claimDateIndex,
               ),
             ),
+          noticeDate:
+            noticeOnlyIndex >= 0 ? iso(value(row, noticeOnlyIndex)) : null,
+          submittedDate:
+            submittedOnlyIndex >= 0 ? iso(value(row, submittedOnlyIndex)) : null,
           claimedDays:
             numeric(
               value(
@@ -1673,7 +1684,7 @@ export function deriveControlsFromCsv(
           iso(
             value(
               row,
-              noticeDateIndex,
+              noticeIssueIndex,
             ),
           );
         if (noticeDate) {
