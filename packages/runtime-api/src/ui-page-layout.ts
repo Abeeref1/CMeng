@@ -296,8 +296,9 @@ function arrangePageDetail(container){
  let chosen=plan(keep);
  const dropped=[];
  while(chosen.height>budget&&optional.length){const before=new Set(optional);dropOptional();dropped.push(...[...before].filter(block=>!optional.includes(block)));chosen=plan(keep);}
- // A smaller block dropped on the way comes back when the first screens still hold it.
- for(const block of [...dropped].sort((a,b)=>a.rank-b.rank||a.height-b.height)){
+ // A smaller part of the answer dropped on the way comes back when the first
+ // screens still hold it (short page actions are not brought back).
+ for(const block of [...dropped].filter(block=>block.rank<6).sort((a,b)=>a.rank-b.rank||a.height-b.height)){
   keep.add(block);const trial=plan(keep);
   if(trial.height<=budget){optional.push(block);chosen=trial;}else keep.delete(block);
  }
