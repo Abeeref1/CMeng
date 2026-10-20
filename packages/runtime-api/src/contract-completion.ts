@@ -48,7 +48,10 @@ export function contractCompletionPosition(state:ProjectRuntimeState,asOf:string
     const label='(?:(?:revised|amended|contractual|contract|original|current)\\s+)*(?:date\\s+(?:for|of)\\s+completion|completion\\s+date|time\\s+for\\s+completion|(?:contractual|original|revised|amended|current)\\s+completion)';
     const pattern=new RegExp('\\b'+label+'\\s*(?:(?:shall\\s+be|is|on)\\s*)?[:|=\\t]?\\s*('+dateToken+')','gi');
     for(const section of sections){
-      const heading=section.heading??'';
+      // The parser can cut "Section 1" off a heading that repeats the first
+      // line of its text ("Completion Date: 15 January 2027"); such a heading is
+      // read from the full line in the text, never as a bare Works line.
+      const heading=section.heading&&!section.text.includes(section.heading.trim())?section.heading:'';
       const text=[heading,section.text].join('\n');
       for(const match of text.matchAll(pattern)){
         // r14: a line that names a Section / Sectional Completion / Portion /
