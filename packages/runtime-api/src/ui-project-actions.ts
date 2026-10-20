@@ -28,6 +28,24 @@ function ownerMissingHtml(owner,accountableRole=null,route=null){
  }
  return '<span class="owner-missing" data-owner-missing>Owner not set</span>'+(state.role?' <small>Accountable role: '+escapeHtml(state.role)+'</small>':'')+' '+control;
 }
+/** A4: a missing action due date is shown as missing, with the way to set it, on
+ * the same page as a missing owner (ownerMissingHtml): the register's own page, or
+ * Actions and data gaps (F30/A4), where owner and due date are saved together.
+ * Self-contained for the same reason as ownerMissingHtml. */
+function dueMissingHtml(route=null){
+ const exists=key=>!!key&&typeof moduleRegistry!=='undefined'&&Array.isArray(moduleRegistry)&&moduleRegistry.some(m=>m.key===key);
+ const actions=(typeof blockOwnerEntry==='function'?blockOwnerEntry('review-items')?.owner:null)||'source-quality';
+ const target=route==='documents'?'documents':exists(route)?route:exists(actions)?actions:'documents';
+ let control;
+ if(target==='documents')control='<button type="button" class="management-module-link" data-module="documents" data-set-due>Record the due date in the source register</button>';
+ else{
+  const title=(typeof names!=='undefined'&&names?.[target])||target;
+  const here=typeof currentPageKey==='function'&&(typeof appView==='undefined'||appView==='project')?currentPageKey():null;
+  control=target===here?'<small data-set-due data-owner-page="'+escapeHtml(target)+'">Set the due date on this page</small>'
+   :'<button type="button" class="management-module-link" data-module="'+escapeHtml(target)+'" data-set-due data-owner-page="'+escapeHtml(target)+'">Set the due date in '+escapeHtml(title)+'</button>';
+ }
+ return '<span class="due-missing" data-due-missing>Due date not set</span> '+control;
+}
 let projectActionState=null,projectActionRequest=0,projectActionSearch='',projectActionFilter='all',projectActionPage=0,projectDataGapsPage=0,projectActionSearchTimer=null;
 function actionStateCurrent(){return projectActionState?.projectId===project();}
 function updateActionIndicator(){
