@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 55
     env:
       CMENG_BASE_URL: https://cmeng-verifier-test-production.up.railway.app/
-      EXPECTED_SHA: bf3712cf8862d6be2f2210ecfc2ac68b8ba4eb3f
+      EXPECTED_SHA: 541857aeb820ae42f05ba050ed27d10a73318992
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,7 +48,7 @@ jobs:
         run: |
           unzip -q -o docs/repair-notes/CMeng_Repair_Pack_original_20261014.zip 'cmeng-guard/*'
           cd cmeng-guard
-          printf '%s\n' BLIND-DLY-7208B4A17E > projects.txt
+          printf '%s\n' BLIND-COM-86663C2F78 BLIND-DLY-7208B4A17E BLIND-DEL-B9F3A21036 > projects.txt
           echo 'Original code unchanged; temporary project list contains only three verifier test projects'
       - name: Read-only browser capture, reading records, and all 39 rules
         env:
@@ -79,7 +79,7 @@ jobs:
           if bad: raise SystemExit('Incomplete capture for '+', '.join(bad))
           PY
           mkdir -p out/docs out/res
-          OUT=out/docs python3 fetch_documents.py BLIND-DLY-7208B4A17E
+          OUT=out/docs python3 fetch_documents.py BLIND-COM-86663C2F78 BLIND-DLY-7208B4A17E BLIND-DEL-B9F3A21036
           python3 sysguard.py out/cap out/docs out/res
       - name: Summarize all findings, without publishing source documents
         if: always()
@@ -101,7 +101,7 @@ jobs:
           os.makedirs('cmeng-guard/out',exist_ok=True)
           open('cmeng-guard/out/sanitized-report.json','w').write(json.dumps(obj,indent=2))
           print(json.dumps(obj,indent=2))
-          if len(result)!=1:raise SystemExit('Guard did not complete on the delay project')
+          if len(result)!=3:raise SystemExit('Guard did not complete on the three blind projects')
           PY
       - name: Preserve only guard summary, never source documents
         if: always()
