@@ -67,7 +67,17 @@ function renderProgrammeCashScenario(scenario){
  scenario.groups.map(group=>{
  // N3/S1: the currency is the unit of a known amount; an unknown amount shows why instead.
  const reason=String(group.notEstablishedReason||'').trim(),why=reason?reason.charAt(0).toUpperCase()+reason.slice(1):group.missingInputs?.length?'Needs '+group.missingInputs.join('; '):'';
- const money=(label,value)=>[label,value,value===null||value===undefined?'':group.currency,'',why];
+ // W5/S1: each unknown calculation states its own required evidence; the full
+ // combined source requirement stays visible once below the four figures.
+ const missingInputs=Array.isArray(group.missingInputs)?group.missingInputs.map(String):[];
+ const oneNeed=(pattern,fallback)=>'Needs '+(missingInputs.find(value=>pattern.test(value))||fallback)+'; see the shared cash requirements below';
+ const individualReasons={
+  'Remaining gross work':oneNeed(/gross certification|gross valuation|contract value|remaining work/i,'dated gross certification'),
+  'Future retention':oneNeed(/retention/i,'contract retention terms'),
+  'Advance recovery':oneNeed(/advance recovery|advance balance/i,'the remaining advance recovery balance')
+ };
+ const money=(label,value)=>[label,value,value===null||value===undefined?'':group.currency,'',
+  value===null||value===undefined?(individualReasons[label]||why):why];
  return planningKpis([
   money('Remaining gross work',group.remainingGross),
   money('Future retention',group.retention),
