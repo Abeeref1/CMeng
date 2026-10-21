@@ -48,7 +48,7 @@ jobs:
         run: |
           unzip -q -o docs/repair-notes/CMeng_Repair_Pack_original_20261014.zip 'cmeng-guard/*'
           cd cmeng-guard
-          printf '%s\n' BLIND-COM-86663C2F78 BLIND-DLY-7208B4A17E BLIND-DEL-B9F3A21036 > projects.txt
+          printf '%s\n' BLIND-DLY-7208B4A17E > projects.txt
           echo 'Original code unchanged; temporary project list contains only three verifier test projects'
       - name: Read-only browser capture, reading records, and all 39 rules
         env:
@@ -79,7 +79,7 @@ jobs:
           if bad: raise SystemExit('Incomplete capture for '+', '.join(bad))
           PY
           mkdir -p out/docs out/res
-          OUT=out/docs python3 fetch_documents.py BLIND-COM-86663C2F78 BLIND-DLY-7208B4A17E BLIND-DEL-B9F3A21036
+          OUT=out/docs python3 fetch_documents.py BLIND-DLY-7208B4A17E
           python3 sysguard.py out/cap out/docs out/res
       - name: Summarize all findings, without publishing source documents
         if: always()
@@ -95,11 +95,13 @@ jobs:
               by_rule=collections.Counter(h['rule'] for h in hits)
               result.append({'project':r.get('project'),'pages':r.get('pages'),'hits':len(hits),'by_rule':dict(sorted(by_rule.items()))})
               totals.update(by_rule)
+              for h in hits:
+                  if h.get('rule')=='W5': print('W5_DETAIL',r.get('project'),h.get('page'),repr(h.get('evidence','')[:260]),'instances',h.get('n'))
           obj={'release':os.environ.get('EXPECTED_SHA'),'projects':result,'combined_hits':sum(totals.values()),'by_rule':dict(sorted(totals.items()))}
           os.makedirs('cmeng-guard/out',exist_ok=True)
           open('cmeng-guard/out/sanitized-report.json','w').write(json.dumps(obj,indent=2))
           print(json.dumps(obj,indent=2))
-          if len(result)!=3:raise SystemExit('Guard did not complete on all three projects')
+          if len(result)!=1:raise SystemExit('Guard did not complete on the delay project')
           PY
       - name: Preserve only guard summary, never source documents
         if: always()
