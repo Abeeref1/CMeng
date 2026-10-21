@@ -176,9 +176,9 @@ test('W5/S1: Cash Flow unknown figures have distinct grounded requirements and p
  assert.deepEqual(seen.map(row=>row[1]),[null,null,null,null],'unknown must stay unknown, never zero');
  const notes=seen.map(row=>String(row[4]));
  assert.equal(new Set(notes).size,4,'one long shared missing-input reason cannot repeat on four different Cash Flow tiles');
- assert.match(notes[0],/Needs Dated gross certification/);
- assert.match(notes[1],/Needs Contract retention percentage/);
- assert.match(notes[2],/Needs Remaining advance recovery balance/);
+ assert.match(notes[0]??'',/Needs Dated gross certification/);
+ assert.match(notes[1]??'',/Needs Contract retention percentage/);
+ assert.match(notes[2]??'',/Needs Remaining advance recovery balance/);
  assert.equal(notes[3],reason,'net receipts retain the complete list of missing source requirements');
  assert.match(html,/Missing inputs: Dated gross certification; Contract retention percentage; Contract payment period; Remaining advance recovery balance/);
  // No source amount is altered when the requirements are shown in shorter wording.
