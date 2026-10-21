@@ -42,6 +42,30 @@ export function unknownFactReason(value:unknown):string{
     const inputs=item[key];
     if(Array.isArray(inputs)&&inputs.length)return 'Needs '+inputs.map(input=>String(input)).join(', ');
   }
+  // S1: a fact that states what it requires only as a diagnostic code says it in words.
+  const needs:Record<string,string>={
+    CERTIFIED_UNPAID_REQUIRES_PAID_AMOUNT_FOR_EVERY_CERTIFICATE:'Needs the paid amount for every issued certificate',
+    CERTIFIED_UNPAID_REQUIRES_NET_CERTIFIED_CERTIFICATES_STATE_GROSS_ONLY:'Needs net certified amounts; the certificates state gross only',
+    ADVANCE_BALANCE_REQUIRES_CONTRACT_ADVANCE_AND_CERTIFIED_RECOVERIES:'Needs the contract advance and the certified recoveries',
+    CURRENT_CONTRACT_VALUE_REQUIRES_COMMITTED_CONTRACT_VALUE:'Needs a confirmed contract value',
+    CASH_FLOW_TIME_SERIES_REQUIRES_DATED_CERTIFICATE_AND_PAYMENT_TRANSACTIONS:'Needs dated certificate and payment records',
+    ADJUSTED_COMPLETION_REQUIRES_CONTRACTUAL_COMPLETION_AND_APPROVED_EOT:'Needs the contract completion date and the approved EOT',
+    ADJUSTED_COMPLETION_REQUIRES_CONTRACTUAL_COMPLETION:'Needs the contract completion date',
+    LD_SCENARIO_REQUIRES_RATE:'Needs the delay damages rate',
+    LD_SCENARIO_REQUIRES_SCHEDULE_DELAY:'Needs a programme delay to apply the rate to',
+    LD_PERCENT_CAP_REQUIRES_CONTRACT_VALUE_CANDIDATE:'Needs a contract value to apply the percentage cap',
+    LD_PERCENT_RATE_REQUIRES_CONTRACT_VALUE_CANDIDATE:'Needs a contract value to apply the percentage rate',
+    SCHEDULE_CHANGE_REQUIRES_AT_LEAST_TWO_REVISIONS:'Needs at least two programme revisions',
+    PRODUCTIVITY_FORECAST_REQUIRES_ACTIVE_PROGRAMME:'Needs a current programme',
+    PRODUCTIVITY_FORECAST_REQUIRES_DATA_DATE:'Needs a programme Data Date',
+    CLAIM_ACTIVITY_CORRESPONDENCE_REQUIRES_ACTIVE_PROGRAMME:'Needs a current programme',
+    FLOAT_RISK_SOURCE_RECONCILIATION_REQUIRES_CURRENT_PROGRAMME:'Needs a current programme',
+  };
+  const diagnostics=Array.isArray(item.diagnostics)?item.diagnostics:[];
+  for(const code of diagnostics){
+    const text=needs[String(code).split(':')[0]!];
+    if(text)return text;
+  }
   return '';
 }
 

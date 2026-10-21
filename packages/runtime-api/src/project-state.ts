@@ -1523,7 +1523,21 @@ export class RuntimeProjectStore {
         const calendarReadRefreshed=refreshStoredXerCalendars(state);
         // R3: stored documents get the shared whole-source reading state once.
         const readingRefresh=refreshStoredReadingStates(state);
-        if(readingRefresh.contractsRead.length)this.selectContractBasis(state,readingRefresh.contractsRead.at(-1)!);
+        if(readingRefresh.contractsRead.length){
+          // The refresh changes no decision: a completion date the user confirmed
+          // stays the reporting basis with its reason. A different date read now
+          // from the stored contract is kept as a named conflict for the user.
+          const confirmed=state.controls.contractTimeBasis;
+          const held=confirmed?.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:'))?{...confirmed,sourceRefs:[...confirmed.sourceRefs]}:null;
+          this.selectContractBasis(state,readingRefresh.contractsRead.at(-1)!);
+          if(held){
+            const read=contractCompletionPosition(state,projectDataDate(state));
+            const day=(value:string|null|undefined)=>String(value??'').slice(0,10);
+            const differs=read.candidates.filter(c=>!c.historical&&day(c.date)!==day(held.contractualCompletionIso)&&readingRefresh.contractsRead.some(r=>r.documentId===c.documentId))
+              .map(c=>'UNADOPTED_SOURCE_COMPLETION_DIFFERS:'+day(c.date)+':'+c.documentId);
+            state.controls.contractTimeBasis=differs.length?{...held,contractualCompletionSourceConflicts:[...new Set([...(held.contractualCompletionSourceConflicts??[]),...differs])]}:held;
+          }
+        }
         let controlBasisMigrated = false;
         const priorSourceIntegrationVersion =
           state.sourceIntegrationVersion;

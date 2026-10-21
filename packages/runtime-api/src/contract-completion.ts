@@ -165,5 +165,7 @@ export function completionHeldByAdoptedBasis(current:{contractualCompletionIso:s
   if(!current||!resolved.sourceAnalyticalUse)return null;
   const adopted=current.contractualCompletionState==='official'||(current.sourceRefs??[]).some(ref=>ref.startsWith('user-confirmation:contract-completion:'));
   if(!adopted)return null;
-  return resolved.candidates.filter(c=>c.sourceAnalytical&&!c.historical&&c.date!==current.contractualCompletionIso).map(c=>'UNADOPTED_SOURCE_COMPLETION_DIFFERS:'+c.date+':'+c.documentId);
+  // The confirmed date is stored as a timestamp, a source date as a day: compare the day.
+  const day=(value:string|null|undefined)=>String(value??'').slice(0,10);
+  return resolved.candidates.filter(c=>c.sourceAnalytical&&!c.historical&&day(c.date)!==day(current.contractualCompletionIso)).map(c=>'UNADOPTED_SOURCE_COMPLETION_DIFFERS:'+c.date+':'+c.documentId);
 }

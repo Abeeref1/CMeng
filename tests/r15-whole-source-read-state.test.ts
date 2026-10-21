@@ -132,6 +132,8 @@ test('R15 R3 stored projects get the corrected reading state once on start; iden
   await ingest(first,P,'Main_Contract_653.txt',text(NO_CLAUSES));
   await ingest(first,P,'MANIFEST_SOURCE_FILES.txt',Buffer.from(MANIFEST));
   await ingest(first,Q,'Main_Contract_919.txt',text(NUMBERED));
+  const R='R3-STORED-OLD-TXT-OTHER-DATE';
+  await ingest(first,R,'Main_Contract_920.txt',text(NUMBERED));
   // A user decision recorded before the refresh.
   const review=contractValueReview(first.get(P)!);
   first.updateControls(P,{reviewDecisions:{'contract-value':{sourceFingerprint:review.sourceFingerprint,choice:'enter_value',...contractValueEntryInput({enteredValue:'12,000,000',enteredCurrency:'SAR'}),confirmedAt:'2031-09-02T00:00:00Z',sourceRefs:[]}} as any});
@@ -143,8 +145,17 @@ test('R15 R3 stored projects get the corrected reading state once on start; iden
   const old=q.evidenceDocuments.find(d=>d.sourceFilename==='Main_Contract_919.txt')!;
   q.contractDocuments=q.contractDocuments.filter(c=>c.documentId!==old.documentId);q.contract=null;q.contractFamily=null;
   old.parserState='identified';old.linkedArtifactId=null;old.semanticAiSteps=[];delete old.structureReview;
+  const r=first.get(R)!,oldR=r.evidenceDocuments.find(d=>d.sourceFilename==='Main_Contract_920.txt')!;
+  r.contractDocuments=r.contractDocuments.filter(c=>c.documentId!==oldR.documentId);r.contract=null;r.contractFamily=null;
+  oldR.parserState='identified';oldR.linkedArtifactId=null;oldR.semanticAiSteps=[];delete oldR.structureReview;
+  // A completion date the user confirmed in Actions required while the text was
+  // read only as reference (stored exactly as the confirm-contract-completion route
+  // stores it): the same date as the text for Q, a different date for R.
+  const confirmed=(day:string)=>({contractualCompletionIso:day+'T00:00:00.000Z',contractualCompletionState:'official',completionReason:'Confirmed by user in Actions required.',
+   officialApprovedEotDays:null,officialApprovedEotState:'missing',eotDayBasis:'unknown',eotDayBasisState:'missing',sourceRefs:['user-confirmation:contract-completion:'+day]}) as any;
+  q.controls.contractTimeBasis=confirmed('2032-06-30');r.controls.contractTimeBasis=confirmed('2032-09-15');
   (first as any).persistSnapshot();
-  const before={p:structuredClone(p),q:structuredClone(q)};
+  const before={p:structuredClone(p),q:structuredClone(q),r:structuredClone(r)};
   const identity=(d:any)=>[d.documentId,d.sourceHashSha256,d.storedPath,d.basisState,d.authority,d.category,d.documentType,d.familyKey];
 
   const second=new RuntimeProjectStore({dataDir,durable:true});
@@ -168,6 +179,14 @@ test('R15 R3 stored projects get the corrected reading state once on start; iden
   assert.ok(q2.contract,'the contract basis is restored from the text contract');
   assert.deepEqual(contractTermVersions(q2).map(v=>v.term).sort(),['paymentPeriodDays','retentionPercent'],'its terms are read with the file as source');
   assert.equal(old2.authority,'candidate_only');
+  // The refresh changes no decision: the confirmed completion date stays the
+  // reporting basis with its reason and source.
+  assert.deepEqual(q2.controls.contractTimeBasis,before.q.controls.contractTimeBasis,'a confirmed completion date is kept as it was confirmed');
+  const r2=second.get(R)!;
+  assert.equal(r2.controls.contractTimeBasis?.contractualCompletionIso,'2032-09-15T00:00:00.000Z','a different date read from the contract does not replace the confirmed date');
+  assert.equal(r2.controls.contractTimeBasis?.completionReason,'Confirmed by user in Actions required.');
+  assert.deepEqual(r2.controls.contractTimeBasis?.sourceRefs,['user-confirmation:contract-completion:2032-09-15']);
+  assert.deepEqual(r2.controls.contractTimeBasis?.contractualCompletionSourceConflicts,['UNADOPTED_SOURCE_COMPLETION_DIFFERS:2032-06-30:'+oldR.documentId],'the date read now is kept as a named conflict for the user');
 
   // Idempotent: a further start changes nothing.
   const third=new RuntimeProjectStore({dataDir,durable:true});
@@ -175,6 +194,7 @@ test('R15 R3 stored projects get the corrected reading state once on start; iden
   assert.equal(third.get(Q)!.version,q2.version);
   assert.deepEqual(third.get(P)!.evidenceDocuments.map(d=>d.readingStateRefresh??null),p2.evidenceDocuments.map(d=>d.readingStateRefresh??null));
   assert.equal(third.get(Q)!.contractDocuments.length,q2.contractDocuments.length,'the text contract is not read twice');
+  assert.deepEqual(third.get(R)!.controls.contractTimeBasis,r2.controls.contractTimeBasis,'a further start keeps the confirmed date and its conflict');
  }finally{
   await rm(dataDir,{recursive:true,force:true});
  }
