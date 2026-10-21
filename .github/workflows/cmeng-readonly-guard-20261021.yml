@@ -1,0 +1,109 @@
+name: CMeng Independent Read-Only Guard
+
+on:
+  push:
+    branches:
+      - audit/cmeng-bf3712-guard-20261021
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  original-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      CMENG_BASE_URL: https://cmeng-verifier-test-production.up.railway.app/
+      EXPECTED_SHA: bf3712cf8862d6be2f2210ecfc2ac68b8ba4eb3f
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install unchanged browser dependencies
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install chromium --with-deps
+      - name: Verify exact test release before capture
+        run: |
+          node - <<'JS'
+          (async()=>{
+            const res=await fetch(process.env.CMENG_BASE_URL+'health');
+            if(!res.ok)throw Error('Verifier /health '+res.status);
+            const h=await res.json();
+            if(h.release!==process.env.EXPECTED_SHA)throw Error('Wrong verifier SHA '+h.release);
+            for(const id of ['BLIND-COM-86663C2F78','BLIND-DLY-7208B4A17E','BLIND-DEL-B9F3A21036']){
+              const r=await fetch(process.env.CMENG_BASE_URL+'api/projects/'+encodeURIComponent(id)+'/overview');
+              if(!r.ok)throw Error('Missing blind test project '+id+' HTTP '+r.status);
+              const obj=await r.json();
+              if(obj.projectId!==id)throw Error('Project identity mismatch '+id);
+            }
+            console.log('Exact SHA and three original blind test project identities verified');
+          })().catch(e=>{console.error(e.message);process.exitCode=1});
+          JS
+      - name: Unpack the immutable original 39-rule guard
+        run: |
+          unzip -q -o docs/repair-notes/CMeng_Repair_Pack_original_20261014.zip 'cmeng-guard/*'
+          cd cmeng-guard
+          printf '%s\n' BLIND-COM-86663C2F78 BLIND-DLY-7208B4A17E BLIND-DEL-B9F3A21036 > projects.txt
+          echo 'Original code unchanged; temporary project list contains only three verifier test projects'
+      - name: Read-only browser capture, reading records, and all 39 rules
+        env:
+          PAR: '2'
+        run: |
+          export CHROME_PATH="$(node -p 'require("playwright").chromium.executablePath()')"
+          cd cmeng-guard
+          python3 - <<'PY'
+          import concurrent.futures, os, subprocess, pathlib
+          names=pathlib.Path('projects.txt').read_text().splitlines()
+          root=pathlib.Path('out/cap')
+          root.mkdir(parents=True,exist_ok=True)
+          def capture(p):
+              dest=root / p.replace('(','_').replace(')','_')
+              dest.mkdir(parents=True,exist_ok=True)
+              result=subprocess.run(['node','capture_sys.mjs',p,str(dest)],capture_output=True,text=True,timeout=3000)
+              return p,result
+          with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+              results=list(pool.map(capture,names))
+          bad=[]
+          for p,result in results:
+              meta=root / p.replace('(','_').replace(')','_') / 'summary.json'
+              good=result.returncode==0 and meta.exists()
+              print(p,'capture', 'ok' if good else 'failed','summary',meta.exists())
+              if not good:
+                  bad.append(p)
+                  print('stderr (last 600 chars):',result.stderr[-600:])
+          if bad: raise SystemExit('Incomplete capture for '+', '.join(bad))
+          PY
+          mkdir -p out/docs out/res
+          OUT=out/docs python3 fetch_documents.py BLIND-COM-86663C2F78 BLIND-DLY-7208B4A17E BLIND-DEL-B9F3A21036
+          python3 sysguard.py out/cap out/docs out/res
+      - name: Summarize all findings, without publishing source documents
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob,json,collections,os
+          d='cmeng-guard/out/res'
+          totals=collections.Counter()
+          result=[]
+          for path in sorted(glob.glob(d+'/*.json')):
+              if path.endswith('/summary.json'):continue
+              r=json.load(open(path)); hits=r.get('hits',[])
+              by_rule=collections.Counter(h['rule'] for h in hits)
+              result.append({'project':r.get('project'),'pages':r.get('pages'),'hits':len(hits),'by_rule':dict(sorted(by_rule.items()))})
+              totals.update(by_rule)
+          obj={'release':os.environ.get('EXPECTED_SHA'),'projects':result,'combined_hits':sum(totals.values()),'by_rule':dict(sorted(totals.items()))}
+          os.makedirs('cmeng-guard/out',exist_ok=True)
+          open('cmeng-guard/out/sanitized-report.json','w').write(json.dumps(obj,indent=2))
+          print(json.dumps(obj,indent=2))
+          if len(result)!=3:raise SystemExit('Guard did not complete on all three projects')
+          PY
+      - name: Preserve only guard summary, never source documents
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmeng-readonly-guard-summary
+          path: cmeng-guard/out/sanitized-report.json
+          if-no-files-found: warn
