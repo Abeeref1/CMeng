@@ -157,3 +157,37 @@ test('A3: each delivery page confirms its own register by name',()=>{
  assert.equal(new Set(deliveryKinds.map(name)).size,deliveryKinds.length,'every register has its own sentence');
  assert.match(delivery,/el\('deliveryKind'\)\.onchange=\(\)=>\{el\('deliveryConfirmPopulation'\)\.textContent=deliveryConfirmRegisterText\(el\('deliveryKind'\)\.value\);\};/,'choosing another record type renames the button');
 });
+
+
+test('W5/S1: Cash Flow unknown figures have distinct grounded requirements and preserve the complete shared evidence list',()=>{
+ const missingInputs=['Dated gross certification','Contract retention percentage','Contract payment period','Remaining advance recovery balance'];
+ const reason='Needs '+missingInputs.join('; ');
+ const group={currency:'USD',remainingGross:null,retention:null,advanceRecovery:null,netReceipts:null,missingInputs,notEstablishedReason:reason,rows:[],certificateCount:3};
+ const seen:any[]=[];
+ const html=String(runInNewContext('renderProgrammeCashScenario(scenario)',{
+  scenario:{groups:[group]},
+  escapeHtml:(s:unknown)=>String(s),
+  planningKpis:(rows:any[])=>{
+   seen.push(...rows);
+   return rows.map(row=>'<div class="planning-kpi"><span>'+row[0]+'</span><strong>'+String(row[1]??'Not established')+'</strong><small>'+String(row[4]||'')+'</small></div>').join('');
+  }
+ }));
+ assert.deepEqual(seen.map(row=>row[0]),['Remaining gross work','Future retention','Advance recovery','Indicative net receipts']);
+ assert.deepEqual(seen.map(row=>row[1]),[null,null,null,null],'unknown must stay unknown, never zero');
+ const notes=seen.map(row=>String(row[4]));
+ assert.equal(new Set(notes).size,4,'one long shared missing-input reason cannot repeat on four different Cash Flow tiles');
+ assert.match(notes[0],/Needs Dated gross certification/);
+ assert.match(notes[1],/Needs Contract retention percentage/);
+ assert.match(notes[2],/Needs Remaining advance recovery balance/);
+ assert.equal(notes[3],reason,'net receipts retain the complete list of missing source requirements');
+ assert.match(html,/Missing inputs: Dated gross certification; Contract retention percentage; Contract payment period; Remaining advance recovery balance/);
+ // No source amount is altered when the requirements are shown in shorter wording.
+ const known:any[]=[];
+ runInNewContext('renderProgrammeCashScenario(scenario)',{
+  scenario:{groups:[{...group,remainingGross:120,retention:15,advanceRecovery:5,netReceipts:100,notEstablishedReason:'',missingInputs:[]}]},
+  escapeHtml:(s:unknown)=>String(s),
+  planningKpis:(rows:any[])=>{known.push(...rows);return '';}
+ });
+ assert.deepEqual(known.map(row=>row[1]),[120,15,5,100],'known values and their currencies are unchanged');
+ assert.deepEqual(known.map(row=>row[2]),['USD','USD','USD','USD']);
+});
