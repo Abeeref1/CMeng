@@ -22,6 +22,7 @@ import {contractValueReview,contractValueEntryInput} from '../packages/runtime-a
 import {documentReadReview} from '../packages/runtime-api/src/document-read-review';
 import {sourceCandidateHold,sourceCandidateHoldDiagnostic} from '../packages/truth-kernel/src';
 import {READING_STATE_VERSION} from '../packages/runtime-api/src/reading-state';
+import {canonicalTimeClaims} from '../packages/runtime-api/src/canonical-time-claims';
 
 // The blind-round text contract: every byte decodes, no numbered clauses.
 const NO_CLAUSES=[
@@ -187,6 +188,12 @@ test('R15 R3 stored projects get the corrected reading state once on start; iden
   assert.equal(r2.controls.contractTimeBasis?.completionReason,'Confirmed by user in Actions required.');
   assert.deepEqual(r2.controls.contractTimeBasis?.sourceRefs,['user-confirmation:contract-completion:2032-09-15']);
   assert.deepEqual(r2.controls.contractTimeBasis?.contractualCompletionSourceConflicts,['UNADOPTED_SOURCE_COMPLETION_DIFFERS:2032-06-30:'+oldR.documentId],'the date read now is kept as a named conflict for the user');
+  // Every page reads the one time position: it shows the confirmed date and names the conflict.
+  const shownR=canonicalTimeClaims(r2,true).contractTimeBasis;
+  assert.equal(shownR?.contractualCompletionIso,'2032-09-15T00:00:00.000Z','the pages show the confirmed date, not the date read by the refresh');
+  assert.equal(shownR?.completionReason,'Confirmed by user in Actions required.');
+  assert.deepEqual(shownR?.contractualCompletionSourceConflicts,['UNADOPTED_SOURCE_COMPLETION_DIFFERS:2032-06-30:'+oldR.documentId]);
+  assert.equal(String(canonicalTimeClaims(q2,true).contractTimeBasis?.contractualCompletionIso).slice(0,10),'2032-06-30','the same confirmed day is shown when the contract states it too');
 
   // Idempotent: a further start changes nothing.
   const third=new RuntimeProjectStore({dataDir,durable:true});

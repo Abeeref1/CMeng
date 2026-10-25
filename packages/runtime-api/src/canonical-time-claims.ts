@@ -1032,6 +1032,14 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const previous=(contractTimeBasis??state.controls.contractTimeBasis)!;
     if(heldByAdopted.length){contractTimeBasis={...previous,sourceRefs:[...(previous.sourceRefs??[])],contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]};diagnostics.push(...heldByAdopted);}
   }
+  // A confirmed date whose stored basis already names this contract date as a
+  // conflict (the start-up reading refresh records it) stays until the user decides.
+  else if(!amendment&&confirmedManualBasis&&completion.value!==null&&(confirmedManualBasis.contractualCompletionSourceConflicts??[]).some(code=>{
+    const m=/^UNADOPTED_SOURCE_COMPLETION_DIFFERS:([^:]+):/.exec(String(code));return Boolean(m)&&m![1]===String(completion.value).slice(0,10);})){
+    const held=[...(confirmedManualBasis.contractualCompletionSourceConflicts??[])];
+    contractTimeBasis={...confirmedManualBasis,sourceRefs:[...confirmedManualBasis.sourceRefs],contractualCompletionSourceConflicts:held};
+    diagnostics.push(...held);
+  }
   // An adopted contract without a completion line must not erase a user-confirmed date.
   else if((completion.hasContractDocuments||completion.hasSourceAnalyticalDocuments)&&!(!amendment&&keepsUserConfirmedCompletion(confirmedManualBasis,completion))){
     const previous=withoutCompletionSourceLabel(contractTimeBasis??state.controls.contractTimeBasis);
