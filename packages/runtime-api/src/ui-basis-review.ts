@@ -168,7 +168,7 @@ function renderBasisReviews(data,key){
   if(d&&key==='schedule-change-report'){html+=basisPanel('Where original-duration changes occur',d.interpretation,
     '<p>Compared programme data dates: '+escapeHtml(planningShortDate(d.fromDataDateIso))+' to '+escapeHtml(planningShortDate(d.toDataDateIso))+'. This duration review retains its own comparison period.</p>'+
     '<p>'+fmt(d.comparableCount)+' comparable duration records / '+fmt(d.matchedCount)+' matched tasks; '+fmt(d.addedCount)+' added tasks; '+fmt(d.ambiguousCount)+' ambiguous identities excluded.</p>'+
-    basisTable(['Edit on an existing task','Tasks'],d.distribution.map(r=>[(r.deltaHours>0?'+':'')+fmt(r.deltaHours)+' hours',fmt(r.count)]))+
+    basisTable(['Edit on an existing task','Tasks'],d.distribution.map(r=>[(r.deltaHours>0?'+':'')+countText(r.deltaHours,'hour','hours',fmt)+'',fmt(r.count)]))+
     '<details><summary>Inspect the duration arithmetic for each WBS package</summary>'+basisTable(['Package','Baseline days','Current days','Existing-task edit days','Added-task days','Edited tasks','Added tasks','Hours / day'],d.packages.map(r=>[r.name,fmt(r.baselineDurationDays),fmt(r.currentDurationDays),fmt(r.existingChangeDays),fmt(r.addedDays),r.changedExistingCount,r.addedCount,fmt(r.standardDayHours)]))+'</details>');}
   if(q&&key==='quantity-scurve')html+=managementModuleLink('challenge-contract','Create or review BOQ-to-programme links');
   if(q&&key!=='quantity-scurve')html+=managementModuleLink('quantity-scurve','Review quantity mapping and productivity basis');
@@ -178,7 +178,7 @@ function renderBasisReviews(data,key){
       (key==='quantity-scurve'?basisTable(['BOQ unit','Items','Items with quantities'],q.unitTotals.map(r=>[r.unit,r.itemCount,r.knownQuantityCount])):'')+
       '<p>'+fmt(q.uniqueSectionSuggestionCount)+' of '+screenCountText(listTotal(q.sections))+' BOQ sections have one WBS-parent name match. These suggestions do not allocate any item.</p>'+
       '<button class="btn" onclick="openBoqSectionReview()">Confirm or reject section-to-WBS suggestions</button><details><summary>Review section-to-WBS suggestions</summary>'+basisTable(['BOQ section','Items','WBS suggestions'],q.sections.map(r=>[r.section,r.itemCount,r.suggestions.map(w=>w.wbsId+' · '+w.name).join('; ')||'No name match']))+'</details>'+
-      '<p>Productivity source finish: '+escapeHtml(planningShortDate(f.completionIso))+'. '+fmt(f.explicitActivityLinkCount)+' of '+fmt(f.workPackageCount)+' rows explicitly link to a schedule activity. Same-number review: '+fmt(f.sameNumberDisciplineMatches)+' of '+fmt(f.sameNumberReviewedCount)+' have a matching discipline name. Number resemblance is not a link.</p>'+
+      '<p>Productivity source finish: '+escapeHtml(planningShortDate(f.completionIso))+'. '+fmt(f.explicitActivityLinkCount)+' of '+countText(f.workPackageCount,'row','rows',fmt)+' explicitly link to a schedule activity. Same-number review: '+fmt(f.sameNumberDisciplineMatches)+' of '+fmt(f.sameNumberReviewedCount)+' have a matching discipline name. Number resemblance is not a link.</p>'+
       basisTable(['Productivity source unit','Work packages'],f.units.map(r=>[r.unit,r.rowCount]))+
       basisTable(['Latest-finish input','Discipline','Start','Remaining quantity','Unit','Multiple of same-unit median'],f.drivers.map(r=>[r.workPackageId,r.discipline,planningShortDate(r.startIso),fmt(r.remainingQuantity),r.unit,percent2(r.remainingToUnitMedian)]))+
       '<details><summary>Inspect same-number package differences</summary>'+basisTable(['Source package','Source discipline','Schedule package with same number','Name match'],f.numberReview.map(r=>[r.workPackageId,r.sourceDiscipline,r.schedulePackages.map(w=>w.name).join('; ')||'No unique match',r.disciplineMatches?'Yes — review still required':'No']))+'</details>','quantityBasisReview');
@@ -204,7 +204,7 @@ function renderBasisReviews(data,key){
     if(a?.length&&key==='command-center')html+=basisPanel('What information is missing, unread or inconsistent','Each gap has its own next step.',basisTable(['Topic','Specific gap','Evidence','Action'],a.map(r=>[r.topic,humanizeKey(r.state),r.detail,r.action])));
   }
   const overlap=data.determinationOverlapScenario;
-  if(overlap)html+=basisPanel('Submitted finish: '+fmt(overlap.noneIncludedLatenessDays)+' to '+fmt(overlap.allIncludedLatenessDays)+' days after the adjusted date, conditionally',overlap.basis,'<p>'+fmt(overlap.determinedDays)+' days appear in determinations by DD. No additional days have been applied automatically.</p>');
+  if(overlap)html+=basisPanel('Submitted finish: '+fmt(overlap.noneIncludedLatenessDays)+' to '+countText(overlap.allIncludedLatenessDays,'day','days',fmt)+' after the adjusted date, conditionally',overlap.basis,'<p>'+countText(overlap.determinedDays,'day','days',fmt)+' appear in determinations by DD. No additional days have been applied automatically.</p>');
   const actions=data.operationalReporting?.actions||data.sourceInterpretation?.actions||[];
   if(actions.length&&key==='pmo-analysis')html+=managementModuleLink('command-center','Review delivery action records');
   if(actions.length&&key==='command-center'){

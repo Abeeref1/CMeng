@@ -54,7 +54,7 @@ function updateActionIndicator(){
  button.disabled=!overview;button.innerHTML='Project review'+(ready?' <span class="project-action-count">'+fmt(projectActionState.data.userDecisionCount??projectActionState.data.actionCount)+'</span>':'');
  const notice=el('projectActionNotification');if(notice){
   const a=projectActionState?.data?.analysis;
-  const position=a?.state==='analysed'?'Project analysed · '+fmt(a.activityCount)+' activities recognised · Data Date '+planningShortDate(a.dataDateIso):a?.state==='programme_selection_needed'?'Programme read · one confirmation may be needed':'Project records loaded';
+  const position=a?.state==='analysed'?'Project analysed · '+countText(a.activityCount,'activity','activities',fmt)+' recognised · Data Date '+planningShortDate(a.dataDateIso):a?.state==='programme_selection_needed'?'Programme read · one confirmation may be needed':'Project records loaded';
   const count=ready?(projectActionState.data.userDecisionCount??projectActionState.data.actionCount):0;
   notice.textContent=ready?position+(count?' · '+count+' decision'+(count===1?'':'s')+' awaiting your response':' · No decisions awaiting your response'):(actionStateCurrent()&&projectActionState.status==='error'?'Project review could not be refreshed. Open Project review to retry.':'Checking the latest project position…');
  }

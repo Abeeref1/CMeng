@@ -107,7 +107,7 @@ function renderProjectBrief(d,data=null){
  const fmtCount=(n)=>typeof n==='number'?fmt(n)+(sourceQualified?' reported':''):'Not established';
  const progress=typeof data?.progress?.durationWeightedProgressPercent==='number'?data.progress.durationWeightedProgressPercent:null;
  const tension=typeof originalDifference==='number'&&originalDifference<0&&typeof negative==='number'&&negative>0
-   ?'<p><b>Important schedule inconsistency to investigate:</b> The submitted finish precedes the original contract date, yet '+fmt(negative)+' activities carry negative float. Review interim constraints, calendars and programme logic before inferring the governing completion risk.</p>':'';
+   ?'<p><b>Important schedule inconsistency to investigate:</b> The submitted finish precedes the original contract date, yet '+countText(negative,'activity','activities',fmt)+' carry negative float. Review interim constraints, calendars and programme logic before inferring the governing completion risk.</p>':'';
  const originalComparison=typeof originalDifference==='number'
   ?'The submitted completion is '+(originalDifference<0?fmt(Math.abs(originalDifference))+' calendar days before':originalDifference>0?fmt(originalDifference)+' calendar days after':'on')+' the original contractual completion'+(originalDifference===0?' date.':'.'):'The submitted finish cannot yet be compared with the original contractual date.';
  const verifiedComparison=typeof extendedDifference==='number'
@@ -119,7 +119,7 @@ function renderProjectBrief(d,data=null){
  const amendmentText=amendmentStatements.length
   ?amendmentStatements.map(row=>'<p><b>Recorded amendment:</b> '+escapeHtml(row.statement)+' <small>('+escapeHtml(readerReference(row.documentId))+')</small></p>').join('')
   :'<p>No explicit extension wording was identified in the available amendment records.</p>';
- const determined=typeof awarded==='number'?fmt(awarded)+' days in the dated determination basis':'Not independently established from the determination evidence';
+ const determined=typeof awarded==='number'?countText(awarded,'day','days',fmt)+' in the dated determination basis':'Not independently established from the determination evidence';
  const contractPosition='<section class="diagnosis-section"><h4>Contract dates and extension authority</h4>'+
   planningKpis([
    ['Original contractual completion',original?planningShortDate(original):'Not established','Recorded original agreement','',time.contractualCompletionIso?.reason],
@@ -165,7 +165,7 @@ function renderProjectBrief(d,data=null){
  const revision=d.revision||{};
  // N3: an unknown count is never followed by its noun ("Not established activities").
  const revisionCounts=[revision.modified,revision.added,revision.removed].every(n=>typeof n==='number')
-  ?fmt(revision.modified)+' activities changed, '+fmt(revision.added)+' were added and '+fmt(revision.removed)+' removed since the previous revision.'
+  ?countText(revision.modified,'activity','activities',fmt)+' changed, '+fmt(revision.added)+' were added and '+fmt(revision.removed)+' removed since the previous revision.'
   :'Since the previous revision: changed activities '+fmt(revision.modified??'Not established')+', added '+fmt(revision.added??'Not established')+', removed '+fmt(revision.removed??'Not established')+'.';
  const revisionText=revision.state==='available'
   ?revisionCounts+' The submitted completion moved '+(typeof revision.finishMovementCalendarDays==='number'?(revision.finishMovementCalendarDays>0?'+':'')+fmt(revision.finishMovementCalendarDays)+' elapsed days':'by an amount not established from the files')+'.'

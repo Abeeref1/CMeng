@@ -9,7 +9,7 @@ function retainBoqSectionDrafts(s){
 function renderBoqSectionReview(s){
  const v=s.view;
  s.panel.innerHTML='<h4>Review BOQ section scope</h4><p>'+escapeHtml(v.basis||v.reason||'')+'</p>'+
-  (v.available?'<p>'+escapeHtml(v.boqFilename||'Current BOQ')+' → '+escapeHtml(v.programmeFilename||'Current programme')+'. '+fmt(v.itemCount)+' items; '+fmt(v.sectionCount)+' sections; '+fmt(v.unsectionedItemCount)+' items without a section. '+fmt(v.reviewedSectionCount)+' sections currently reviewed.</p>'+
+  (v.available?'<p>'+escapeHtml(v.boqFilename||'Current BOQ')+' → '+escapeHtml(v.programmeFilename||'Current programme')+'. '+countText(v.itemCount,'item','items',fmt)+'; '+countText(v.sectionCount,'section','sections',fmt)+'; '+countText(v.unsectionedItemCount,'item','items',fmt)+' without a section. '+countText(v.reviewedSectionCount,'section','sections',fmt)+' currently reviewed.</p>'+
    (v.previousReviewNeedsRefresh?'<p class="notice warn">The BOQ or programme changed. Previous decisions remain in history and must be reviewed again.</p>':'')+
    '<label>Find section <input id="boqSectionSearch" type="search" value="'+escapeHtml(s.q)+'"></label><button class="btn" id="boqSectionSearchButton">Search</button><p>Choose a suggested WBS or type a current WBS ID/name to search all groups. Nothing is selected automatically. A rejected section match leaves explicit source-code links and approved allocations intact.</p>'+
    v.rows.map((row,index)=>{const draft=s.drafts.get(row.section),choice=draft?.wbsId??row.review?.wbsId??'',reference=draft?.reference??row.review?.reference??'';
