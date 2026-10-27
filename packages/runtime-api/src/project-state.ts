@@ -17,7 +17,7 @@ import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identi
 export {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
 import {readRegisterWorkbook,registerCsv} from './register-workbook';
-import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
+import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionCorroboration,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import {appendAuditEvent,auditContext} from './audit-context';
 import {refreshHseSummary} from "./hse-report-evidence";
 import {refreshDeferredPdfRead,noteDeferredReading} from './document-read-review';
@@ -157,7 +157,12 @@ function promoteContractTimeBasis(state: ProjectRuntimeState): void {
   // A contract without a completion line never erases a user-confirmed date in stored controls.
   if(keepsUserConfirmedCompletion(current,resolved))return;
   const held=completionHeldByAdoptedBasis(current,resolved);
-  if(held){if(held.length)state.controls.contractTimeBasis={...current!,contractualCompletionSourceConflicts:[...new Set([...(current!.contractualCompletionSourceConflicts??[]),...held])]};return;}
+  if(held){
+    const corroboration=completionCorroboration(current,resolved);
+    if(held.length||corroboration.length)state.controls.contractTimeBasis={...current!,
+      ...(held.length?{contractualCompletionSourceConflicts:[...new Set([...(current!.contractualCompletionSourceConflicts??[]),...held])]}:{}),
+      ...(corroboration.length?{contractualCompletionCorroboration:[...new Set([...(current!.contractualCompletionCorroboration??[]),...corroboration])]}:{})};
+    return;}
   state.controls.contractTimeBasis={...withoutCompletionSourceLabel(current),...completionSourceLabel(resolved),
     contractualCompletionIso:resolved.value,contractualCompletionState:resolved.state,
     completionReason:resolved.reason,
@@ -1523,21 +1528,9 @@ export class RuntimeProjectStore {
         const calendarReadRefreshed=refreshStoredXerCalendars(state);
         // R3: stored documents get the shared whole-source reading state once.
         const readingRefresh=refreshStoredReadingStates(state);
-        if(readingRefresh.contractsRead.length){
-          // The refresh changes no decision: a completion date the user confirmed
-          // stays the reporting basis with its reason. A different date read now
-          // from the stored contract is kept as a named conflict for the user.
-          const confirmed=state.controls.contractTimeBasis;
-          const held=confirmed?.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:'))?{...confirmed,sourceRefs:[...confirmed.sourceRefs]}:null;
-          this.selectContractBasis(state,readingRefresh.contractsRead.at(-1)!);
-          if(held){
-            const read=contractCompletionPosition(state,projectDataDate(state));
-            const day=(value:string|null|undefined)=>String(value??'').slice(0,10);
-            const differs=read.candidates.filter(c=>!c.historical&&day(c.date)!==day(held.contractualCompletionIso)&&readingRefresh.contractsRead.some(r=>r.documentId===c.documentId))
-              .map(c=>'UNADOPTED_SOURCE_COMPLETION_DIFFERS:'+day(c.date)+':'+c.documentId);
-            state.controls.contractTimeBasis=differs.length?{...held,contractualCompletionSourceConflicts:[...new Set([...(held.contractualCompletionSourceConflicts??[]),...differs])]}:held;
-          }
-        }
+        // The contract basis keeps a completion date the user confirmed (T04): the
+        // shared promotion rule holds it and names a different contract date.
+        if(readingRefresh.contractsRead.length)this.selectContractBasis(state,readingRefresh.contractsRead.at(-1)!);
         let controlBasisMigrated = false;
         const priorSourceIntegrationVersion =
           state.sourceIntegrationVersion;

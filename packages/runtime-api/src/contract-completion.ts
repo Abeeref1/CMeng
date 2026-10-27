@@ -159,13 +159,31 @@ export function completionSourceLabel(resolved:CompletionPosition,conflicts:stri
 export function keepsUserConfirmedCompletion(current:{sourceRefs:string[]}|null|undefined,resolved:{value:string|null;state:string}){
   return Boolean(current?.sourceRefs.some(ref=>ref.startsWith('user-confirmation:contract-completion:')))&&resolved.value===null&&resolved.state==='missing';
 }
-/** A date read only from an unadopted source never replaces an official or
- * user-confirmed completion date; a different date is kept as a named conflict. */
+/** True when the user confirmed this completion date in Actions required. */
+export function userConfirmedCompletion(current:{sourceRefs?:string[]}|null|undefined):boolean{
+  return Boolean(current?.sourceRefs?.some(ref=>ref.startsWith('user-confirmation:contract-completion:')));
+}
+/** T04: a completion date the user confirmed keeps that confirmation as its
+ * authority and source. A contract reading never replaces it: a contract that
+ * states the same day corroborates it (completionCorroboration), and one that
+ * states another day is kept as a named conflict for the user to decide. A date
+ * read only from an unadopted source never replaces an official date either. */
 export function completionHeldByAdoptedBasis(current:{contractualCompletionIso:string|null;contractualCompletionState:string;sourceRefs:string[]}|null|undefined,resolved:CompletionPosition){
-  if(!current||!resolved.sourceAnalyticalUse)return null;
-  const adopted=current.contractualCompletionState==='official'||(current.sourceRefs??[]).some(ref=>ref.startsWith('user-confirmation:contract-completion:'));
-  if(!adopted)return null;
+  if(!current)return null;
   // The confirmed date is stored as a timestamp, a source date as a day: compare the day.
   const day=(value:string|null|undefined)=>String(value??'').slice(0,10);
+  if(userConfirmedCompletion(current)&&current.contractualCompletionIso&&resolved.candidates.some(c=>!c.historical))
+    return resolved.candidates.filter(c=>!c.historical&&day(c.date)!==day(current.contractualCompletionIso))
+      .map(c=>(c.sourceAnalytical?'UNADOPTED_SOURCE_COMPLETION_DIFFERS:':'CONTRACT_COMPLETION_DIFFERS_FROM_CONFIRMED:')+day(c.date)+':'+c.documentId);
+  if(!resolved.sourceAnalyticalUse)return null;
+  const adopted=current.contractualCompletionState==='official'||userConfirmedCompletion(current);
+  if(!adopted)return null;
   return resolved.candidates.filter(c=>c.sourceAnalytical&&!c.historical&&day(c.date)!==day(current.contractualCompletionIso)).map(c=>'UNADOPTED_SOURCE_COMPLETION_DIFFERS:'+c.date+':'+c.documentId);
+}
+/** Contract statements of the same day as a user-confirmed date: they support
+ * the confirmation and are listed with it, never in place of it. */
+export function completionCorroboration(current:{contractualCompletionIso:string|null;sourceRefs:string[]}|null|undefined,resolved:CompletionPosition):string[]{
+  if(!current||!userConfirmedCompletion(current)||!current.contractualCompletionIso)return [];
+  const day=(value:string|null|undefined)=>String(value??'').slice(0,10);
+  return [...new Set(resolved.candidates.filter(c=>!c.historical&&day(c.date)===day(current.contractualCompletionIso)).map(c=>c.sourceRef))];
 }

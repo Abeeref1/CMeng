@@ -295,6 +295,8 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
       // T04: read from a source that is not formally adopted; shown with the date.
       ...(time?.contractualCompletionSourceUse?{sourceAnalyticalUse:time.contractualCompletionSourceUse,sourceAnalyticalNote:time.contractualCompletionSourceNote??null}:{}),
       ...(time?.contractualCompletionSourceConflicts?.length?{sourceConflicts:[...time.contractualCompletionSourceConflicts]}:{}),
+      // T04: contract statements of the same day support a user-confirmed date.
+      ...(time?.contractualCompletionCorroboration?.length?{corroboratedBy:[...time.contractualCompletionCorroboration]}:{}),
       additionalExtensionState:time?.overlapResolution==='unresolved'?'not_established':'separately_assessed',
       explanation:!time?.contractualCompletionIso?(time?.completionReason??'No applicable contract completion date has been established from the supplied contract records.'):time?.overlapResolution==='unresolved'?'The amended contract finish remains valid. A further adjusted finish cannot be established until overlap with determinations is resolved.':'Governed contractual finish and separately evidenced EOT adjustments retain distinct authority.'},
     authorityDefinitions:{source:'Recorded source assertion',submitted:'Submitted position',calculated:'CMeng calculation',adjusted:'Calculation changing a stated basis',official:'Explicit governed approval',scenario:'Unapproved analytical scenario'}}}};

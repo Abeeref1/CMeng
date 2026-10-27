@@ -252,7 +252,7 @@ test('T04 a different unadopted notice period is offered in the existing notice 
 });
 
 
-test('T04 an adopted contract with no completion line does not erase a user-confirmed completion date; a stated contract date still governs',()=>{
+test('T04 an adopted contract never replaces a user-confirmed completion date: no completion line keeps it, the same day corroborates it, another day is a conflict to decide',()=>{
   const state=setup('T04-CT-R');
   const adopted=evidence(state.projectId,'contract','contract:main','active');
   state.evidenceDocuments.push(adopted);
@@ -270,6 +270,20 @@ test('T04 an adopted contract with no completion line does not erase a user-conf
   (state.contractDocuments as any[])[0].result.sections[0].text='Date for Completion: 2031-12-31';
   state.version++;
   const stated=canonicalTimeClaims(state,true).contractTimeBasis as any;
-  assert.equal(stated.contractualCompletionIso,'2031-12-31','an adopted contract that states a date still governs');
+  // Owner rule (27 Oct): a confirmed date keeps its confirmation as authority and
+  // source; an adopted contract stating another day is a named conflict to decide.
+  assert.equal(stated.contractualCompletionIso,'2031-11-30','the confirmed date stays until the user decides');
+  assert.equal(stated.contractualCompletionState,'official');
+  assert.ok(stated.sourceRefs.includes('user-confirmation:contract-completion:1'),'the confirmation stays the source');
+  assert.deepEqual(stated.contractualCompletionSourceConflicts,['CONTRACT_COMPLETION_DIFFERS_FROM_CONFIRMED:2031-12-31:'+adopted.documentId]);
   assert.equal(keepsUserConfirmedCompletion(confirmed,contractCompletionPosition(state,'2031-06-30')),false);
+  // The same day stated by the adopted contract corroborates the confirmation and never replaces it.
+  (state.contractDocuments as any[])[0].result.sections[0].text='Date for Completion: 2031-11-30';
+  state.version++;
+  const same=canonicalTimeClaims(state,true).contractTimeBasis as any;
+  assert.equal(same.contractualCompletionIso,'2031-11-30');
+  assert.deepEqual(same.sourceRefs,['user-confirmation:contract-completion:1'],'the confirmation stays the only source');
+  assert.equal(same.contractualCompletionSourceConflicts,undefined);
+  assert.equal(same.contractualCompletionCorroboration?.length,1,'the contract statement is listed as support');
+  assert.match(same.contractualCompletionCorroboration[0],new RegExp('^evidence-document:'+adopted.documentId+':contract-completion:'));
 });

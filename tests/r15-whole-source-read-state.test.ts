@@ -182,18 +182,25 @@ test('R15 R3 stored projects get the corrected reading state once on start; iden
   assert.equal(old2.authority,'candidate_only');
   // The refresh changes no decision: the confirmed completion date stays the
   // reporting basis with its reason and source.
-  assert.deepEqual(q2.controls.contractTimeBasis,before.q.controls.contractTimeBasis,'a confirmed completion date is kept as it was confirmed');
+  const {contractualCompletionCorroboration:qSupport,...q2Basis}=q2.controls.contractTimeBasis as any;
+  assert.deepEqual(q2Basis,before.q.controls.contractTimeBasis,'a confirmed completion date is kept as it was confirmed');
+  assert.equal(qSupport?.length,1,'the contract statement of the same day is stored as support only');
   const r2=second.get(R)!;
   assert.equal(r2.controls.contractTimeBasis?.contractualCompletionIso,'2032-09-15T00:00:00.000Z','a different date read from the contract does not replace the confirmed date');
   assert.equal(r2.controls.contractTimeBasis?.completionReason,'Confirmed by user in Actions required.');
   assert.deepEqual(r2.controls.contractTimeBasis?.sourceRefs,['user-confirmation:contract-completion:2032-09-15']);
-  assert.deepEqual(r2.controls.contractTimeBasis?.contractualCompletionSourceConflicts,['UNADOPTED_SOURCE_COMPLETION_DIFFERS:2032-06-30:'+oldR.documentId],'the date read now is kept as a named conflict for the user');
+  assert.deepEqual(r2.controls.contractTimeBasis?.contractualCompletionSourceConflicts,['CONTRACT_COMPLETION_DIFFERS_FROM_CONFIRMED:2032-06-30:'+oldR.documentId],'the date read now is kept as a named conflict for the user');
   // Every page reads the one time position: it shows the confirmed date and names the conflict.
   const shownR=canonicalTimeClaims(r2,true).contractTimeBasis;
   assert.equal(shownR?.contractualCompletionIso,'2032-09-15T00:00:00.000Z','the pages show the confirmed date, not the date read by the refresh');
   assert.equal(shownR?.completionReason,'Confirmed by user in Actions required.');
-  assert.deepEqual(shownR?.contractualCompletionSourceConflicts,['UNADOPTED_SOURCE_COMPLETION_DIFFERS:2032-06-30:'+oldR.documentId]);
-  assert.equal(String(canonicalTimeClaims(q2,true).contractTimeBasis?.contractualCompletionIso).slice(0,10),'2032-06-30','the same confirmed day is shown when the contract states it too');
+  assert.deepEqual(shownR?.contractualCompletionSourceConflicts,['CONTRACT_COMPLETION_DIFFERS_FROM_CONFIRMED:2032-06-30:'+oldR.documentId]);
+  // The same day: the confirmation stays the authority and source; the contract supports it.
+  const shownQ=canonicalTimeClaims(q2,true).contractTimeBasis;
+  assert.equal(shownQ?.contractualCompletionIso,'2032-06-30T00:00:00.000Z','the confirmed date is shown as confirmed');
+  assert.equal(shownQ?.completionReason,'Confirmed by user in Actions required.');
+  assert.deepEqual(shownQ?.sourceRefs,['user-confirmation:contract-completion:2032-06-30'],'the confirmation stays the source');
+  assert.equal(shownQ?.contractualCompletionCorroboration?.length,1,'the contract statement of the same day is listed as support');
 
   // Idempotent: a further start changes nothing.
   const third=new RuntimeProjectStore({dataDir,durable:true});

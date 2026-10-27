@@ -14,8 +14,12 @@ export interface ContractTimeBasis {
    * adopted (state 'candidate'); shown with this label, never as official. */
   contractualCompletionSourceUse?: "qualified_source_read";
   contractualCompletionSourceNote?: string;
-  /** Unadopted sources that state a different date than the adopted one. */
+  /** Unadopted sources that state a different date than the adopted one, and
+   * contract statements of another day than a user-confirmed date. */
   contractualCompletionSourceConflicts?: string[];
+  /** T04: contract statements of the same day as a user-confirmed date; they
+   * support the confirmation, which stays the authority and source. */
+  contractualCompletionCorroboration?: string[];
   /** F34: the contract states the Works Time for Completion as a period. label:
    * the basis of the date (Commencement Date + the period); reason: why the date
    * stays unknown (for example no Commencement Date is stated). */

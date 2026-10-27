@@ -1,7 +1,7 @@
 import {applyEotOverlapDecision,isSourceDerivedTimeBasis} from './source-review-decisions';
 import {applyCompletionDecision} from './contract-fact-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
-import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
+import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionCorroboration,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
@@ -1030,15 +1030,12 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
   const heldByAdopted=completionHeldByAdoptedBasis(contractTimeBasis??state.controls.contractTimeBasis,completion);
   if(heldByAdopted){
     const previous=(contractTimeBasis??state.controls.contractTimeBasis)!;
-    if(heldByAdopted.length){contractTimeBasis={...previous,sourceRefs:[...(previous.sourceRefs??[])],contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]};diagnostics.push(...heldByAdopted);}
-  }
-  // A confirmed date whose stored basis already names this contract date as a
-  // conflict (the start-up reading refresh records it) stays until the user decides.
-  else if(!amendment&&confirmedManualBasis&&completion.value!==null&&(confirmedManualBasis.contractualCompletionSourceConflicts??[]).some(code=>{
-    const m=/^UNADOPTED_SOURCE_COMPLETION_DIFFERS:([^:]+):/.exec(String(code));return Boolean(m)&&m![1]===String(completion.value).slice(0,10);})){
-    const held=[...(confirmedManualBasis.contractualCompletionSourceConflicts??[])];
-    contractTimeBasis={...confirmedManualBasis,sourceRefs:[...confirmedManualBasis.sourceRefs],contractualCompletionSourceConflicts:held};
-    diagnostics.push(...held);
+    const corroboration=completionCorroboration(previous,completion);
+    if(heldByAdopted.length||corroboration.length){contractTimeBasis={...previous,sourceRefs:[...(previous.sourceRefs??[])],
+      ...(heldByAdopted.length?{contractualCompletionSourceConflicts:[...new Set([...(previous.contractualCompletionSourceConflicts??[]),...heldByAdopted])]}:{}),
+      ...(corroboration.length?{contractualCompletionCorroboration:[...new Set([...(previous.contractualCompletionCorroboration??[]),...corroboration])]}:{})};
+      diagnostics.push(...heldByAdopted);}
+    else if(!contractTimeBasis)contractTimeBasis={...previous,sourceRefs:[...(previous.sourceRefs??[])]};
   }
   // An adopted contract without a completion line must not erase a user-confirmed date.
   else if((completion.hasContractDocuments||completion.hasSourceAnalyticalDocuments)&&!(!amendment&&keepsUserConfirmedCompletion(confirmedManualBasis,completion))){
