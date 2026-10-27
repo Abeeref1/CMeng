@@ -229,7 +229,9 @@ test('G9_HANDOVER_RISK-38: BOQ wording candidates are a separate list without a 
 test('G6_COMMERCIAL-08: an amendment that replaces the notice period from a date is a dated version, not a conflict',async()=>{
  const d=await data('commercial-overview'),terms=d.focus.commercialTerms;
  assert.equal(terms.noticePeriodDays.value,14);assert.equal(terms.noticePeriodDays.state,'established');
- assert.equal(terms.noticePeriodDays.basis.method,'dated_contract_notice_versions');
+ // G5_DELAY-30 (same defect, group b) reads the dated notice clauses as labelled contract
+ // terms, so the period in force comes from the explicit dated contract data.
+ assert.equal(terms.noticePeriodDays.basis.method,'explicit_dated_contract_data');
  assert.deepEqual(terms.noticeVersions.filter((v:any)=>v.noticeKind==='claim_notice').map((v:any)=>[v.noticePeriodDays,v.effectiveFromIso,v.effectiveToIso]),[[28,null,'2026-07-15'],[14,'2026-07-15',null]]);
  assert.equal((d.issueAssessment?.issues??[]).some((i:any)=>/notice ?period/i.test(String(i.summary))&&i.kind==='source_conflict'),false,'no records-disagree item for the notice period');
 });
