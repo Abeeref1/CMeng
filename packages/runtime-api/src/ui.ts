@@ -956,7 +956,7 @@ function renderUniversalChallenge(challenge){
   };
   // ABB G3-31: the row state says whose position it describes. "Verified" beside a
   // submitted value that was not provided read as if the submission were verified.
-  const itemStateWords={verified:"CMeng check calculated",derived:"CMeng value derived",scenario:"Scenario only",partial:"Comparison basis incomplete",conflicted:"Submitted values conflict"};
+  const itemStateWords={verified:"CMeng check calculated",derived:"CMeng value derived",scenario:"CMeng scenario",partial:"Comparison basis incomplete",conflicted:"Submitted values conflict"};
   const rows=challenge.items.map(item=>{
     const sub=item.submitted||{},ind=item.independent||{},gap=item.gap||{};
     const comparisons=Array.isArray(item.candidateComparisons)?item.candidateComparisons:[];

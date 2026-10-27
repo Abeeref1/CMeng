@@ -123,7 +123,7 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  const bei={value:cutoff&&baselineComplete&&!unknownActual.length&&planned.length?completed.length/planned.length:null,completed:completed.length,planned:planned.length,
   missingBaselineActivityIds:detail.filter(a=>!baselineKnownSet.has(a)).map(a=>a.activityId),missingActualFinishActivityIds:unknownActual,
   basis:'Actual completed detail activities divided by detail activities due to finish under the adopted baseline at the Data Date; milestone and summary records excluded.'+
-   (untypedDetailCount?' '+untypedDetailCount+' '+countUnit(untypedDetailCount,'activities')+' '+(untypedDetailCount===1?'has':'have')+' no activity type in the source; '+(untypedDetailCount===1?'it is':'they are')+' counted as detail work because '+(untypedDetailCount===1?'it is':'they are')+' not marked as a milestone, level of effort or summary.':''),
+   (untypedDetailCount?' '+new Intl.NumberFormat('en-US').format(untypedDetailCount)+' '+countUnit(untypedDetailCount,'activities')+' '+(untypedDetailCount===1?'has':'have')+' no activity type in the source; '+(untypedDetailCount===1?'it is':'they are')+' counted as detail work because '+(untypedDetailCount===1?'it is':'they are')+' not marked as a milestone, level of effort or summary.':''),
   untypedActivityCount:untypedDetailCount,
   // F38: named, with its formula and, when it cannot be calculated, the reason.
   name:'Baseline Execution Index (BEI)',formula:PROGRAMME_QUALITY_FORMULAS.bei,
