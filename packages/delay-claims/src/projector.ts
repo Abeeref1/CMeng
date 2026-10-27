@@ -451,6 +451,21 @@ export function buildDelayClaimsProjection(
           !row.activityCorrespondence ||
           row.activityCorrespondence.classification === "unresolved",
       ).length,
+    // ABB G5_DELAY-09 (additive): what the activity matcher found on every
+    // source record it ran on (event or claim row): records whose text gave no
+    // candidate activity, and records for which the AI scorer is not set up
+    // (the deterministic checks still ran). Not event counts.
+    activityCorrespondenceNoCandidateCount:
+      rows.filter(
+        (row) =>
+          row.relatedActivityIds.length === 0 &&
+          row.activityCorrespondence?.preFilterCandidateCount === 0,
+      ).length,
+    activityCorrespondenceAiNotConfiguredCount:
+      rows.filter(
+        (row) =>
+          row.activityCorrespondence?.aiStage === "not_configured",
+      ).length,
 
     observedPositiveIndependentMovementDays: windows.positiveIndependentMovementDays,
     observedPositiveProgrammeMovementDays: windows.positiveProgrammeMovementDays,
