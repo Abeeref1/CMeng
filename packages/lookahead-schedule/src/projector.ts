@@ -140,6 +140,27 @@ export function assessPredecessorRequirement(model: CanonicalScheduleModel, rela
       (required > target ? "predecessor requirement is later than the successor target." : "relationship requirement fits the submitted dates; physical readiness is assessed separately.") };
 }
 
+/** ABB G2_PLANNING-55: one readiness state for an activity, shared by Look-Ahead
+ * (its counts and rows) and Construction Readiness, so the same activity never
+ * reads "At risk" on one tab and "Unknown" on the other.
+ * - blocked / ready: the assessment itself.
+ * - at_risk: not blocked, and a linked register record (not programme logic) is
+ *   unresolved, so that linked evidence needs confirmation.
+ * - unknown: not blocked and no linked record is unresolved; the remaining gaps are
+ *   gates with no evidence, so readiness is not known (no known linked blocker).
+ * Self-contained: the browser page embeds this same source. */
+export function readinessReviewState(readiness: {state?: string; dimensions?: ReadonlyArray<{key: string; state: string; sourceRefs?: readonly string[]}>} | null | undefined): "ready" | "blocked" | "at_risk" | "unknown" {
+  if (!readiness) return "unknown";
+  if (readiness.state === "blocked") return "blocked";
+  if (readiness.state === "ready") return "ready";
+  const dimensions = readiness.dimensions || [];
+  for (let i = 0; i < dimensions.length; i++) {
+    const dimension = dimensions[i]!;
+    if (dimension.key !== "predecessor" && dimension.state === "unknown" && (dimension.sourceRefs || []).length > 0) return "at_risk";
+  }
+  return "unknown";
+}
+
 export function readinessForActivity(
   model: CanonicalScheduleModel,
   activity: CanonicalScheduleActivity,
@@ -699,10 +720,9 @@ export function buildLookAheadProjection(
     conditionalCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "conditional",
     ).length,
-    atRiskCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
-      row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
-    noKnownLinkedBlockerCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&
-      !row.readiness.dimensions.some(dim=>dim.key!=='predecessor'&&dim.sourceRefs.length>0)).length,
+    // ABB G2_PLANNING-55: the shared readiness state (also used by Construction Readiness).
+    atRiskCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&readinessReviewState(row.readiness)==='at_risk').length,
+    noKnownLinkedBlockerCount:forwardWindowRows.filter(row=>row.readiness.state==='conditional'&&readinessReviewState(row.readiness)==='unknown').length,
     blockedCount: forwardWindowRows.filter(
       (row) => row.readiness.state === "blocked",
     ).length,
