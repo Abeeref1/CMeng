@@ -2023,7 +2023,7 @@
     "SW-17": "Linked in round 3 (a18851b3).",
     "SW-37": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
     "SW-38": "Commit 616ec8b8 was reverted by 85f740b9; see related.",
-    "ABB": "57 page findings have no proposed SW root, and their text is only in the owner workbook, so no repair, duplicate or invalid-expectation decision can be made from the repository.",
+    "ABB": "Round 16 (27 Oct): the owner recovered the text of the 57 page findings (CMeng_57_Findings.xlsx). All 57 were checked against the final code: 29 were still wrong and are fixed in shared code with tests that fail before the fix (t01b-abb-group-b, t01c-abb-group-c-findings, r16-abb-programme-forecast-findings), 23 were already right on the final code, 5 duplicate an SW row or another finding. Each finding with its evidence: docs/repair-notes/t01-abb-57-findings-classification.csv. Saved, not live until the release is deployed.",
     "S": "Round 14: all 8 S rows are linked to commits whose subjects name them as Snn or S-nn; their definitions are read from those subjects, marked as such. 216fcf7c (S-32) and the other S-nn commits outside this branch are not linked.",
     "F": "Final update (v/int5 at 70b965f5): every F row is linked to a shared fix with a named test; open gaps are under each row's Not covered.",
     "SW-32": "Linked in round 9 (44abafc1, t08-sw32-risk-register-only)."
