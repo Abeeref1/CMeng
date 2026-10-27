@@ -1,0 +1,33 @@
+name: CMeng speed A/B (temporary)
+on:
+  push:
+    branches: [perf/ab-20261027]
+jobs:
+  latency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build both
+        run: |
+          echo "A=$(cat .ab/a) B=$(cat .ab/b)"; nproc
+          for side in a b; do sha=$(cat .ab/$side); git worktree add /tmp/$side $sha; (cd /tmp/$side && npm ci --ignore-scripts --no-audit --no-fund >/dev/null && npm run build >/dev/null); done
+      - name: Alternate runs
+        run: |
+          for k in 1 2 3; do for side in a b; do
+            (cd /tmp/$side && CMENG_LATENCY_RESULT=/tmp/lat-$side-$k.json node scripts/release-latency.cjs > /tmp/lat-$side-$k.log 2>&1 || true)
+            node -e "
+              const d=JSON.parse(require('fs').readFileSync('/tmp/lat-$side-$k.json','utf8'));const c=d.coldProjectShapes||{};
+              const m={};for(const e of d.managementProfileEvents||[])m[e.projectId]=Math.round(e.totalMs);
+              const rows=(c.profiles||[]).map(r=>r.projectId.slice(-1)+':'+Math.round(r.durationMs)+'/calc'+m[r.projectId]).join(' ');
+              console.log('RESULT lane ${{ matrix.lane }} side $side run $k coldShapesMax='+Math.round(c.maxProjectMs)+' wall='+Math.round(c.wallMs)+' ['+rows+'] priorCold='+Math.round(d.priorColdGate.coldRequestMs)+' prep='+Math.round(d.priorColdGate.preparationMs)+' firstDash='+Math.round(d.firstDashboardMs)+' uploadToReady='+Math.round(d.uploadToReadyMs)+' passed='+d.passed)" || tail -20 /tmp/lat-$side-$k.log
+          done; done
