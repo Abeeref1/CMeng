@@ -8855,6 +8855,11 @@ export function managementSurfacesForProject(
   const pageChecks=checkPageValues(allPages);
   Object.assign(result.sourceQuality,{pageValueChecks:pageChecks});
   const pageFailures=pageChecks.filter(c=>c.state==='failed');
+  // ABB G1_MANAGEMENT-77: the consistency badge also counts the checks that read
+  // what each page actually returns. A failed page-value check fails the badge;
+  // the shared-fact checks keep their own result and ids.
+  const shownConsistency=consistencyWithPageValueChecks(consistency,pageChecks);
+  for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme] as any[])if(surface?.consistency)surface.consistency=shownConsistency;
   if(pageFailures.length){
     const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:JSON.stringify(c.values),action:'Correct the shared calculation or the page that reads it, then run the cross-page release checks again.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
     result.sourceQuality.systemFailures.push(...failures);
