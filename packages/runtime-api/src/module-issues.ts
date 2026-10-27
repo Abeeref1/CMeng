@@ -133,6 +133,29 @@ export function assessModuleIssues(result: ModuleRuntimeResult, consistency: Con
     'diagnostics'
   );
 
+  // ABB G3_CHANGES_FORECAST-28: an actual finish before its own actual start makes
+  // that finish movement unreliable; it is raised, never passed silently.
+  const invalidActuals=d?.finishMovementAnalysis?.invalidActualDateRows;
+  if(Array.isArray(invalidActuals)&&invalidActuals.length>0)add('data_quality','ACTUAL_FINISH_BEFORE_START','Actual finish before actual start',
+    invalidActuals.length+' '+(invalidActuals.length===1?'activity has':'activities have')+' an actual finish before '+(invalidActuals.length===1?'its':'their')+' own actual start: '+
+    invalidActuals.slice(0,10).map((r:any)=>r.activityId+' (actual start '+String(r.actualStartIso).slice(0,10)+', actual finish '+String(r.actualFinishIso).slice(0,10)+')').join('; ')+
+    (invalidActuals.length>10?'; and '+(invalidActuals.length-10)+' more':'')+'. Their finish movement between the revisions is not reliable until the dates are corrected.',
+    'Correct the actual start or actual finish in the programme, then compare the revisions again.','finishMovementAnalysis.invalidActualDateRows');
+  // ABB G3_CHANGES_FORECAST-06: a page that shows near-critical work says when that
+  // measure is not established, with the cause, instead of an all-clear.
+  const screening=d?.nearCriticalScreening;
+  if(screening&&screening.nearCriticalCount===null&&typeof screening.unresolvedActivityCount==='number'&&screening.unresolvedActivityCount>0){
+    const unreadableCalendars=typeof screening.unreadableCalendarActivityCount==='number'?screening.unreadableCalendarActivityCount:0;
+    const calendarCause=unreadableCalendars>0;
+    add('missing_information','NEAR_CRITICAL_NOT_ESTABLISHED','Near-critical activities not established',
+      screening.unresolvedActivityCount+' of '+screening.populationCount+' unfinished activities cannot be classified as near-critical or not. '+
+      (calendarCause?unreadableCalendars+' of them '+(unreadableCalendars===1?'has':'have')+' no readable working calendar, so '+(unreadableCalendars===1?'its':'their')+' float cannot be counted in working days; no default working pattern is assumed.'
+        :'Their float or working calendar is not established.'),
+      calendarCause?'Supply the working-time definition (work days, hours and holidays) of each programme calendar, then the near-critical count is calculated.'
+        :'Supply the missing float or working calendar of these activities, then the near-critical count is calculated.',
+      'nearCriticalScreening','Project evidence owner');
+  }
+
   // Walk the owning projection. Commercial modules share an entire position but
   // expose their owned evidence in focus; unrelated missing registers must not
   // turn every commercial page into the same warning.

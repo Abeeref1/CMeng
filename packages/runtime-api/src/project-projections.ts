@@ -7486,7 +7486,7 @@ function resolveProjectModuleCandidate(
     const laborEvidence=['challenge-contract','cost-forecast','progress-report'].includes(key)?canonicalResourceModule(state,'manhour-scurve')?.data as any:null;
     const contractReview = ['challenge-contract','cost-forecast','commercial-overview','contract-particulars-bonds'].includes(key) ? contractValueBasisReview(state) : null;
     result.data = { ...data, controlBasis, scheduleAuthorityReview:scheduleAuthorityReview(state),
-      ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend','scope-classification'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
+      ...(['pmo-analysis','schedule-analytics','activity-analytics','near-critical','milestones','progress-report','progress-breakdown','revision-trend','variance-trends','scope-classification'].includes(key)?{nearCriticalScreening:nearCriticalScreening(state)}:{}),
       // F33: package lateness is measured against the shared governing date.
       ...(forecast?{scheduleBasisReview:scheduleBasisReview(model,forecast,contractTimeDates(state).governingCompletionIso)}:{}),
       ...(['variance-trends','schedule-change-report'].includes(key)?{durationEditReview:(()=>{const first=analyticalHistory(state)[0]?.revision.model;return first&&first!==model?durationEditReview(first,model):null;})()}:{}),

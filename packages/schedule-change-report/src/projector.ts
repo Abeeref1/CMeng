@@ -41,20 +41,50 @@ export function buildScheduleChangeReportProjection(
   const comparison = input.precomputedComparison ?? compareScheduleRevisions(from, to);
   const currentExecution = new Set(to.model.activities.filter(isExecutionActivity).map(a=>a.activityId));
   const before=new Map(from.model.activities.map(a=>[a.activityId,a])),after=new Map(to.model.activities.map(a=>[a.activityId,a]));
+  // ABB G3_CHANGES_FORECAST-28: an actual finish before its own actual start is
+  // an impossible date pair. Its movement stays in the comparison and is flagged,
+  // so the date is corrected rather than read as a real movement.
+  const actualDatesInvalid=(activity:CanonicalScheduleModel['activities'][number]|undefined)=>{
+    if(!activity?.actualStartIso||!activity.actualFinishIso)return false;
+    const start=parseScheduleTime(activity.actualStartIso),finish=parseScheduleTime(activity.actualFinishIso);
+    return Number.isFinite(start)&&Number.isFinite(finish)&&finish<start;
+  };
   const finishRows=comparison.activityChanges.flatMap(change=>{
     const a=before.get(change.fromActivityId??''),b=after.get(change.toActivityId??'');
     const fromFinishIso=a?scheduleActivityFinish(a):null,toFinishIso=b?scheduleActivityFinish(b):null;
-    return fromFinishIso&&toFinishIso&&dateValue(fromFinishIso)&&dateValue(toFinishIso)&&change.finishShiftDays!==null?[{activityId:change.activityId,fromFinishIso,toFinishIso,movementDays:change.finishShiftDays}]:[];
+    const invalid=actualDatesInvalid(a)||actualDatesInvalid(b);
+    return fromFinishIso&&toFinishIso&&dateValue(fromFinishIso)&&dateValue(toFinishIso)&&change.finishShiftDays!==null?[{activityId:change.activityId,fromFinishIso,toFinishIso,movementDays:change.finishShiftDays,...(invalid?{actualDatesInvalid:true}:{})}]:[];
   });
   const maximumDays=finishRows.length?finishRows.reduce((max,r)=>Math.max(max,r.movementDays),-Infinity):null;
   const maximumRows=finishRows.filter(r=>r.movementDays===maximumDays);
+  // The largest earlier movement is reported beside the largest later one.
+  const minimumDays=finishRows.length?finishRows.reduce((min,r)=>Math.min(min,r.movementDays),Infinity):null;
+  const largestEarlierDays=minimumDays!==null&&minimumDays<0?minimumDays:null;
+  const largestEarlierRows=largestEarlierDays===null?[]:finishRows.filter(r=>r.movementDays===largestEarlierDays);
+  const earlierRows=finishRows.filter(r=>r.movementDays<0).sort((x,y)=>x.movementDays-y.movementDays||x.activityId.localeCompare(y.activityId));
+  const invalidActualDateRows=comparison.activityChanges.flatMap(change=>{
+    const b=after.get(change.toActivityId??'')??null,a=before.get(change.fromActivityId??'')??null;
+    const bad=actualDatesInvalid(b??undefined)?b:actualDatesInvalid(a??undefined)?a:null;
+    return bad?[{activityId:change.activityId,revision:bad===b?'current' as const:'previous' as const,actualStartIso:bad.actualStartIso!,actualFinishIso:bad.actualFinishIso!,movementDays:change.finishShiftDays}]:[];
+  });
   const knownIds=new Set(finishRows.map(r=>r.activityId));
+  // ABB G3_CHANGES_FORECAST-26: say why each record is outside the comparison. A
+  // record added or removed between the revisions has nothing to compare; it is
+  // not a record with a missing finish date and needs no date from anyone.
+  const ambiguousFrom=new Set(comparison.ambiguousFromActivityIds??[]),ambiguousTo=new Set(comparison.ambiguousToActivityIds??[]);
+  const exclusionReason=(change:(typeof comparison.activityChanges)[number])=>
+    change.kind==='added'?(ambiguousTo.has(change.activityId)?'identity_ambiguous':'added_in_later_revision')
+    :change.kind==='removed'?(ambiguousFrom.has(change.activityId)?'identity_ambiguous':'removed_in_later_revision')
+    :'finish_date_missing';
   const finishMovementAnalysis={fromLabel:from.label??from.revisionId,toLabel:to.label??to.revisionId,
     population:populationContract({name:'Revision-comparable source activity finish dates',entity:'activity',dataDateIso:to.model.dataDateIso,
       dateBasis:'source finish elapsed days (24 hours) for each matched activity; unchanged matched records included',sourceRevisionId:from.revisionId+'->'+to.revisionId,
-      authority:'calculated',sourceCount:comparison.activityChanges.length,memberIds:[...knownIds],exclusions:comparison.activityChanges.filter(r=>!knownIds.has(r.activityId)).map(r=>({id:r.activityId,reason:'unmatched_or_finish_date_missing'}))}),
+      authority:'calculated',sourceCount:comparison.activityChanges.length,memberIds:[...knownIds],exclusions:comparison.activityChanges.filter(r=>!knownIds.has(r.activityId)).map(r=>({id:r.activityId,reason:exclusionReason(r)}))}),
     maximumDays,maximumCount:maximumDays===null?null:maximumRows.length,maximumPercent:finishRows.length?maximumRows.length/finishRows.length*100:null,
-    sourcePairVerifiedCount:maximumRows.filter(r=>Math.abs((parseScheduleTime(r.toFinishIso)-parseScheduleTime(r.fromFinishIso))/86_400_000-r.movementDays)<0.000001).length,maximumRows,causation:'not_established' as const};
+    sourcePairVerifiedCount:maximumRows.filter(r=>Math.abs((parseScheduleTime(r.toFinishIso)-parseScheduleTime(r.fromFinishIso))/86_400_000-r.movementDays)<0.000001).length,maximumRows,
+    largestEarlierDays,largestEarlierCount:largestEarlierDays===null?null:largestEarlierRows.length,largestEarlierRows,
+    earlierMovementCount:earlierRows.length,largestEarlierMovements:earlierRows.slice(0,10),
+    invalidActualDateCount:invalidActualDateRows.length,invalidActualDateRows,causation:'not_established' as const};
 
   // T06: float shift in working days converts each side with its own
   // revision's calendar; days only when both sides are known and live.

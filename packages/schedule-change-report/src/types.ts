@@ -55,7 +55,15 @@ export interface ScheduleChangeReportProjection {
   finishMovementAnalysis?: {
     fromLabel:string;toLabel:string;population:import('../../truth-kernel/src').PopulationContract;
     maximumDays:number|null;maximumCount:number|null;maximumPercent:number|null;sourcePairVerifiedCount:number;
-    maximumRows:Array<{activityId:string;fromFinishIso:string;toFinishIso:string;movementDays:number}>;
+    maximumRows:Array<{activityId:string;fromFinishIso:string;toFinishIso:string;movementDays:number;actualDatesInvalid?:boolean}>;
+    /** Largest earlier (negative) movement; null when no matched activity finishes earlier. */
+    largestEarlierDays?:number|null;largestEarlierCount?:number|null;
+    largestEarlierRows?:Array<{activityId:string;fromFinishIso:string;toFinishIso:string;movementDays:number;actualDatesInvalid?:boolean}>;
+    earlierMovementCount?:number;
+    largestEarlierMovements?:Array<{activityId:string;fromFinishIso:string;toFinishIso:string;movementDays:number;actualDatesInvalid?:boolean}>;
+    /** Records whose actual finish is before their own actual start (in either revision). */
+    invalidActualDateCount?:number;
+    invalidActualDateRows?:Array<{activityId:string;revision:'current'|'previous';actualStartIso:string;actualFinishIso:string;movementDays:number|null}>;
     causation:'not_established';
   };
   engineeringChanges?:{originalDurationActivityIds:string[];remainingDurationActivityIds:string[];constraintActivityIds:string[];calendarActivityIds:string[];lagChangeCount:number;relationshipTypeChangeCount:number;fromCompletionIso:string|null;toCompletionIso:string|null;completionMovementDays:number|null;updateGapCalendarDays:number|null};
