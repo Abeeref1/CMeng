@@ -7767,7 +7767,20 @@ function resolveProjectModuleCandidate(
     if(fields.length)(result.data as any).sourceInterpretation=Object.fromEntries(fields.map(field=>[field,(interpretation as any)[field]]));
     // The shared full bundle is cached per project version, so this reads
     // the already calculated Progress Breakdown rows rather than rebuilding.
-    if(key==='progress-report')(result.data as any).areaProgress=(buildBundle(state).modules.get('progress-breakdown')?.data as any)?.rows??[];
+    if(key==='progress-report'){
+      const breakdown=buildBundle(state).modules.get('progress-breakdown')?.data as any;
+      (result.data as any).areaProgress=breakdown?.rows??[];
+      // ABB G4_PROGRESS-20: the whole-project movement since the previous update,
+      // from the same Progress Breakdown calculation (whole scope and same activities).
+      const overall=breakdown?.overallSummary;
+      (result.data as any).progressSinceLastUpdate=overall&&overall.previousRevisionId!==undefined?{
+        previousRevisionId:overall.previousRevisionId??null,previousDataDateIso:overall.previousDataDateIso??null,
+        currentPercent:overall.durationWeightedProgressPercent??null,matchedScopePreviousPercent:overall.previousScheduleProgressPercent??null,
+        previousComparisonCoveragePercent:overall.previousComparisonCoveragePercent??null,matchedActivityCount:overall.previousMatchedActivityCount??null,
+        currentActivityCount:overall.activityCount??null,wholeScopeMovementPercentagePoints:overall.scheduleProgressMovementPercentagePoints??null,
+        matchedScopeCurrentPercent:overall.matchedScopeScheduleProgressPercent??null,matchedScopeMovementPercentagePoints:overall.matchedScopeProgressMovementPercentagePoints??null,
+        basis:'Duration-weighted submitted progress on the activities present in both updates. Activities added since the previous update are left out of this movement; schedule percentages are not certified physical progress.'}:null;
+    }
   }
   return attachReportingContract(state,discloseReadIssues(checkProjectionIntegrity(result, model, controlBasis.analysisConfig, state.controls.delayClaims, key==='milestones'?milestoneReviewForProjection(state,model):undefined)));
 }
