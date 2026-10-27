@@ -80,10 +80,15 @@ export function buildForecastReconciliationGate(input: {
   );
   const constraintsApplied=forecast.diagnostics.some(code=>code.startsWith('SOURCE_CONSTRAINTS_APPLIED'));
   const unappliedConstraints=sourceConstraintActivities.length>0&&!constraintsApplied;
-  const materialDivergences = forecast.activities.filter(row =>
+  // ABB G3_CHANGES_FORECAST-44: the divergence check tests only activities that
+  // have both a calculated and a submitted finish. With none, nothing was tested:
+  // the check is not established, never "passed".
+  const comparedActivities = forecast.activities.filter(row =>
     typeof row.finishVarianceDays === "number" &&
-    Number.isFinite(row.finishVarianceDays) &&
-    Math.abs(row.finishVarianceDays) > materialActivityScreeningDays,
+    Number.isFinite(row.finishVarianceDays),
+  );
+  const materialDivergences = comparedActivities.filter(row =>
+    Math.abs(row.finishVarianceDays!) > materialActivityScreeningDays,
   );
   const coverageEstablished =
     forecast.activityCoveragePercent === 100 &&
@@ -132,11 +137,13 @@ export function buildForecastReconciliationGate(input: {
     {
       key: "material_activity_divergence",
       label: "Material activity-level divergence",
-      state: materialDivergences.length === 0 ? "passed" : "review_required",
-      detail: materialDivergences.length === 0
+      state: comparedActivities.length === 0 ? "not_established" : materialDivergences.length === 0 ? "passed" : "review_required",
+      detail: comparedActivities.length === 0
+        ? "Not tested: no activity has both a calculated finish and a submitted finish to compare."
+        : materialDivergences.length === 0
         ? "No calculated activity finish differs from its submitted finish by more than the disclosed CMeng screening threshold."
         : String(materialDivergences.length) + " activity(ies) differ by more than " + materialActivityScreeningDays + " calendar days and require reconciliation.",
-      count: materialDivergences.length,
+      count: comparedActivities.length === 0 ? null : materialDivergences.length,
     },
     {
       key: "required_finish_authority",

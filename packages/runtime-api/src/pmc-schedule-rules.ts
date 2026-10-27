@@ -1,6 +1,6 @@
 import {countUnit} from './count-text';
 import type {CanonicalScheduleActivity,CanonicalScheduleModel,ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
-import {activityNearCriticalThresholdHours,sourceFloatCriticality} from '../../schedule-analysis-core/src';
+import {activityNearCriticalThresholdHours,isProgressActivity,sourceFloatCriticality} from '../../schedule-analysis-core/src';
 import {addWorkingHours,parseScheduleInstant,resolveWorkingCalendar,workingHoursBetween} from '../../schedule-cpm/src/calendar';
 import {programmeControlStageClassifier,programmeControlStageLabel} from './management-context';
 import {codeGroup,DISCIPLINE_CODE_TYPES,LOCATION_CODE_TYPES} from './schedule-scope-classification';
@@ -106,7 +106,12 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  ];
  const relationships=['FS','SS','FF','SF','unknown'].map(type=>({type,count:relations.filter(r=>r.type===type).length,relationshipIds:relations.filter(r=>r.type===type).map(r=>r.relationshipId)}));
  const lagRows=(predicate:(hours:number)=>boolean)=>relations.filter(r=>r.lagHours!==null&&predicate(r.lagHours)).map(r=>({relationshipId:r.relationshipId,predecessor:r.predecessorActivityId,successor:r.successorActivityId,type:r.type,lagHours:r.lagHours}));
- const detail=execution.filter(a=>a.activityType==='task'),cutoff=model?.dataDateIso?.slice(0,10)??null;
+ // ABB G2_PLANNING-06: detail tasks are the shared progress population (execution
+ // activities that are not milestones). A record whose type the source does not
+ // state stays in it, as in every other progress measure, and is counted in the
+ // basis; it is never dropped so that BEI reads as "no detail tasks".
+ const detail=execution.filter(isProgressActivity),cutoff=model?.dataDateIso?.slice(0,10)??null;
+ const untypedDetailCount=detail.filter(a=>a.activityType==='unknown').length;
  const baselineKnown=detail.filter(a=>a.baselineFinishIso&&a.baselineDateBasis!=='xer_target_dates');
  // Per-activity source membership must be linear. Array.includes here created
  // a quadratic scan for every cold first dashboard on large real programmes.
@@ -117,7 +122,9 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  const unknownActual=detail.filter(a=>a.status==='completed'&&!a.actualFinishIso).map(a=>a.activityId);
  const bei={value:cutoff&&baselineComplete&&!unknownActual.length&&planned.length?completed.length/planned.length:null,completed:completed.length,planned:planned.length,
   missingBaselineActivityIds:detail.filter(a=>!baselineKnownSet.has(a)).map(a=>a.activityId),missingActualFinishActivityIds:unknownActual,
-  basis:'Actual completed detail activities divided by detail activities due to finish under the adopted baseline at the Data Date; milestone and summary records excluded.',
+  basis:'Actual completed detail activities divided by detail activities due to finish under the adopted baseline at the Data Date; milestone and summary records excluded.'+
+   (untypedDetailCount?' '+new Intl.NumberFormat('en-US').format(untypedDetailCount)+' '+countUnit(untypedDetailCount,'activities')+' '+(untypedDetailCount===1?'has':'have')+' no activity type in the source; '+(untypedDetailCount===1?'it is':'they are')+' counted as detail work because '+(untypedDetailCount===1?'it is':'they are')+' not marked as a milestone, level of effort or summary.':''),
+  untypedActivityCount:untypedDetailCount,
   // F38: named, with its formula and, when it cannot be calculated, the reason.
   name:'Baseline Execution Index (BEI)',formula:PROGRAMME_QUALITY_FORMULAS.bei,
   reason:!model?'No current programme.':!cutoff?'The programme has no Data Date.':!detail.length?'The programme has no detail tasks.'
@@ -147,7 +154,8 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
  const hasPred=new Set(logicLinks.map(r=>r.successorActivityId)),hasSucc=new Set(logicLinks.map(r=>r.predecessorActivityId));
  const openStarts=remaining.filter(a=>!hasPred.has(a.activityId)),openEnds=remaining.filter(a=>!hasSucc.has(a.activityId));
  checks.push(report('missing_logic','Missing logic (open start or open end)',remaining.filter(a=>!hasPred.has(a.activityId)||!hasSucc.has(a.activityId)),remaining.length,'Remaining execution activities without a predecessor or without a successor; the project start and finish appear here by design and need review, not removal.'));
- const remainingTasks=remaining.filter(a=>a.activityType==='task');
+ // The same detail-task definition as BEI and missed tasks (shared progress population).
+ const remainingTasks=remaining.filter(isProgressActivity);
  // A stored resource model without a readable assignment list is not established (unknown), never 0.
  const assigned=Array.isArray(inputs.resources?.assignments)?new Set(inputs.resources!.assignments.map(x=>x.activityId)):null;
  const unresourced=assigned?remainingTasks.filter(a=>!assigned.has(a.activityId)):[];

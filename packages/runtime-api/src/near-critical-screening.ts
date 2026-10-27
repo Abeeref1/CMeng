@@ -33,7 +33,7 @@ function build(state:ProjectRuntimeState){
   const nearPercent=percent(near),watchPercent=percent(watch);
   const authority=basis.nearCriticalThresholdMethod==='cmeng_policy_default'?'cmeng_screening_policy':basis.state==='official'?'project_evidenced_threshold':'threshold_requires_review';
   const threshold=config.nearCriticalWorkingDays!=null?config.nearCriticalWorkingDays+' '+countUnit(config.nearCriticalWorkingDays,'working days')+' on each activity calendar':config.nearCriticalFloatThresholdHours+' '+countUnit(config.nearCriticalFloatThresholdHours,'hours');
-  const distribution=new Map<number,number>();let unknownWorkingDays=0;
+  const distribution=new Map<number,number>();let unknownWorkingDays=0,unreadableCalendarCount=0;
   const hoursById=new Map<string|null,number|null>();
   for(const {activity} of rows){
     // Preserve the exact original null-ID and first-match interpretation.
@@ -45,6 +45,7 @@ function build(state:ProjectRuntimeState){
       hours=calendarWorkingDayHours(calendar);
       hoursById.set(activity.calendarId,hours);
     }
+    if(hours===null||!Number.isFinite(hours)||hours<=0)unreadableCalendarCount++;
     // Missing or nonfinite source float is unknown, never an invalid chart bar.
     if(typeof activity.totalFloatHours!=='number'||!Number.isFinite(activity.totalFloatHours)||
       hours===null||!Number.isFinite(hours)||hours<=0){unknownWorkingDays++;continue;}
@@ -64,5 +65,7 @@ function build(state:ProjectRuntimeState){
     explanation:message+(broad?' The watchlist covers most of the programme and cannot serve as a short priority list.':''),
     action:'Review negative and zero float, remaining work, upcoming dates and driving paths. Establish the project threshold in the schedule control basis; do not rescale it automatically to reduce the count.',
     floatDistribution: [...distribution].sort((a,b)=>a[0]-b[0]).map(([workingDays,count])=>({workingDays,count})),
-    distributionUnresolvedCount:unknownWorkingDays};
+    distributionUnresolvedCount:unknownWorkingDays,
+    // ABB G3-06: unfinished activities whose working calendar has no readable working-day length (additive).
+    unreadableCalendarActivityCount:unreadableCalendarCount};
 }

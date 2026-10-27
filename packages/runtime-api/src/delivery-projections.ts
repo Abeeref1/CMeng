@@ -25,7 +25,7 @@ import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 
 import {registerProgrammeContext} from './register-programme-context';
-import {buildLookAheadProjection} from '../../lookahead-schedule/src';
+import {buildLookAheadProjection,readinessReviewState} from '../../lookahead-schedule/src';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {interfaceIntelligence,interfaceModule} from './interface-intelligence';
@@ -834,7 +834,8 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const readinessClassifications=readinessModel?new Map(projectScopeClassification(state,readinessModel).rows.map(row=>[row.activityId,row])):new Map();
  if(programmeReadiness)rows=programmeReadiness.rows.map(row=>({...row,reference:row.activityId,description:row.name,
   discipline:readinessClassifications.get(row.activityId)?.discipline??null,readinessPercent:pct(row.readiness.readyCount,row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length),
-  state:row.readiness.state==='conditional'?'unknown':row.readiness.state,unknownCount:row.readiness.unknownCount,
+  // ABB G2_PLANNING-55: the same readiness state as the Look-Ahead tab for the same activity.
+  state:readinessReviewState(row.readiness),unknownCount:row.readiness.unknownCount,
   applicableCount:row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length,
   notApplicableCount:row.readiness.dimensions.filter(d=>d.state==='not_applicable').length,
   rows:row.readiness.dimensions,authority:'Calculated from programme and linked register evidence'}));
