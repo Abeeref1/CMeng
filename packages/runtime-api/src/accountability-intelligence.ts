@@ -95,6 +95,15 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
     for(const notice of current.notices){
       if(!notice.claimId||!openClaimIds.has(notice.claimId)||notice.kind==='determination')continue;
       const event=notice.eventId?events.get(notice.eventId):null;
+      // ABB G1_MANAGEMENT-17: a notice linked to an open claim is part of that
+      // claim's evidence chain (same required action), not a second record. Its
+      // references and activities stay on the claim's record; each claim counts once.
+      const claimKey=actionRecordKey('claim',notice.claimId),claimItem=eligible.get(claimKey);
+      if(claimItem){
+        eligible.set(claimKey,{...claimItem,activityIds:[...new Set([...claimItem.activityIds,...(event?.relatedActivityIds??[])])],
+          sourceRefs:[...new Set([...claimItem.sourceRefs,...notice.evidenceRefs.map(sourceRef)])]});
+        continue;
+      }
       const base={domain:'notice',recordId:notice.noticeId,reference:notice.noticeId,issue:(notice.kind.replace(/_/g,' ')+' linked to open claim '+notice.claimId),dueDate:null,overdueDays:null,
         activityIds:event?.relatedActivityIds??[],sourceRefs:notice.evidenceRefs.map(sourceRef),authority:'confirmed_record' as const};
       retain(base);add('owner',pmcRoleOwner('notice',null),base);if(event){const role=partyRole(event.responsibility,event.responsibilityState);if(role)add('party_role',role,base);}
