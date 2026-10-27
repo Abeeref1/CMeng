@@ -4,7 +4,9 @@ import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL
 export type ContractTermKey='ldRate'|'ldCap'|'retentionPercent'|'retentionCapPercent'|'paymentPeriodDays'|'noticePeriodDays'|'performanceSecurity'|'advanceSecurity';
 export interface ContractTermVersion {term:ContractTermKey;value:number;unit:string;effectiveFromIso:string|null;effectiveToIso:string|null;documentId:string;role:string;sourceRefs:string[];clauseIdentifier:string|null;applicability:'prospective'|'unresolved';reviewReference?:string;decisionReference?:string;sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string;}
 const labels:Array<[ContractTermKey,RegExp]>=[
- ['ldCap',/(?:(?:maximum|cap on|limit of)\s+(?:delay damages|liquidated damages|LD)|(?:delay damages|liquidated damages|LD)\s*(?:maximum|cap|limit))/i],['ldRate',/(?:delay damages|liquidated damages|LD)\s*(?:rate)?/i],
+ // ABB G5_DELAY-30: "LD" is a whole word. Inside other words ("should", "held",
+ // "build") it is not a delay-damages label and must not hide the line's real term.
+ ['ldCap',/(?:(?:maximum|cap on|limit of)\s+(?:delay damages|liquidated damages|\bLDs?\b)|(?:delay damages|liquidated damages|\bLDs?\b)\s*(?:maximum|cap|limit))/i],['ldRate',/(?:delay damages|liquidated damages|\bLDs?\b)\s*(?:rate)?/i],
  ['retentionCapPercent',/(?:limit of retention(?: money)?|retention\s*(?:cap|maximum|limit))/i],['retentionPercent',/retention\s*(?:percent(?:age)?|rate)?/i],
  ['paymentPeriodDays',/payment\s*(?:period|time|deadline)/i],['noticePeriodDays',/(?:initial\s+notice\s+of\s+claim(?:\s*\/\s*compensation\s+event)?\s*(?:notification\s*)?period|notice\s+of\s+delay\s+event\s+period(?:\s*\(Article\s+[\d.]+\))?|initial\s+(?:claim\s+)?notice|notice\s*(?:period|of claim)|claim notice)/i],
  ['performanceSecurity',/performance\s*(?:security|bond|guarantee)(?:\s*amount)?/i],['advanceSecurity',/advance[- ]payment\s*(?:security|bond|guarantee)(?:\s*amount)?/i],
@@ -33,7 +35,12 @@ export function contractTermVersions(state:ProjectRuntimeState):ContractTermVers
    if(/(?:claim\s*\/\s*compensation event|\(Article)$/i.test(line))line+=' '+(lines[++index]??'');
    const entry=labels.find(([,label])=>label.test(line));if(!entry)continue;
    const [term,label]=entry,match=label.exec(line)!;
-   let suffix=line.slice(match.index+match[0].length).replace(/^\s*(?:is|shall be)?\s*[:|=]?\s*/i,'');
+   let suffix=line.slice(match.index+match[0].length);
+   // ABB G5_DELAY-30: the clause wording "the initial notice of claim shall be given
+   // within 28 days" is the same period the notice rules read; read it here too, so
+   // the dated versions (and the period at the Data Date) come from one reading.
+   if(term==='noticePeriodDays')suffix=suffix.replace(/^\s*(?:of\s+claim\s+)?(?:shall|must|is\s+to)\s+be\s+(?:given|served|issued|submitted)\s+within\s+/i,'');
+   suffix=suffix.replace(/^\s*(?:is|shall be)?\s*[:|=]?\s*/i,'');
    if(!suffix&&/^(?:[A-Z]{3}\s*)?[\d,]+(?:\.\d+)?\s*(?:%|percent|(?:calendar\s+|working\s+)?days|\b)/.test(lines[index+1]??'')){
     suffix=lines[index+1]!;
     if(oldNewTable&&/^(?:[A-Z]{3}\s*)?[\d,]+(?:\.\d+)?\s*(?:%|percent|(?:calendar\s+|working\s+)?days|\b)/.test(lines[index+2]??''))suffix=lines[index+2]!;
