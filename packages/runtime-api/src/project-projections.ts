@@ -51,7 +51,7 @@ import {contractChallengeForState} from './contract-challenge-runtime';
 import { enforceModuleReadiness } from "./module-readiness";
 import {assessModuleIssues} from './module-issues';
 import { documentClassificationForReview } from "./document-identification";
-import { managementAction, reportingScope, summarizeControlIssues, totalChecksRun, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
+import { managementAction, needDatePassedPhrase, reportingScope, summarizeControlIssues, totalChecksRun, type ControlIssue, type ManagementAction } from "../../truth-kernel/src";
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import {bindProjectFacts} from './project-fact-consumers';
 import {projectSourceLabels} from './project-presentation';
@@ -227,7 +227,7 @@ export function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,driv
     const sourceRefs=pkg.receipts.map(r=>'evidence-document:'+r.documentId+':'+r.locator);
     if(!sourceRefs.length)sourceRefs.push('delivery-record:'+pkg.recordId);
     const basis=pkg.overdueUndelivered
-      ?'Required-on-site date has passed without dated delivery evidence.'
+      ?needDatePassedPhrase(pkg)+' without dated delivery evidence.'
       :'Forecast delivery is after the controlled programme need date; forecast readiness scenario, not actual contractual delay.';
     for(const activityId of pkg.activityIds){
       if(!driving.has(activityId))continue;

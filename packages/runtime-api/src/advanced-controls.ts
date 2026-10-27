@@ -166,8 +166,14 @@ export function finalAccountForState(state:ProjectRuntimeState):ModuleRuntimeRes
   const knownPending=variations.knownPendingCount??variations.pendingCount;
   check('variations','Variations',(knownPending??0)>0?'open':variations.pendingCount==null?'unresolved':'clear',(knownPending??0)>0?knownPending+' known pending variation(s); complete exposure remains subject to source coverage.':'Pending variation exposure is not established from the supplied lifecycle records.','Variations & Change');
   const obligations=controls.contractObligations;
-  check('obligations','Contract obligations',obligations.state==='missing'?'unresolved':(obligations.openCount??0)>0||(obligations.overdueCount??0)>0?'open':'clear',
-    obligations.state==='missing'?'Full set of obligations not established.':String(obligations.openCount??0)+' open · '+String(obligations.overdueCount??0)+' overdue.','Contract Obligations');
+  // G6-14: an obligation count that cannot be tested is unknown, never 0, and never "clear".
+  const knownCount=(value:number|null|undefined):value is number=>typeof value==='number'&&Number.isFinite(value);
+  const obligationsOpen=(obligations.openCount??0)>0||(obligations.overdueCount??0)>0;
+  const obligationCountsKnown=knownCount(obligations.openCount)&&knownCount(obligations.overdueCount);
+  check('obligations','Contract obligations',obligations.state==='missing'?'unresolved':obligationsOpen?'open':obligationCountsKnown?'clear':'unresolved',
+    obligations.state==='missing'?'Full set of obligations not established.'
+    :obligationCountsKnown||obligationsOpen?(knownCount(obligations.openCount)?obligations.openCount+' open':'open count not established')+' · '+(knownCount(obligations.overdueCount)?obligations.overdueCount+' overdue':'overdue count not established')+'.'
+    :'Open and overdue obligations are not established: '+(obligations.clauseCandidateCount?obligations.clauseCandidateCount+' obligation clause'+(obligations.clauseCandidateCount===1?' is':'s are')+' read from the contract with no due date or status.':'no obligation record gives a due date or status.'),'Contract Obligations');
   const retention=controls.retentionCalendar;
   check('retention','Retention',retention.state==='missing'?'unresolved':(retention.heldCount??0)>0||(retention.overdueCount??0)>0?'open':'clear',
     retention.state==='missing'?'Retention calendar not established.':String(retention.heldCount??0)+' held · '+String(retention.overdueCount??0)+' overdue release(s).','Retention Calendar');

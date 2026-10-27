@@ -190,6 +190,7 @@ jobs:
             dist/tests/t11-platform-paging-version-restart.test.js \
             dist/tests/t05-role-views-page-facts-shown.test.js \
             dist/tests/procurement-linked-work-closeout.test.js \
+            dist/tests/t01c-abb-group-c-findings.test.js \
             dist/tests/sw28-planned-progress-stated-calendar-basis.test.js \
             dist/tests/sw27-group-totals-known-members.test.js \
             dist/tests/sw27-source-grounded-grouping.test.js \

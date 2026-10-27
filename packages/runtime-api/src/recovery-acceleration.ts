@@ -1,3 +1,4 @@
+import {needDatePassedPhrase} from '../../truth-kernel/src';
 import {countUnit} from './count-text';
 import {projectScopeClassification} from './location-review';
 
@@ -76,7 +77,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
     const knownRecovery=!!dataDateIso&&!pastNeed&&!staleForecast&&p.headroomCalendarDays!==null;
     scenarios.push({scenarioId:'expedite:'+p.recordId,type:'procurement_expedite',state:knownRecovery?'calculated':'option_requires_assumption',subject:p.reference??p.recordId,affectedActivities:[...p.activityIds],affectedPackages:[p.recordId],
       assumption:knownRecovery?'Bring forecast delivery forward to the programme need date without changing downstream logic.':'Establish an achievable future delivery date and its effect on the remaining work.',
-      currentPosition:pastNeed?'Required-on-site date '+p.needDate+' has passed. Historical lateness cannot be counted as future recovery.':!knownRecovery?'The current delivery forecast and reporting date must be established before recovery can be calculated.':'Forecast delivery '+p.forecastDelivery+' is '+(-p.headroomCalendarDays!)+' calendar days after need '+p.needDate+'.',
+      currentPosition:pastNeed?needDatePassedPhrase(p)+'. Historical lateness cannot be counted as future recovery.':!knownRecovery?'The current delivery forecast and reporting date must be established before recovery can be calculated.':'Forecast delivery '+p.forecastDelivery+' is '+(-p.headroomCalendarDays!)+' calendar days after need '+p.needDate+'.',
       targetPosition:!knownRecovery?'Obtain a current achievable delivery date and test the downstream recovery.':'Delivery no later than '+(p.needDate??'the required delivery date')+'.',possibleDaysRecovered:knownRecovery?Math.max(0,-p.headroomCalendarDays!):null,
       effectBasis:'Package delivery headroom recovered locally. This is the maximum procurement lateness removed; Project completion recovery is only established if the linked activity is on a finish-driving path.',
       additionalResources:'Supplier expediting / logistics / approval acceleration to be defined by the package owner.',estimatedCost:null,currency:p.currency,
