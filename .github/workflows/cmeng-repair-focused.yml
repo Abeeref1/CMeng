@@ -227,7 +227,8 @@ jobs:
             dist/tests/r15-c2-states.test.js \
             dist/tests/r16-abb-programme-forecast-findings.test.js \
             dist/tests/t11-large-register-cold-dashboard.test.js \
-            dist/tests/t11-request-path-parity.test.js
+            dist/tests/t11-request-path-parity.test.js \
+            dist/tests/t01b-abb-group-b.test.js
       - name: Assert original owner guard integrity and comparator
         run: node scripts/verify-cmeng-owner-guard.cjs
       - name: Assert complete original T01 defect IDs and evidence requirements

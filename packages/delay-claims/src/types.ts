@@ -80,6 +80,8 @@ export interface DelayClaimsProjection {
   activityCorrespondenceCandidateCount: number | null;
   activityCorrespondenceAmbiguousCount: number | null;
   activityCorrespondenceUnresolvedCount: number | null;
+  activityCorrespondenceNoCandidateCount?: number | null;
+  activityCorrespondenceAiNotConfiguredCount?: number | null;
 
   observedPositiveIndependentMovementDays: number | null;
   /** Positive submitted completion shifts summed across windows; recoveries remain separate. Not causal delay or EOT. */

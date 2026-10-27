@@ -248,6 +248,10 @@ function calculateProgressScope(model:CanonicalScheduleModel,baseline:CanonicalS
     baselineRevisionId:baseline.sourceRevisionId,currentRevisionId:model.sourceRevisionId,dataDateIso:model.dataDateIso,
     baselineActivityCount:before.length,currentActivityCount:after.length,matchedActivityCount:matched.length,comparableActivityCount:comparable.length,
     addedActivityCount:added.length,removedActivityCount:removed.length,ambiguousIdentityCount:identity.ambiguousFrom.size+identity.ambiguousTo.size,
+    // ABB G4_PROGRESS-24: the activity rows set aside on each side, so that
+    // baseline = matched + removed + ambiguous and current = matched + added + ambiguous.
+    ambiguousBaselineActivityCount:before.filter(a=>identity.ambiguousFrom.has(a.activityId)).length,
+    ambiguousCurrentActivityCount:after.filter(a=>identity.ambiguousTo.has(a.activityId)).length,
     baselinePlannedPercent:baselinePlan,snapshotPercent:snapshot,currentPlanPercent:currentPlan,
     snapshotCurrentWeightsPercent:snapshotCurrentWeights,currentPlanCurrentWeightsPercent:currentPlanCurrentWeights,
     gapPercentagePoints:delta(snapshot,baselinePlan),ratio:baselinePlan!==null&&baselinePlan>0&&snapshot!==null?snapshot/baselinePlan:null,

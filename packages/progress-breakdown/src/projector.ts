@@ -357,15 +357,25 @@ function buildProgressBreakdownProjectionImpl(
       return { value: weight ? Number((numerator/weight).toFixed(6)) : null, coverage: coverage(count,eligibleCount) };
     };
     const baseline = weighted("baseline"), current = weighted("current");
-    const prior: CanonicalScheduleActivity[] = [];
-    for (const a of activities) { const match = previous.get(a.activityId); if (match !== undefined || previous.has(a.activityId)) prior.push(match!); }
+    const prior: CanonicalScheduleActivity[] = [], matchedNow: CanonicalScheduleActivity[] = [];
+    for (const a of activities) { const match = previous.get(a.activityId); if (match !== undefined || previous.has(a.activityId)) { prior.push(match!); matchedNow.push(a); } }
     const priorProgress = scheduleProgress(prior);
+    // ABB G4_PROGRESS-20: progress since the previous update on the same
+    // activities (matched in both updates), so added work cannot hide the
+    // movement. The whole-scope movement below stays as before.
+    const matchedNowProgress = input.previousModel ? scheduleProgress(matchedNow) : null;
     return { ...row, baselinePlannedPercent: baseline.value, currentPlanPercent: current.value,
       baselinePlanCoveragePercent: baseline.coverage, currentPlanCoveragePercent: current.coverage,
       scheduleMinusCurrentPlanPercentagePoints: row.durationWeightedProgressPercent !== null && current.value !== null ? Number((row.durationWeightedProgressPercent-current.value).toFixed(6)) : null,
       scheduleMinusBaselinePercentagePoints: row.durationWeightedProgressPercent !== null && baseline.value !== null ? Number((row.durationWeightedProgressPercent-baseline.value).toFixed(6)) : null,
       previousScheduleProgressPercent: priorProgress.value, previousComparisonCoveragePercent: coverage(prior.length,activities.length),
       scheduleProgressMovementPercentagePoints: priorProgress.value !== null && prior.length === activities.length && row.durationWeightedProgressPercent !== null ? Number((row.durationWeightedProgressPercent-priorProgress.value).toFixed(6)) : null,
+      ...(input.previousModel ? {
+        previousRevisionId: input.previousModel.sourceRevisionId, previousDataDateIso: input.previousModel.dataDateIso,
+        previousMatchedActivityCount: prior.length,
+        matchedScopeScheduleProgressPercent: matchedNowProgress?.value ?? null,
+        matchedScopeProgressMovementPercentagePoints: priorProgress.value !== null && matchedNowProgress?.value != null ? Number((matchedNowProgress.value-priorProgress.value).toFixed(6)) : null,
+      } : {}),
       contractorReportedPercent: null,
       ...managementSignals(activities),
     };

@@ -123,7 +123,8 @@ test('independent unavailability never becomes missing contractor evidence or ag
 test('both comparison sides missing never blames contractor for an unavailable CMeng calculation',()=>{
   const result=challenge(null,{...submitted(0),value:null,state:'not_submitted'});
   assert.equal(result.reconciliationState,'independent_unavailable');
-  assert.equal(result.notSubmittedCount,0);
+  // ABB G4_PROGRESS-05: the headline counts the row the page lists as "Submitted value missing".
+  assert.equal(result.notSubmittedCount,1);
   assert.equal(result.items[0]!.gap.state,'not_derivable');
   assert.match(result.items[0]!.gap.note!,/Independent comparison not established/);
   assert.doesNotMatch(result.items[0]!.gap.note!,/contractor did not submit/);

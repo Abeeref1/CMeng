@@ -5,6 +5,7 @@ import {projectControlSchedule} from './canonical-time-claims';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {managementSourceInventory} from './management-source-inventory';
 import {programmeLongLeadScope} from '../../progress-breakdown/src/long-lead-scope';
+import {reportingScope} from '../../truth-kernel/src';
 
 export interface ScheduleLongLeadEvidence {
   activityId: string;
@@ -130,13 +131,20 @@ export function programmeControlStages(model: CanonicalScheduleModel): Programme
     if(!from||!to||from===to)continue;
     const set=incomingStages.get(to)??new Set<ProgrammeControlStage>();set.add(from);incomingStages.set(to,set);
   }
+  // ABB G1_MANAGEMENT-85: open work uses the shared as-of rule of the reporting
+  // view (reporting-state.ts): a row marked complete whose actual start or finish
+  // is not on or before the Data Date is not complete at the Data Date, so the
+  // stage totals add up to the unfinished and critical counts shown elsewhere.
+  const cutoff=model.dataDateIso;
+  const completedAtDataDate=(r:typeof model.activities[number])=>r.status==='completed'&&
+    !(r.actualFinishIso&&reportingScope(r.actualFinishIso,cutoff)!=='as_of')&&!(r.actualStartIso&&reportingScope(r.actualStartIso,cutoff)!=='as_of');
   const ordered:ProgrammeControlStage[]=['design','procurement','construction','testing_commissioning','handover','other'];
   return ordered.flatMap(stage=>{
     const rows=buckets.get(stage)??[];if(!rows.length)return [];
     const currentStarts=rows.map(r=>r.currentStartIso).filter((v):v is string=>!!v).sort();
     const currentFinishes=rows.map(r=>r.currentFinishIso).filter((v):v is string=>!!v).sort();
     const effectiveFinishes=rows.map(r=>r.forecastFinishIso??r.currentFinishIso).filter((v):v is string=>!!v).sort();
-    const open=rows.filter(r=>r.status!=='completed');
+    const open=rows.filter(r=>!completedAtDataDate(r));
     const pressure=open.filter(r=>typeof r.totalFloatHours==='number'&&r.totalFloatHours<=0);
     const knownFloat=open.map(r=>r.totalFloatHours).filter((v):v is number=>typeof v==='number'&&Number.isFinite(v));
     const lowestFloat=knownFloat.length?Math.min(...knownFloat):null;

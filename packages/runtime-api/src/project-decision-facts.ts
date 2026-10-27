@@ -389,8 +389,8 @@ export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:Notic
   const awareness=date(cell(r,'awareness date','date of awareness','became aware date'));
   const eventStart=date(cell(r,'event start','event start date','event date'));
   // F47: the same shared detailed-claim rule the claim records carry.
-  const {rule,trigger,due,limit,detailedClaimState,daysAfterDue,basis}=detailedClaimDeadline({awarenessIso:awareness,eventStartIso:eventStart,submittedIso:submitted,cutoffIso:cutoff},rules);
-  checks.push({claimReference:ref,noticeDateIso:notice,detailedSubmissionDateIso:submitted,dueDateIso:due,allowedDays:limit,
+  const {rule,trigger,due,limit,detailedClaimState,daysAfterDue,basis,latestDueDateIso}=detailedClaimDeadline({awarenessIso:awareness,eventStartIso:eventStart,submittedIso:submitted,cutoffIso:cutoff,noticeIso:notice},rules);
+  checks.push({claimReference:ref,noticeDateIso:notice,detailedSubmissionDateIso:submitted,dueDateIso:due,latestDueDateIso,allowedDays:limit,
    triggerDateIso:trigger,triggerBasis:rule?.triggerBasis??null,
    daysAfterDue,
    detailedClaimState,
@@ -398,9 +398,13 @@ export function buildClaimChecks(rows:SourceRow[],cutoff:string|null,rules:Notic
    sourceRefs:[...rowRefs(r),...(rule?.evidenceRefs??[]).map(ref=>ref.sourceType+':'+ref.sourceId+':'+ref.locator)],
    basis,
    warning:start&&end&&end>monthDate(start,3)?'Delay window exceeds three calendar months; subdivide the analysis or justify the longer window.':null,
-   missingInputs:[!due?'Applicable contract detailed-claim rule, valid calendar-day period and dated starting event':null,!submitted?'Fully detailed submission date':null].filter(Boolean)});
+   missingInputs:[!due?(latestDueDateIso?'Awareness date (only the latest possible due date is known)':'Applicable contract detailed-claim rule, valid calendar-day period and dated starting event'):null,!submitted?'Fully detailed submission date':null].filter(Boolean)});
  }
- return {rows:checks,total:checks.length,lateCount:checks.filter(r=>r.detailedClaimState==='late'||r.detailedClaimState==='overdue_no_submission').length,longWindowCount:checks.filter(r=>r.longWindow).length,
+ // ABB G5_DELAY-27: lateCount is the known late or overdue subset. Rows whose
+ // deadline is not established are counted separately so the screen never
+ // reads a known count as the whole answer.
+ return {rows:checks,total:checks.length,lateCount:checks.filter(r=>r.detailedClaimState==='late'||r.detailedClaimState==='overdue_no_submission').length,
+  unresolvedDeadlineCount:checks.filter(r=>r.detailedClaimState==='due_basis_missing').length,longWindowCount:checks.filter(r=>r.longWindow).length,
   basis:'Dated claim screening; all source references retained. No entitlement, waiver, time-bar or liability determination is inferred.'};
 }
 

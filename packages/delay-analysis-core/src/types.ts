@@ -279,6 +279,8 @@ export interface DetailedClaimTimeBar {
   triggerDateIso: string | null;
   submittedIso: string | null;
   dueDateIso: string | null;
+  /** Latest possible due date when only the claim notice date bounds awareness (additive). */
+  latestDueDateIso?: string | null;
   allowedDays: number | null;
   daysToSubmission: number | null;
   daysAfterDue: number | null;

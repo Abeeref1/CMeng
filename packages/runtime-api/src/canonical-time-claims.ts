@@ -631,7 +631,9 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     claim.sourceRegister={...reportedClaim(claim),sourceStatus:cell(r,'status')||'Not stated',registerGrantedDays:n(r,'source granted days','days granted'),
       responsibility:responsibilityValue,responsibilitySourceText:responsibilityText||null,awarenessIso,eventStartIso:eventStart,detailedClaimSubmittedIso:detailedSubmitted,
       registerDetermination:determinationText||determinationDateIso||determinationDays!==null||determinationReference?{text:determinationText,dateIso:determinationDateIso,days:determinationDays,reference:determinationReference}:null,
-      detailedClaimTimeBar:detailedClaimTimeBar({awarenessIso,eventStartIso:eventStart,submittedIso:detailedSubmitted,cutoffIso:dataDateIso?dateValue(dataDateIso):null},detailedClaimRules)};
+      detailedClaimTimeBar:detailedClaimTimeBar({awarenessIso,eventStartIso:eventStart,submittedIso:detailedSubmitted,cutoffIso:dataDateIso?dateValue(dataDateIso):null,
+        // ABB G5_DELAY-27: the register notice date bounds a missing awareness date (never a conflicting one).
+        noticeIso:registerIssued&&correspondenceIssued&&registerIssued!==correspondenceIssued?null:issued},detailedClaimRules)};
     if(issued)notices.push({noticeId:sourceLetter||claimId+':notice',kind:'claim_notice',eventId,claimId,actualIssuedAt:issued,actualReceivedAt:null,plannedAt:null,subject:title,clauseIdentifiers,evidenceRefs:[evref(r,'notice'),...earlierRows.map(row=>evref(row,'notice'))],diagnostics:['NOTICE_DATE_FROM_REGISTER_NOT_EVENT_START_DATE']});
     if(issued&&sourceLetter){
       notices.at(-1)!.correspondenceEvidence={sourceLetter,identityFound:Boolean(linkedCorrespondence)||anchoredCorrespondenceVerified,

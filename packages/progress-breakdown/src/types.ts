@@ -5,6 +5,9 @@ export interface ProgressBreakdownRow {
   scheduleMinusCurrentPlanPercentagePoints?: number | null; scheduleMinusBaselinePercentagePoints?: number | null;
   previousScheduleProgressPercent?: number | null; previousComparisonCoveragePercent?: number | null;
   scheduleProgressMovementPercentagePoints?: number | null;
+  /** ABB G4_PROGRESS-20 (additive): movement since the previous update on the activities present in both updates. */
+  previousRevisionId?: string | null; previousDataDateIso?: string | null; previousMatchedActivityCount?: number;
+  matchedScopeScheduleProgressPercent?: number | null; matchedScopeProgressMovementPercentagePoints?: number | null;
   contractorReportedPercent?: number | null; certifiedPhysicalPercent?: number | null;
   physicalMeasuredPercent?: number | null;
   forecastFinishIso?: string | null;
