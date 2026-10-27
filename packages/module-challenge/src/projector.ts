@@ -1550,10 +1550,14 @@ export function buildModuleChallenge(
     unavailableCheckCount: items.filter(item => item.reconciliationState === "independent_unavailable").length,
     reconciledCount: items.filter(item => item.reconciliationState === "within_tolerance").length,
     reconciliationState,
+    // ABB G4_PROGRESS-05: every item whose comparable submitted value was not
+    // found, the same rows the page lists as "Submitted value missing". An item
+    // whose CMeng value is also unavailable keeps that reconciliation state
+    // (independent_unavailable); it is still a missing submitted value.
     notSubmittedCount:
       items.filter(
         (item) =>
-          item.reconciliationState === "submitted_missing",
+          item.submitted.state === "not_submitted",
       ).length,
     scenarioCount:
       items.filter(
