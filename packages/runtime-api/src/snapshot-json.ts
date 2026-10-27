@@ -5,8 +5,16 @@ import {JSONParser} from '@streamparser/json';
 
 // Retain the ordinary JSON format, but never require the complete snapshot to
 // fit in one JavaScript string. This applies to legacy migration and restore too.
+// T11: a large snapshot is read into one buffer and split at value boundaries;
+// each bounded value is decoded by the native JSON parser. The values are the
+// same as JSON.parse gives; only files too large to buffer use the slow
+// token-by-token reader.
+const SLICE_PARSE_BYTES=8*1024*1024;
+const BUFFERED_PARSE_MAX_BYTES=384*1024*1024;
 export function readSnapshotJson<T>(path:string):T {
-  if(statSync(path).size<=32*1024*1024)return JSON.parse(readFileSync(path,'utf8')) as T;
+  const size=statSync(path).size;
+  if(size<=32*1024*1024)return JSON.parse(readFileSync(path,'utf8')) as T;
+  if(size<=BUFFERED_PARSE_MAX_BYTES)return parseJsonBuffer(readFileSync(path)) as T;
   const parser=new JSONParser({paths:['$'],stringBufferSize:64*1024});
   let result:T|undefined,found=false;
   parser.onValue=({value})=>{result=value as T;found=true;};
@@ -17,9 +25,74 @@ export function readSnapshotJson<T>(path:string):T {
   return result!;
 }
 
+/** JSON.parse for a UTF-8 buffer larger than one string should hold: objects and
+ * arrays larger than SLICE_PARSE_BYTES are walked here, every smaller value is
+ * parsed natively from its own slice. Slices end at ASCII delimiters, so no
+ * multi-byte character is ever split. */
+export function parseJsonBuffer(buf:Buffer):unknown {
+  const end=buf.length;let pos=0;
+  const fail=(at:number):never=>{throw new SyntaxError(at>=end?'PROJECT_SNAPSHOT_INCOMPLETE':'Unexpected token in JSON at position '+at);};
+  const space=()=>{while(pos<end){const c=buf[pos];if(c===0x20||c===0x0a||c===0x0d||c===0x09)pos++;else break;}};
+  const stringEnd=(open:number):number=>{
+    let from=open+1;
+    for(;;){
+      const quote=buf.indexOf(0x22,from);if(quote<0)return fail(end);
+      let slash=quote-1;while(slash>open&&buf[slash]===0x5c)slash--;
+      if((quote-1-slash)%2===0)return quote+1;
+      from=quote+1;
+    }
+  };
+  // End of the container at `open`, or -1 when it is longer than `limit` bytes.
+  const containerEnd=(open:number,limit:number):number=>{
+    let depth=0,at=open;const stop=Math.min(end,open+limit);
+    while(at<stop){
+      const c=buf[at];
+      if(c===0x22){at=stringEnd(at);continue;}
+      if(c===0x7b||c===0x5b)depth++;
+      else if(c===0x7d||c===0x5d){if(--depth===0)return at+1;}
+      at++;
+    }
+    return at>=end?fail(end):-1;
+  };
+  const scalarEnd=(start:number):number=>{
+    if(buf[start]===0x22)return stringEnd(start);
+    let at=start;
+    while(at<end){const c=buf[at];if(c===0x2c||c===0x7d||c===0x5d||c===0x20||c===0x0a||c===0x0d||c===0x09)break;at++;}
+    return at;
+  };
+  const native=(start:number,stop:number):unknown=>JSON.parse(buf.toString('utf8',start,stop));
+  const value=():unknown=>{
+    space();if(pos>=end)fail(end);
+    const start=pos,c=buf[pos];
+    if(c!==0x7b&&c!==0x5b){const stop=scalarEnd(start);if(stop===start)fail(start);pos=stop;return native(start,stop);}
+    const stop=containerEnd(start,SLICE_PARSE_BYTES);
+    if(stop>=0){pos=stop;return native(start,stop);}
+    pos++;space();
+    if(c===0x5b){
+      const out:unknown[]=[];
+      if(buf[pos]===0x5d){pos++;return out;}
+      for(;;){out.push(value());space();const d=buf[pos++];if(d===0x2c)continue;if(d===0x5d)return out;fail(pos-1);}
+    }
+    const out:Record<string,unknown>={};
+    if(buf[pos]===0x7d){pos++;return out;}
+    for(;;){
+      space();if(buf[pos]!==0x22)fail(pos);
+      const keyStop=stringEnd(pos),key=native(pos,keyStop) as string;pos=keyStop;
+      space();if(buf[pos]!==0x3a)fail(pos);pos++;
+      const item=value();
+      if(key==='__proto__')Object.defineProperty(out,key,{value:item,writable:true,enumerable:true,configurable:true});else out[key]=item;
+      space();const d=buf[pos++];if(d===0x2c)continue;if(d===0x7d)return out;fail(pos-1);
+    }
+  };
+  const result=value();space();
+  if(pos!==end)fail(pos);
+  return result;
+}
+
 /** The one streaming JSON encoder: ordinary JSON text in bounded chunks, so no
  * caller ever needs a whole project as one JavaScript string. `filter` works like
  * a JSON.stringify replacer (holder, key, value); returning undefined omits the key. */
+const NATIVE_ENCODE_DEPTH=3;
 function encodeJsonChunks(value:unknown,write:(text:string)=>void,filter?:(holder:any,key:string,value:unknown)=>unknown):void {
   let parts:string[]=[],length=0;
   const ancestors=new Set<object>();
@@ -46,22 +119,34 @@ function encodeJsonChunks(value:unknown,write:(text:string)=>void,filter?:(holde
     }
     return true;
   };
-  const encode=(v:any):void=>{
+  // T11: below the top levels each value is encoded by the native serializer,
+  // which gives the same text; a value too long for one string falls back to
+  // this encoder, so no length limit can return.
+  const nativeText=(v:any):string|undefined=>{
+    if(typeof v.toJSON==='function')return undefined;
+    try{
+      if(!filter)return JSON.stringify(v);
+      let top=true;
+      return JSON.stringify(v,function(this:any,key:string,item:unknown){if(top){top=false;return item;}return filter(this,key,item);});
+    }catch(error){if(error instanceof RangeError)return undefined;throw error;}
+  };
+  const encode=(v:any,depth:number):void=>{
     if(v===null||omitted(v)){append('null');return;}
     if(typeof v==='string'){string(v);return;}
     if(typeof v!=='object'){append(JSON.stringify(v));return;}
     if(ancestors.has(v))throw new TypeError('Converting circular structure to JSON');
-    if(inlineRecord(v)){append(JSON.stringify(v));return;}
+    if(depth>=NATIVE_ENCODE_DEPTH){const text=nativeText(v);if(text!==undefined){append(text);return;}}
+    else if(inlineRecord(v)){append(JSON.stringify(v));return;}
     ancestors.add(v);
     if(Array.isArray(v)){
-      append('[');for(let i=0;i<v.length;i++){if(i)append(',');encode(prepare(v,v[i],String(i)));}append(']');
+      append('[');for(let i=0;i<v.length;i++){if(i)append(',');encode(prepare(v,v[i],String(i)),depth+1);}append(']');
     }else{
       append('{');let first=true;
-      for(const k of Object.keys(v)){const child=prepare(v,v[k],k);if(omitted(child))continue;if(!first)append(',');first=false;string(k);append(':');encode(child);}append('}');
+      for(const k of Object.keys(v)){const child=prepare(v,v[k],k);if(omitted(child))continue;if(!first)append(',');first=false;string(k);append(':');encode(child,depth+1);}append('}');
     }
     ancestors.delete(v);
   };
-  encode(prepare({'':value},value,''));flush();
+  encode(prepare({'':value},value,''),0);flush();
 }
 
 /** SHA-256 of the JSON text of a value, streamed: never one whole string. */
