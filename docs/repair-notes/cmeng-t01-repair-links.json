@@ -760,7 +760,8 @@
         "c0cdc68b",
         "cff75d07",
         "31e6f0fc",
-        "ef479078"
+        "ef479078",
+        "be33a85d"
       ],
       "tests": [
         "tests/t06-float-days-every-remaining-place.test.ts",
@@ -772,7 +773,8 @@
         "tests/t06-lag-working-days.test.ts",
         "tests/t06-delay-working-days.test.ts",
         "tests/t06-start-and-completion-delay-days.test.ts",
-        "tests/r12-relationship-lag-calendar.test.ts"
+        "tests/r12-relationship-lag-calendar.test.ts",
+        "tests/r15-n7-concentrated-float.test.ts"
       ],
       "what": "Float in working days beside hours, from each activity's own calendar, in every remaining screen, record page, download and Ask answer (T06). Rounds 9 and 10 (x6): relationship lag, finish slippage, start slippage and completion delay in working days of the relevant calendar, hours or elapsed days second; unknown calendar stays not established. bdc8c35a (Ask lag in working days) changed no test, so it is not linked. Round 12 (r12-lagcal): relationship lag is counted on the calendar the programme states (XER option and P6 XML Project.RelationshipLagCalendar); not stated gives the successor-calendar figures labelled as not stated; an unrecognised option is an assumption and an unreadable project default calendar withholds the CPM.",
       "why": "No SW item names float in days (N7 is not assigned to any SW row in the plan). Not linked to SW-25 (float trend) because that is a different defect."
@@ -803,6 +805,115 @@
       ],
       "what": "Issue keys, groups, de-duplication and finding ids use raw machine data, never display labels.",
       "why": "Guards the T10 label work (SW-45) against changing record identity; no SW row of its own."
+    },
+    {
+      "rule": "W4",
+      "what": "Counts and their words agree everywhere (1 group, 1 working day, -1 working day): one shared count rule used by server text and every screen script.",
+      "commits": [
+        "e9b56ad7",
+        "f9e3e363",
+        "9364f679",
+        "2d08ed1d",
+        "e50a0799",
+        "c4a39a4b"
+      ],
+      "tests": [
+        "tests/r15-c3-more-owner-plurals.test.ts",
+        "tests/t06-float-days-every-remaining-place.test.ts",
+        "tests/r15-c1-text-said-once.test.ts"
+      ],
+      "why": "Round 15: measured by the original 39-rule guard on three blind projects on the verifier test service; saved, not live."
+    },
+    {
+      "rule": "W5",
+      "what": "A sentence shared by several items is said once with the items named; each row keeps its own values.",
+      "commits": [
+        "a453aac8",
+        "d29035cc",
+        "c8029b64",
+        "f9e3e363",
+        "3182c0eb",
+        "9cb9f00f"
+      ],
+      "tests": [
+        "tests/r15-c3-last-said-once.test.ts",
+        "tests/r15-c1-text-said-once.test.ts",
+        "tests/r15-g4-wording-rules.test.ts"
+      ],
+      "why": "Round 15: measured by the original 39-rule guard on three blind projects on the verifier test service; saved, not live."
+    },
+    {
+      "rule": "W1 W2 W6 W7 W8",
+      "what": "Plain readable labels instead of field keys and internal words; page-specific headlines; ID lists and stated amounts at their shared source.",
+      "commits": [
+        "f9e3e363",
+        "a453aac8",
+        "021f2080",
+        "7a3b4d94"
+      ],
+      "tests": [
+        "tests/r15-plain-words-w2-w8-w9.test.ts",
+        "tests/r15-g2-render-people-words.test.ts",
+        "tests/r15-g4-wording-rules.test.ts"
+      ],
+      "why": "Round 15: measured by the original 39-rule guard on three blind projects on the verifier test service; saved, not live."
+    },
+    {
+      "rule": "A1 A3",
+      "what": "Suggested updates open the page where they are decided; the confirm control names its own register.",
+      "commits": [
+        "a453aac8",
+        "021f2080",
+        "d29035cc",
+        "3182c0eb",
+        "9364f679"
+      ],
+      "tests": [
+        "tests/r15-c3-more-owner-plurals.test.ts",
+        "tests/r15-c3-last-said-once.test.ts"
+      ],
+      "why": "Round 15: measured by the original 39-rule guard on three blind projects on the verifier test service; saved, not live."
+    },
+    {
+      "rule": "L3",
+      "what": "Long detail is paged (25 rows at a time, detail pages for More detail) and blocks of one kind share one selector; nothing removed or moved to another page.",
+      "commits": [
+        "76b33b7a",
+        "ebec2340"
+      ],
+      "tests": [
+        "tests/r15-c5-l3-opened-detail.test.ts"
+      ],
+      "why": "Round 15: measured by the original 39-rule guard on three blind projects on the verifier test service; saved, not live."
+    },
+    {
+      "rule": "R3",
+      "what": ".txt and .md contracts are read by content through the one contract reader; a file read in full is read completely, missing clause structure is a separate note; stored projects refreshed once on start without changing decisions.",
+      "commits": [
+        "11ba7f07",
+        "7dc07e59",
+        "bf3712cf",
+        "58d0c9fb"
+      ],
+      "tests": [
+        "tests/r15-txt-contract-content-reading.test.ts",
+        "tests/r15-whole-source-read-state.test.ts",
+        "tests/evidence-intake.test.ts"
+      ],
+      "why": "Round 15: measured by the original 39-rule guard on three blind projects on the verifier test service; saved, not live."
+    },
+    {
+      "rule": "S1",
+      "what": "An unknown value says what it needs, including facts that state their requirement only as a diagnostic code.",
+      "commits": [
+        "bf3712cf",
+        "9cb9f00f"
+      ],
+      "tests": [
+        "tests/r15-c2-states.test.ts",
+        "tests/r15-c3-last-said-once.test.ts"
+      ],
+      "why": "Round 15: measured by the original 39-rule guard on three blind projects on the verifier test service; saved, not live."
     }
   ],
   "fOverlaps": {
@@ -2073,5 +2184,6 @@
   "round11Search": "Round 11 (851c9051..ca04db07, 79 commits, merged into v/x1c-board): every commit read with the test files it changed and the case names in those tests, the same way. CI-list chores and the temporary probes (4abd2df3, a8373994, e9eb7d77, removed before merge) are not linked. Every linked commit is saved, not live: the live release is still b3c76d6. Named tests run on this branch (built at ca04db07 plus docs): f61-management-page-weight and f61-adversarial-list-paging 3 of 3 pass; the 14 round-11 test files 161 of 162 pass, the one failure is the cold Dashboard 10 s timing case (see SW-54).",
   "round12Search": "Final update (dfaf3b6d..70b965f5, 19 commits): each commit read with the test files it changed and the case names in those tests, the same way. Lead fixes ce3054f6 and d06b8bfa changed no test; they are linked to the existing tests their messages name (t05-built-script-zero-fallback-guard, r11-f10-one-owner-page-per-block). 851c9051 (Director unknown claim count) was already linked in round 10 (F09, F11, SW-04). CI-list chores are not linked. The cold Dashboard timing test was not re-run here by lead instruction; the lead reports CI measured 5.6 s on the merged state. Every linked commit is saved, not live: the live release is still b3c76d6. Named tests run on this branch built at 70b965f5: f16-f45-resource-hours-earned, r11-f45-progress-quantity-rules, r11-f10-one-owner-page-per-block and t05-built-script-zero-fallback-guard, 16 of 16 pass. f01-real-browser-every-page (headless Chrome) was not run here; its commits state CI runs.",
   "round13Search": "Round 12 (2b951f3c..bd96b562, merged into v/x1c-board): every commit read with the test files it changed and the case names in those tests, the same way. Fix commits cdc33a6d, 67d72fc1, e43d199f and e9aba9b9 changed no test file themselves; each is linked with the probe test written before it on the same branch (ae44f64e, 15810036, 846b1f89, 01446dfd). Named tests run on this branch built at bd96b562: r12-certified-column-label, r12-f07-shared-prerequisites, f06-claims-files-merge-notice-register, t02-p6-xml-calendar-working-time, t02-programme-column-audit-formats, r12-f34-time-for-completion-from-commencement, r12-relationship-lag-calendar and t11-request-path-parity, 39 of 39 pass. f01-real-browser-every-page (headless Chrome) and j8-final were not run here. Every linked commit is saved, not live: the live release is still b3c76d6.",
-  "round14Search": "Round 13 (9e428ab3..99cd6cbc, merged into v/x1c-board): 203e27ef and 38c1c0b8 read with the test files they changed and linked to SW-13 (T02 R1). Named tests run on this branch built at 99cd6cbc: primavera-xml and t02-p6-xml-calendar-working-time, 12 of 12 pass; t02-r1-stored-size-load (the timing measurement) was not run here. Saved, not live: the live release is still b3c76d6."
+  "round14Search": "Round 13 (9e428ab3..99cd6cbc, merged into v/x1c-board): 203e27ef and 38c1c0b8 read with the test files they changed and linked to SW-13 (T02 R1). Named tests run on this branch built at 99cd6cbc: primavera-xml and t02-p6-xml-calendar-working-time, 12 of 12 pass; t02-r1-stored-size-load (the timing measurement) was not run here. Saved, not live: the live release is still b3c76d6.",
+  "round15Search": "Round 15 (v/int5 7a3b4d94..be33a85d, 19 to 27 Oct): the original 39-rule guard run on three blind projects per build. Live release b3c76d6 had 1,762 / 1,960 hits on two of them; the last full run on the test service (c4a39a4b) had 60 hits, all in classes shown to be false positives (N11 test data really is one WBS or calendar code, N2 the capture reads a whole tile row as one tile, W5 each activity row repeats its own values, W1 field names quoted from the source, N1 a true count that equals the page size of 25 or a table matched to another list). The 81-hit audit of 39e91a9c, with each hit classed and its evidence, is docs/repair-notes/r15-guard-81-hit-audit-39e91a9c.csv. One remaining hit after that run (N7, float said in hours) is fixed in be33a85d. Full 19-job CI green on c4a39a4b (run 40484194402). Saved, not live: the live release is still b3c76d6."
 }
