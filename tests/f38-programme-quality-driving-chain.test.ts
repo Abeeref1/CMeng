@@ -9,6 +9,7 @@ import {pmcScheduleRules, PROGRAMME_QUALITY_FORMULAS} from '../packages/runtime-
 import * as vm from 'node:vm';
 import {createSourceFile, ScriptTarget, isFunctionDeclaration} from 'typescript';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {countText} from '../packages/runtime-api/src/count-text';
 
 // The real renderProgrammeQuality from the assembled browser script.
 function renderQuality(q: unknown): string {
@@ -17,7 +18,7 @@ function renderQuality(q: unknown): string {
   const fn = source.statements.filter(isFunctionDeclaration).find(n => n.name?.text === 'renderProgrammeQuality')!;
   assert.ok(fn, 'renderProgrammeQuality present');
   const text = (value: unknown) => String(value ?? '');
-  return vm.runInNewContext(fn.getText(source) + ';renderProgrammeQuality(q);', {
+  return vm.runInNewContext(fn.getText(source) + ';renderProgrammeQuality(q);', {countText,
     q, escapeHtml: text, fmt: text, planningShortDate: text, experienceRecordCount: (rows: unknown[]) => String(rows.length),
     planningKpis: (rows: unknown[][]) => rows.map(r => '<kpi>' + r[0] + '=' + r[1] + '</kpi>').join(''), basisTable: () => '',
   }) as string;

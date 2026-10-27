@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
 import {createSourceFile,isFunctionDeclaration,ScriptTarget} from 'typescript';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
+import {countText} from '../packages/runtime-api/src/count-text';
 
 // This is the real assembled UI function, not a duplicate mocked presentation.
 const assembled=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)?.[1];
@@ -20,7 +21,7 @@ function render(rows:Record<string,unknown>[]){
  };
  const sourceBefore=JSON.stringify(project);
  const script=renderer!.getText(parsed)+';renderProgressBreakdownVisual';
- const display=runInNewContext(script,{
+ const display=runInNewContext(script,{countText,
   projectionFor:(value:unknown)=>value,
   fmt:(value:unknown)=>value===null||value===undefined?'Not established':String(value),
   escapeHtml:(value:unknown)=>String(value).replace(/[&<>"]/g,t=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'} as Record<string,string>)[t]!),

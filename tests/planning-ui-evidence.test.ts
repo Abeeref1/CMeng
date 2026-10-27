@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createSourceFile, ScriptTarget, isFunctionDeclaration } from 'typescript';
 import { cmengUatHtml } from '../packages/runtime-api/src/ui';
 import { deliveryScript } from '../packages/runtime-api/src/ui-delivery';
+import {countText} from '../packages/runtime-api/src/count-text';
 
 function functions(names: string[]) {
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
@@ -26,7 +27,7 @@ test('S-Curve headline selects the exact Data Date observation in different brow
     for(const zone of ['Asia/Dubai','America/Los_Angeles']) {
       process.env.TZ=zone;
       let kpis: any[]=[];
-      runInNewContext(script+';renderProgressScurveVisual(data);',{
+      runInNewContext(script+';renderProgressScurveVisual(data);',{countText,
         data,projectionFor:(value: unknown)=>value,planningKpis:(rows:any[])=>{kpis=rows;return '';},
         fmt:String,percent2:String,escapeHtml:String,humanizeKey:String,renderLineChart:()=>'',renderProgressScope:()=>'',renderVisualPanel:()=>'',
       });
@@ -60,7 +61,7 @@ test('Progress Breakdown exposes six structural filters without unresolved spam 
      {dimension:'cbs',label:'By CBS',sourcePopulation:2,classifiedPopulation:0,unclassifiedPopulation:2,classificationCoveragePercent:0,available:false,basis:'Explicit CBS only',rows:[]},
    ]
  };
- const html=runInNewContext(script+';renderProgressBreakdownVisual(data)',{
+ const html=runInNewContext(script+';renderProgressBreakdownVisual(data)',{countText,
    data,projectionFor:(v:any)=>v,planningKpis:()=>'',escapeHtml:String,fmt:String,percent2:(v:any)=>Number(v).toFixed(2),pmcDisplayOwner:()=> 'PMC Project Controls Manager'
  });
  for(const label of ['By WBS','By WBS Level','By Zone','By Level','By Work Front','By CBS'])assert.match(html,new RegExp(label));
@@ -74,7 +75,7 @@ test('Progress Breakdown exposes six structural filters without unresolved spam 
 
 test('Completion Forecast converts calendar and graph diagnostics to business language',()=>{
  const run=functions(['forecastDiagnosticMessages'])+';forecastDiagnosticMessages';
- const messages=runInNewContext(run,{fmt:(v:any)=>String(v)})([
+ const messages=runInNewContext(run,{countText,fmt:(v:any)=>String(v)})([
   'CALENDAR_SEMANTICS_UNRESOLVED:6:CALENDAR_WORKING_INTERVALS_NOT_ESTABLISHED:Supply The Calendar Working Days',
   'SCHEDULE_GRAPH_CYCLES:RMH 010 008',
   'SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:RMH 010 008',
@@ -96,14 +97,14 @@ test('Interface Management uses its dedicated renderer and never prints undefine
   managementPosition:'No confirmed or derivable interface population is available from the current Project information.',
   rows:[],confirmedCount:0,candidateCount:0,blockerCount:0,linkedActivityCount:0,basis:'Confirmed interfaces come from reviewed Interface records.',
  };
- const html=runInNewContext(functions(['interfaceDisplay','renderInterfaceIntelligenceVisual'])+';renderInterfaceIntelligenceVisual(data)',{
+ const html=runInNewContext(functions(['interfaceDisplay','renderInterfaceIntelligenceVisual'])+';renderInterfaceIntelligenceVisual(data)',{countText,
   data,projectionFor:(v:any)=>v,escapeHtml:String,fmt:String,humanizeKey:String,planningShortDate:String,
   planningKpis:()=>'<div>KPI</div>',responseListPopulation:(rows:any[])=>({total:rows.length}),sourcePopulationControl:()=>''
  });
  assert.match(html,/Interface position/);
  assert.match(html,/No confirmed or derivable interface population/);
  assert.doesNotMatch(html,/undefined/i);
- const routed=runInNewContext(deliveryScript()+';renderDelivery({data})',{data});
+ const routed=runInNewContext(deliveryScript()+';renderDelivery({data})',{countText,data});
  assert.equal(routed,false,'Interface intelligence must bypass the generic Delivery renderer');
 });
 
@@ -117,7 +118,7 @@ test('Master Dashboard groups repeated priority reasons and retains activity ide
    {rank:3,activityId:'JRT-001-075',name:'Programme Management Activity 075',wbs:'Programme Management - WP01',reason:'-120 hours source float',action:'Review'},
   ],
  };
- const html=runInNewContext(functions(['renderProjectDashboardSummary'])+';renderProjectDashboardSummary(d)',{
+ const html=runInNewContext(functions(['renderProjectDashboardSummary'])+';renderProjectDashboardSummary(d)',{countText,
   d,escapeHtml:String,fmt:String,planningShortDate:String,planningKpis:()=>'',renderCompletionPosition:()=>'',renderProjectDiagnosis:()=>''
  });
  assert.equal((html.match(/-120 hours source float/g)||[]).length,1);
@@ -131,7 +132,7 @@ test('Master Dashboard groups repeated priority reasons and retains activity ide
 test('An incomplete probability calculation suppresses dates in every chart, not only the lower cards',()=>{
  const script=functions(['forecastDiagnosticMessages','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
  const bars:any[][]=[];
- const html=runInNewContext(script+';renderForecastVisual(data)',{
+ const html=runInNewContext(script+';renderForecastVisual(data)',{countText,
   data:{independentForecastCompletionIso:'2033-05-15',sourceForecastCompletionIso:'2030-06-30',dataDateIso:'2026-08-31',complete:true,forecastReconciliationGate:{publishable:true,checks:[],basis:'Source-calendar calculation checks passed; review of assumptions remains required'},managementReviewState:'review_required',probabilistic:{p50CompletionIso:'2034-01-01',p80CompletionIso:'2035-01-01',p90CompletionIso:'2036-01-01'}},
   projectionFor:(v:any)=>v,renderCompletionPosition:()=>'',experienceDisclosure:(_t:string,b:string)=>b,planningKpis:()=>'',escapeHtml:String,fmt:String,humanizeKey:String,planningDateLadder:()=>'',
   renderVisualPanel:(_t:any,_s:any,body:any)=>body,renderVisualBars:(rows:any[])=>{bars.push(rows);return '';},renderWaterfallChart:(rows:any[])=>{bars.push(rows);return '';},
@@ -144,7 +145,7 @@ test('An incomplete probability calculation suppresses dates in every chart, not
 test('An available probability calculation remains visible while forecast reconciliation needs review',()=>{
  const script=functions(['forecastDiagnosticMessages','renderForecastVisual','planningDateMs','planningShortDate','planningCalendarDaysBetween']);
  const bars:any[][]=[];
- const html=runInNewContext(script+';renderForecastVisual(data)',{
+ const html=runInNewContext(script+';renderForecastVisual(data)',{countText,
   data:{independentForecastCompletionIso:'2033-05-15',sourceForecastCompletionIso:'2030-06-30',dataDateIso:'2026-08-31',complete:true,forecastReconciliationGate:{publishable:true,checks:[],basis:'Source-calendar calculation checks passed; review of assumptions remains required'},managementReviewState:'review_required',probabilistic:{status:'available',p50CompletionIso:'2034-01-01',p80CompletionIso:'2035-01-01',p90CompletionIso:'2036-01-01'}},
   projectionFor:(v:any)=>v,renderCompletionPosition:()=>'',experienceDisclosure:(_t:string,b:string)=>b,planningKpis:()=>'',escapeHtml:String,fmt:String,humanizeKey:String,planningDateLadder:()=>'',
   renderVisualPanel:(_t:any,_s:any,body:any)=>body,renderVisualBars:(rows:any[])=>{bars.push(rows);return '';},renderWaterfallChart:(rows:any[])=>{bars.push(rows);return '';},
@@ -157,7 +158,7 @@ test('An available probability calculation remains visible while forecast reconc
 test('Milestone chart retains priority exceptions and represents repeated watch movement once',()=>{
  const script=functions(['planningMilestoneTimeline','planningDateMs','planningShortDate']);
  const rows=[{activityId:'critical',managementPriority:'critical',totalFloatHours:-10},...Array.from({length:8},(_,i)=>({activityId:'watch'+i,managementPriority:'watch',totalFloatHours:300}))].map(r=>({...r,status:'not_started',name:r.activityId,varianceDays:181,baselineDateIso:'2030-01-01',currentDateIso:'2030-07-01'}));
- const html=runInNewContext(script+';planningMilestoneTimeline(p,"2030-08-01")',{p:{rows,dataDateIso:'2026-08-31'},escapeHtml:String,fmt:String,planningMilestoneChartPriority:(r:any)=>r.managementPriority==='critical'?10:1,planningMilestonePriorityRank:()=>0,planningMilestoneCriticalityLabel:(r:any)=>r.managementPriority,planningMilestoneDueLabel:()=> 'future'});
+ const html=runInNewContext(script+';planningMilestoneTimeline(p,"2030-08-01")',{countText,p:{rows,dataDateIso:'2026-08-31'},escapeHtml:String,fmt:String,planningMilestoneChartPriority:(r:any)=>r.managementPriority==='critical'?10:1,planningMilestonePriorityRank:()=>0,planningMilestoneCriticalityLabel:(r:any)=>r.managementPriority,planningMilestoneDueLabel:()=> 'future'});
  assert.match(html,/Representative of 8 watch milestones/);assert.match(html,/2 priority representatives from 9 open milestones/);assert.match(html,/critical/);
  assert.equal((html.match(/class="milestone-date-row"/g)||[]).length,2);
  assert.equal(rows.length,9,'source population is untouched');
@@ -174,7 +175,7 @@ test('Interface Management sanitizes literal undefined, null and NaN values',()=
    discipline:null,system:'NaN',location:'',requiredDeliverable:'undefined',requiredDate:null,responsibleParty:'undefined',
    linkedActivity:'A-1',linkedRfi:null,linkedSubmittal:null,linkedRisk:null,consequence:'undefined',escalation:null
  }]};
- const html=runInNewContext(script+';renderInterfaceIntelligenceVisual(data)',{
+ const html=runInNewContext(script+';renderInterfaceIntelligenceVisual(data)',{countText,
    data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:String,planningKpis:()=>'',responseListPopulation:(rows:any[])=>({total:rows.length}),sourcePopulationControl:()=>''
  });
  assert.doesNotMatch(html,/>undefined</i);
@@ -186,9 +187,9 @@ test('Interface Management sanitizes literal undefined, null and NaN values',()=
 test('Interface page exposes unknowns, retained candidate browsing and the existing register upload flow',()=>{
  const script=functions(['interfaceDisplay','renderInterfaceIntelligenceVisual']);
  const data:any={interfaceProjectionKey:'interface_intelligence',rows:[],population:{state:'not_established'},knownCount:0,candidateCount:0,blockerCount:null,linkedActivityCount:null};
- const render=()=>runInNewContext(script+';renderInterfaceIntelligenceVisual(data)',{data,projectionFor:(v:any)=>v,escapeHtml:(v:any)=>String(v??''),fmt:String,humanizeKey:String,planningShortDate:String,planningKpis:(rows:any[])=>rows.map(row=>row.join(' ')).join(' '),responseListPopulation:()=>({total:620}),sourcePopulationControl:(_:any,label:string)=>'<button>'+label+'</button>'});
+ const render=()=>runInNewContext(script+';renderInterfaceIntelligenceVisual(data)',{countText,data,projectionFor:(v:any)=>v,escapeHtml:(v:any)=>String(v??''),fmt:String,humanizeKey:String,planningShortDate:String,planningKpis:(rows:any[])=>rows.map(row=>row.join(' ')).join(' '),responseListPopulation:()=>({total:620}),sourcePopulationControl:(_:any,label:string)=>'<button>'+label+'</button>'});
  let html=render();assert.match(html,/Blocked \/ overdue Not established/);assert.match(html,/Linked activities Not established/);assert.match(html,/Upload Interface Register/);
- let opened=0,clicked=0;const handler=/onclick="([^"]+)"/.exec(html)![1]!;runInNewContext(handler,{openEvidenceWorkspace:()=>opened++,el:(id:string)=>{assert.equal(id,'evidenceFiles');return {click:()=>clicked++};}});assert.equal(opened,1);assert.equal(clicked,1);
+ let opened=0,clicked=0;const handler=/onclick="([^"]+)"/.exec(html)![1]!;runInNewContext(handler,{countText,openEvidenceWorkspace:()=>opened++,el:(id:string)=>{assert.equal(id,'evidenceFiles');return {click:()=>clicked++};}});assert.equal(opened,1);assert.equal(clicked,1);
  data.knownCount=620;data.knownBlockerCount=19;data.knownLinkedActivityCount=11;html=render();assert.match(html,/Blocked \/ overdue Not established · 19 known/);assert.match(html,/Linked activities Not established · 11 known/);assert.match(html,/Showing 0 of 620 rows/);assert.match(html,/Browse all interfaces and candidates/);assert.doesNotMatch(html,/Upload Interface Register/);
  data.population.state='established';data.knownCount=0;data.blockerCount=0;data.linkedActivityCount=0;html=render();assert.match(html,/Blocked \/ overdue 0/);assert.match(html,/Linked activities 0/);assert.doesNotMatch(html,/Upload Interface Register/);
 });
@@ -198,7 +199,7 @@ test('Recovery and Acceleration explains eligibility instead of presenting a bar
  const data:any={projectionKey:'recovery_acceleration',scenarios:[],calculatedScenarioCount:0,assumptionRequiredCount:0,scenarioState:'no_eligible_recovery_basis',
    dataDateIso:'2026-08-31',managementPosition:'No recovery option currently meets the calculation criteria.',
    eligibility:{activityFeasibilityCheckCount:44,crewAccelerationCandidateCount:0,lateProcurementPackageCount:0,unresolvedFeasibilityCheckCount:0,governedResequencingWorkfrontCount:0},basis:'Evidence only.'};
- const html=runInNewContext(script+';renderRecoveryAccelerationVisual(data)',{
+ const html=runInNewContext(script+';renderRecoveryAccelerationVisual(data)',{countText,
    data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:String,
    planningKpis:(rows:any[])=>rows.map(r=>r.join(' ')).join(' ')
  });
@@ -213,7 +214,7 @@ test('Recovery renders each missing domain and driving network independently of 
  const data:any={projectionKey:'recovery_acceleration',scenarios:[],eligibilityAssessmentState:'supporting_basis_incomplete',calculatedScenarioCount:0,assumptionRequiredCount:0,
   drivingChainShortfall:{drivingOpenActivityCount:null,fiveDayDrivingActivityCount:null,workingDays:null,calendarDays:null},
   eligibility:{activityFeasibilityCheckCount:null,crewAccelerationCandidateCount:null,knownCrewAccelerationCandidateCount:4,lateProcurementPackageCount:0,unresolvedFeasibilityCheckCount:null,governedResequencingWorkfrontCount:null,actualEligibilityChecksPerformed:3,unlinkedFeasibilityRowCount:7}};
- const render=()=>runInNewContext(script+';renderRecoveryAccelerationVisual(data)',{data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:(v:any)=>v==null?'0':String(v),planningKpis:(rows:any[])=>rows.map(row=>row.join(' ')).join(' ')});
+ const render=()=>runInNewContext(script+';renderRecoveryAccelerationVisual(data)',{countText,data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:(v:any)=>v==null?'0':String(v),planningKpis:(rows:any[])=>rows.map(row=>row.join(' ')).join(' ')});
  const html=render();assert.match(html,/Activity feasibility checks Not assessable/);assert.match(html,/Crew acceleration candidates Not assessable · 4 known/);assert.match(html,/Late procurement packages 0/);assert.match(html,/Resequencing-enabled workfronts Not assessable/);assert.match(html,/Unfinished driving activities: Not established/);assert.match(html,/7 source item\(s\) still need activity links/);assert.match(html,/Eligibility checks performed 3/);
  data.drivingChainShortfall.drivingOpenActivityCount=0;data.drivingChainShortfall.fiveDayDrivingActivityCount=0;assert.match(render(),/Unfinished driving activities: 0/);
  data.eligibility={};const legacy=render();assert.match(legacy,/Activity feasibility checks Not assessable/);assert.match(legacy,/Eligibility checks performed Not assessable/);

@@ -15,6 +15,7 @@ import {buildIndependentForecastProjection} from '../packages/independent-foreca
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {countUnit} from '../packages/runtime-api/src/count-text';
 import {attachProjectFloatWorkingDays} from '../packages/runtime-api/src/activity-float-reconciliation';
+import {countText} from '../packages/runtime-api/src/count-text';
 process.env.CMENG_OCR_ENABLED = '0';
 type Inputs = Parameters<typeof pmcScheduleRules>[3];
 
@@ -115,7 +116,7 @@ function render(names: string[], call: string, q: unknown): string {
   const functions = source.statements.filter(isFunctionDeclaration).filter(n => names.includes(n.name?.text ?? ''));
   assert.equal(functions.length, names.length, 'page functions present: ' + names.join(', '));
   const text = (value: unknown) => String(value ?? '');
-  return vm.runInNewContext(functions.map(f => f.getText(source)).join('\n') + ';' + call, {
+  return vm.runInNewContext(functions.map(f => f.getText(source)).join('\n') + ';' + call, {countText,
     q, escapeHtml: text, fmt: text, countUnit, planningShortDate: text, experienceRecordCount: (rows: unknown[]) => String(rows.length), listTotal: (rows: unknown[]) => rows.length,
     planningKpis: (rows: unknown[][]) => rows.map(r => '<kpi>' + r[0] + '=' + r[1] + '|' + r[2] + '</kpi>').join(''), basisTable: () => '',
   }) as string;
@@ -133,7 +134,7 @@ function renderNearCriticalPage(projectFacts: unknown): string {
     floatCoveragePercent: 100, classificationCoveragePercent: 100, unresolvedActivityCount: 0, criticalThresholdHours: 0, nearCriticalThresholdHours: 40, floatRiskWatchlistIncludesCriticalThreshold: true,
     nearCriticalThresholdAuthority: 'cmeng_screening_policy', ...(projectFacts ? {projectFacts} : {})};
   const text = (value: unknown) => String(value ?? '');
-  return vm.runInNewContext(helpers + '\n' + script.slice(start, end) + ';renderNearCriticalVisual(p);', {
+  return vm.runInNewContext(helpers + '\n' + script.slice(start, end) + ';renderNearCriticalVisual(p);', {countText,
     shortRevision: (value: unknown) => value ? 'Previous programme' : 'No comparison programme', p, projectionFor: (value: unknown) => value, escapeHtml: text, fmt: text, countUnit, planningShortDate: text,
     planningStateLabel: text, planningDaysBetween: () => null, planningKpis: () => '', planningFloatHistogram: () => '', planningFinishPeriodBars: () => '', distributionSummary: () => '',
   }) as string;

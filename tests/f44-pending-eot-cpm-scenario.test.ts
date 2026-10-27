@@ -9,6 +9,7 @@ import {pendingEotScenario} from '../packages/runtime-api/src/pending-eot-scenar
 import {extractContractLdTerms} from '../packages/contract-commercial/src';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {contractTimeProject,contractTimeModel,PENDING_CLAIMS,EXTENDED_COMPLETION,PROGRAMME_FINISH} from './f33-f44-contract-time-fixture';
+import {countText} from '../packages/runtime-api/src/count-text';
 
 // F44: the pending EOT scenario is a CMeng CPM calculation. With the 21
 // pending assessed days awarded, the contract completion moves from 21 Sep to
@@ -90,7 +91,7 @@ test('F44 every page carries the CPM pending EOT scenario and the EOT page shows
   const script=cmengUatHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const ast=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
   const fn=ast.statements.filter(isFunctionDeclaration).filter(n=>['renderPendingEotScenario'].includes(n.name?.text??'')).map(n=>n.getText(ast)).join('\n');
-  const show=(p:unknown)=>String(runInNewContext(fn+';renderPendingEotScenario(p)',{p,escapeHtml:String,fmt:(v:unknown)=>String(v),planningShortDate:(v:unknown)=>String(v).slice(0,10)}));
+  const show=(p:unknown)=>String(runInNewContext(fn+';renderPendingEotScenario(p)',{countText,p,escapeHtml:String,fmt:(v:unknown)=>String(v),planningShortDate:(v:unknown)=>String(v).slice(0,10)}));
   const pipeline=(moduleForProject(projectId,'eot-assessment').data as any).projectFacts.claims.pipeline;
   const html=show(pipeline);
   assert.match(html,/Pending EOT scenario \(CMeng CPM\)/);

@@ -4,6 +4,7 @@ import {runInNewContext} from 'node:vm';
 import {cmengUatHtml} from '../packages/runtime-api/src/ui';
 import {pageProjectResponse,recordDetailPage} from '../packages/runtime-api/src/response-paging';
 import {activityRegisterView} from '../packages/runtime-api/src/activity-register-page';
+import {countText} from '../packages/runtime-api/src/count-text';
 
 const script=[...cmengUatHtml().matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]!).join('\n');
 const pick=(name:string)=>{
@@ -21,7 +22,7 @@ test('T05: listTotal is the true source total; cut-preview subsets are unknown, 
   const ids=Array.from({length:25},(_,i)=>'ACT-'+i);
   const result={data:{sourceIssues:preview,rows:complete,group:{activityIds:ids}},responsePaging:{source:'/api/projects/P/management/source-quality',
     tables:[{pointer:'/data/sourceIssues',total:77,shown:25,kind:'array'},{pointer:'/data/group/activityIds',total:8900,shown:25,kind:'array'}]}};
-  const api=runInNewContext(helpers()+';({listTotal,screenCountText})',{currentModuleResult:result,fmt:String}) as any;
+  const api=runInNewContext(helpers()+';({listTotal,screenCountText})',{countText,currentModuleResult:result,fmt:String}) as any;
   assert.equal(api.listTotal(result.data.sourceIssues),77,'25 rows sent of 77 shows 77');
   assert.equal(api.listTotal(result.data.group.activityIds),8900);
   assert.equal(api.listTotal(result.data.rows),2,'an uncut list keeps its own length');
@@ -37,7 +38,7 @@ test('T05/N12: source-quality tiles and group counts use the true totals and add
     issueAssessment:{counts:{source_conflict:0,data_quality:3,missing_information:74,system_defect:0,comparison_difference:0,governance_review:0,verification_pending:0}}};
   const result={key:'source-quality',data,responsePaging:{source:'/api/projects/P/management/source-quality',tables:[{pointer:'/data/sourceIssues',total:77,shown:25,kind:'array'}]}};
   const code=helpers()+'\n'+pick('sourceIssueKindTotal')+'\n'+pick('renderSourceQuality')+';renderSourceQuality(data)';
-  const html=runInNewContext(code,{currentModuleResult:result,data,fmt:String,escapeHtml:String,names:{},
+  const html=runInNewContext(code,{countText,currentModuleResult:result,data,fmt:String,escapeHtml:String,names:{},
     readerIssue:(i:any)=>({title:i.summary,action:i.action,owner:'o',assignTo:'o'}),managementModuleLink:()=>'',
     managementPanel:(t:string,_d:string,b:string)=>'<section>'+t+b+'</section>',
     experienceDisclosure:(t:string,b:string,n='')=>'<details><summary>'+t+' '+n+'</summary>'+b+'</details>',
