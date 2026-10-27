@@ -32,6 +32,26 @@ test('X1: delivery workbook headings are reader words, read back to field keys t
   assert.equal(sheet.rowCount,41,'every record is kept');
 });
 
+test('X1: each delivery table keeps its table key on the Dataset index; the independent check finds table and columns by key',async()=>{
+  // T12: the Table column became reader words ('Delivery · rows'); the table key
+  // stays in its own column so a reader never has to match the wording.
+  const {fieldKeyColumns,worksheetByTableKey}=require(join(__dirname,'..','..','scripts','independent-workbook-keys.cjs'));
+  const book=await load(await buildDeliveryWorkbook('T10-D',deliveryFixture() as any));
+  const index=book.getWorksheet('Dataset index')!;
+  assert.deepEqual((index.getRow(1).values as any[]).slice(1),['Worksheet','Table','Row count','Table key']);
+  const name=worksheetByTableKey(book,'Dataset index','Delivery.rows');
+  assert.ok(name&&name.endsWith('rows'),String(name));
+  const row=index.getRows(2,index.rowCount-1)!.find(r=>r.getCell(1).value===name)!;
+  assert.equal(row.getCell(2).value,readablePathLabel('Delivery.rows'),'the Table column stays in reader words');
+  assert.equal(row.getCell(3).value,40);
+  const columns=fieldKeyColumns(book,'Column keys',name);
+  assert.equal(columns.headingCheck('recordId'),null,'the key sheet points at the printed heading');
+  assert.equal(columns.cell(columns.sheet.getRow(2),'recordId'),'S0');
+  assert.equal(columns.column('noSuchField'),-1);
+  assert.ok(columns.headingCheck('noSuchField'),'a missing column is a difference, not a pass');
+  assert.equal(worksheetByTableKey(book,'Dataset index','Delivery.noSuchTable'),undefined);
+});
+
 test('X1: an unknown value uses the screen word and an absent field stays empty; no "Unresolved" filler',async()=>{
   const book=await load(await buildDeliveryWorkbook('T10-D',deliveryFixture() as any));
   const cells:unknown[]=[];for(const s of book.worksheets)s.eachRow(r=>r.eachCell(c=>cells.push(c.value)));

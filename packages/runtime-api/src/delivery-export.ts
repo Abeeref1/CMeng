@@ -35,10 +35,12 @@ export async function buildDeliveryWorkbook(projectId:string,result:ModuleRuntim
   summary.addRow([readablePathLabel(path)||path,value===null?NOT_ESTABLISHED:typeof value==='string'?value.slice(0,32767):value]);
  };
  figures(data,'');
- const index=workbook.addWorksheet('Dataset index');index.addRow(['Worksheet','Table','Row count']);
+ // The Table heading is in reader words; 'Table key' keeps each table's data path
+ // so a reader (and the independent check) finds a table by key, never by wording.
+ const index=workbook.addWorksheet('Dataset index');index.addRow(['Worksheet','Table','Row count','Table key']);
  // Machine-readable column mapping: the heading shown and the field key it holds.
  const columnKeys:Array<[string,number,string,string]>=[];
- let number=0;for(const [path,rows] of sections){const name=String(++number).padStart(2,'0')+' '+path.split('.').at(-1)!.replace(/[\\/*?:\[\]]/g,' ').slice(0,26);const sheet=workbook.addWorksheet(name);index.addRow([name,readablePathLabel(path)||path,rows.length]);const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))];
+ let number=0;for(const [path,rows] of sections){const name=String(++number).padStart(2,'0')+' '+path.split('.').at(-1)!.replace(/[\\/*?:\[\]]/g,' ').slice(0,26);const sheet=workbook.addWorksheet(name);index.addRow([name,readablePathLabel(path)||path,rows.length,path]);const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))];
   const headings=keys.map(k=>exportColumnLabels[k]??(readablePathLabel(k)||k));keys.forEach((k,i)=>columnKeys.push([name,i+1,headings[i]!,k]));
   sheet.addRow(headings);for(const r of rows)sheet.addRow(keys.map(k=>{if(!Object.prototype.hasOwnProperty.call(r,k))return null;const v=r[k];return v===null||v===undefined?NOT_ESTABLISHED:typeof v==='string'?v.slice(0,32767):v;}));sheet.views=[{state:'frozen',ySplit:1}];sheet.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,rows.length+1),column:Math.max(1,keys.length)}};sheet.getRow(1).font={bold:true};sheet.columns.forEach(c=>c.width=24);}
  const mapping=workbook.addWorksheet('Column keys');mapping.addRow(['Worksheet','Column','Heading','Field key']);mapping.addRows(columnKeys);mapping.getRow(1).font={bold:true};mapping.columns.forEach(c=>c.width=30);
