@@ -13,7 +13,7 @@ export function statedLeadReviewDays(raw:string|null|undefined):{state:'not_stat
  const match=/^(\d{1,4})(?:\s*(?:calendar\s+)?(?:days?|d))?$/i.exec(text);
  return match?{state:'stated',days:Number(match[1]),raw:text}:{state:'unreadable',days:null,raw:text};
 }
-export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDate:string|null;sourceRequiredOnSite:string|null;forecastDelivery:string|null;actualDelivery:string|null;status:string;governingDate?:'programme'|'register'|null;leadReviewTime?:string|null}){
+export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDate:string|null;sourceRequiredOnSite:string|null;forecastDelivery:string|null;actualDelivery:string|null;status:string;governingDate?:'programme'|'register'|null;leadReviewTime?:string|null;linkedActivityFinish?:string|null}){
  // Validate an actual Gregorian source day before date sorting or overdue
  // arithmetic. Date.parse alone can silently normalize 2032-02-30 to March.
  const day=(value:string|null):string|null=>{
@@ -57,8 +57,36 @@ export function procurementTiming(input:{dataDateIso:string|null;programmeNeedDa
  const deliveredStatusOnly=terminal&&!actualDelivery;
  const deliveryDateConflict=!!cutoff&&terminal&&(!!actualDelivery&&actualDelivery>cutoff||!actualDelivery&&!!forecastDelivery&&forecastDelivery>cutoff);
  const knownUndelivered=!!cutoff&&!notApplicable&&!deliveredAtDataDate&&!deliveredStatusOnly&&(!!actualDelivery&&actualDelivery>cutoff||!!status&&!terminal&&!indeterminateStatus);
- const overdueUndelivered=!!needDate&&!!cutoff&&needDate<cutoff&&knownUndelivered;
+ // G7-56 / G7-19: with no date basis chosen (screening), the earlier date still flags lateness,
+ // but a passed need date is a blocker only when the register's own required-on-site date has
+ // passed too (or the register states none). When the register date is still ahead, only the
+ // linked programme date has passed: the package is at risk until the date basis is chosen.
+ const screening=input.governingDate!=='programme'&&input.governingDate!=='register';
+ const programmeDateOnlyPassed=screening&&!!cutoff&&!!sourceRequiredOnSite&&sourceRequiredOnSite>=cutoff&&!!programmeNeedDate&&programmeNeedDate<cutoff;
+ const overdueUndelivered=!!needDate&&!!cutoff&&needDate<cutoff&&knownUndelivered&&!programmeDateOnlyPassed;
+ const needDatePassedOnProgrammeOnly=programmeDateOnlyPassed&&knownUndelivered;
  const headroomCalendarDays=needDate&&forecastDelivery?(Date.parse(needDate)-Date.parse(forecastDelivery))/86400000:null;
  const forecastLate=!notApplicable&&!deliveredAtDataDate&&!deliveredStatusOnly&&headroomCalendarDays!==null&&headroomCalendarDays<0;
- return {programmeStartDate,leadReview,programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,openStatusDeliveredConflict,notApplicable,overdueUndelivered,headroomCalendarDays,forecastLate};
+ // G7-28: one link-timing rule for the look-ahead and every procurement page. Unless the
+ // programme date basis is chosen, a register required-on-site date after the linked work's
+ // finish means the link or the date is wrong: material readiness is not assessed.
+ const linkedActivityFinish=day(input.linkedActivityFinish??null);
+ const linkTimingMismatch=input.governingDate!=='programme'&&!notApplicable&&!!sourceRequiredOnSite&&!!linkedActivityFinish&&sourceRequiredOnSite>linkedActivityFinish;
+ return {programmeStartDate,leadReview,programmeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,forecastDelivery,deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,openStatusDeliveredConflict,notApplicable,overdueUndelivered,needDatePassedOnProgrammeOnly,headroomCalendarDays,forecastLate,linkedActivityFinish,linkTimingMismatch};
+}
+/** G7-19: one sentence for a passed need date. It names the date that passed and its
+ * basis; it never calls a linked programme date the register's required-on-site date. */
+export function needDatePassedPhrase(t:{needDate:string|null;needDateBasis:string}){
+ return 'The assessed need date ('+t.needDateBasis+', '+(t.needDate??'date not established')+') has passed';
+}
+export function needDatePassedText(t:{needDate:string|null;needDateBasis:string}){
+ return needDatePassedPhrase(t)+' and delivery is not recorded at the reporting date.';
+}
+/** G7-56: the linked programme date passed while the register date is still ahead. */
+export function programmeOnlyNeedDateText(t:{programmeNeedDate:string|null;sourceRequiredOnSite:string|null}){
+ return 'The linked programme need date '+t.programmeNeedDate+' has passed, but the register required-on-site date '+t.sourceRequiredOnSite+' has not. The package is at risk, not blocked, until the procurement date basis is chosen.';
+}
+/** G7-28: the same link-timing sentence on the look-ahead and the procurement pages. */
+export function linkTimingMismatchText(t:{sourceRequiredOnSite:string|null;linkedActivityFinish:string|null}){
+ return 'Source package is linked, but required-on-site date '+t.sourceRequiredOnSite+' is after activity finish '+t.linkedActivityFinish+'; confirm the link and required date before assessing material readiness';
 }

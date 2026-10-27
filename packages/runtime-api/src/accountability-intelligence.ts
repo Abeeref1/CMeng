@@ -1,7 +1,7 @@
 import {projectScopeClassification} from './location-review';
 import {countText} from './count-text';
 import {floatHoursText,sourceCalendarWorkingDays} from './activity-float-reconciliation';
-import {canonicalHeader,dateValue,managementAction,type ManagementAction} from '../../truth-kernel/src';
+import {canonicalHeader,dateValue,managementAction,needDatePassedPhrase,type ManagementAction} from '../../truth-kernel/src';
 import {deliveryPosition} from './delivery-projections';
 import {operationalReporting,claimsReporting,reportingState} from './reporting-state';
 import {projectControlSchedule,projectDataDate} from './canonical-time-claims';
@@ -62,7 +62,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
   // Reported delivered is not an actual delivery date, but it is not evidence
   // of an outstanding late shipment merely because the old forecast was late.
   for(const p of delivery.packageRows)if(p.registerCleanup&&!p.deliveredAtDataDate&&!p.deliveredStatusOnly||!p.registerCleanup&&(p.forecastLate||p.overdueUndelivered)){
-    const r=recordById.get(p.recordId)!;const issue=p.registerCleanup?'Open procurement record remains against completed programme work':p.overdueUndelivered?'Package is still undelivered after its required-on-site date':'Package forecast delivery is '+(-p.headroomCalendarDays!)+' calendar days after '+p.needDateBasis.toLowerCase();
+    const r=recordById.get(p.recordId)!;const issue=p.registerCleanup?'Open procurement record remains against completed programme work':p.overdueUndelivered?'Package is still undelivered after '+needDatePassedPhrase(p).replace(/^The /,'its ').replace(/ has passed$/,''):'Package forecast delivery is '+(-p.headroomCalendarDays!)+' calendar days after '+p.needDateBasis.toLowerCase();
     addDelivery(p.recordId,'procurement',issue,p.needDate,p.activityIds,r.receipts.map(x=>x.documentId+':'+x.locator));
     for(const supplierId of p.supplierIds){const supplier=recordById.get(supplierId);if(supplier){const base={domain:'procurement',recordId:p.recordId,reference:p.reference,issue,dueDate:p.needDate,overdueDays:daysOver(p.needDate,dataDateIso),activityIds:p.activityIds,sourceRefs:r.receipts.map(x=>x.documentId+':'+x.locator),authority:'confirmed_record' as const};add('organisation',field(supplier,'company')||supplier.description||supplier.reference,base);}}
   }

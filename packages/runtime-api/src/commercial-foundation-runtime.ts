@@ -552,6 +552,22 @@ export function commercialFoundationForState(
     (foundation.commercialTerms as any)[target]={...old,value:selected.value===null?null:stringValue?selected.value+' '+selected.unit:selected.value,state:termFact.state,authority:termFact.authority,basis:{...old.basis,asOfDate:projectDataDate(state),sourceRefs:selected.sourceRefs,method:selected.versions.some(v=>v.reviewReference)?'reviewed_source_notice_provisions':'explicit_dated_contract_data',reviewReferences:[...new Set(selected.versions.flatMap(v=>v.reviewReference??[]))]},diagnostics:selected.reason?[selected.reason]:[],action:selected.reason,coverage:{known:selected.value===null?0:1,total:1,percent:selected.value===null?0:100}};
   }
   foundation.commercialTerms.noticeVersions=[...contractNoticeRules(state),...contractNoticeRules(state,"detailed_claim")];
+  // G6-08: an amendment that replaces the claim notice period from a stated date is a dated
+  // version of the term, not a disagreement between two sources. When the whole-text scan calls
+  // the notice period conflicting and no labelled notice term was read, the dated claim-notice
+  // versions decide the period in force at the Data Date (one value, established applicability).
+  const noticeTerm=foundation.commercialTerms.noticePeriodDays;
+  if(!termKeys.includes('noticePeriodDays')&&noticeTerm?.state==='conflicted'){
+    const asOf=projectDataDate(state);
+    const claimRules=foundation.commercialTerms.noticeVersions.filter(rule=>rule.noticeKind==='claim_notice');
+    const inForce=asOf?claimRules.filter(rule=>(!rule.effectiveFromIso||rule.effectiveFromIso<=asOf)&&(!rule.effectiveToIso||rule.effectiveToIso>asOf)):[];
+    if(inForce.length&&new Set(inForce.map(rule=>rule.noticePeriodDays)).size===1&&claimRules.every(rule=>rule.applicabilityState==='established')){
+      const adopted=inForce.every(rule=>rule.state==='official'&&!rule.sourceAnalyticalUse);
+      foundation.commercialTerms.noticePeriodDays={...noticeTerm,value:inForce[0]!.noticePeriodDays,state:'established',authority:adopted?'source':'candidate',
+        basis:{...noticeTerm.basis,asOfDate:asOf,method:'dated_contract_notice_versions',sourceRefs:[...new Set(inForce.flatMap(rule=>rule.evidenceRefs.map(ref=>'evidence-document:'+ref.sourceId+':'+ref.locator)))]},
+        diagnostics:[],action:null,coverage:{known:1,total:1,percent:100}} as typeof noticeTerm;
+    }
+  }
   cache.set(state, {
     version: state.version,
     value: foundation,

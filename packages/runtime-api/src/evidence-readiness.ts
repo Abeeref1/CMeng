@@ -1,5 +1,5 @@
 import {procurementDateBasis} from './procurement-date-basis';
-import {cell,csv as parseCsv,sourceTables,procurementTiming,PROCUREMENT_LEAD_REVIEW_HEADERS} from "../../truth-kernel/src";
+import {cell,csv as parseCsv,sourceTables,procurementTiming,PROCUREMENT_LEAD_REVIEW_HEADERS,programmeOnlyNeedDateText,linkTimingMismatchText} from "../../truth-kernel/src";
 import {canonicalHeader,registerBusinessStatusFields,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
   readFileSync,
@@ -414,18 +414,18 @@ export function deriveReadinessFromCsv(
     }
     if(input.document.documentType==='procurement_register'){
       const activity=activityById.get(activityId);
-      const timing=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status,leadReviewTime:valueAt(row,leadReviewIndex)});
+      const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
+      const timing=procurementTiming({governingDate:procurementDateChoice,dataDateIso,programmeNeedDate:activity?.currentStartIso??null,sourceRequiredOnSite:registerDate(dueIso),forecastDelivery:registerDate(valueAt(row,forecastDeliveryIndex)),actualDelivery:registerDate(valueAt(row,actualDeliveryIndex)),status,leadReviewTime:valueAt(row,leadReviewIndex),linkedActivityFinish:finish});
       if(timing.notApplicable){state='not_applicable';scopeNote='Source status: not applicable; excluded from known and blocked readiness';}
       else if(timing.openStatusDeliveredConflict){state='unknown';diagnostics.push('PROCUREMENT_DELIVERY_DATE_CONFLICT');scopeNote='Source status "'+status+'" conflicts with an actual delivery dated on or before the Data Date. Review the source receipt and dates';}
       else if(timing.deliveredAtDataDate){state='ready';scopeNote='Actual delivery is recorded on or before the Data Date';}
       else if(timing.deliveredStatusOnly){state='unknown';scopeNote='The source reports Delivered/Accepted but gives no actual delivery date. No open-material blocker is established; verify the date before certifying delivery at the Data Date.';}
       else if(timing.overdueUndelivered){state='blocked';scopeNote='Assessed need date ('+timing.needDateBasis+') '+timing.needDate+' has passed and the package is still undelivered at the Data Date';}
       // SW-18: a forecast date is not a blocker; only a passed need date on an undelivered package is.
-      else if(timing.forecastLate){state='unknown';diagnostics.push('PROCUREMENT_FORECAST_AFTER_NEED');scopeNote='At risk: forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis+'; a forecast date alone is not a confirmed blocker';}
-      else {state='unknown';scopeNote=timing.needDate?'No date-based delivery blocker is established; physical readiness still requires delivery evidence.':'The selected need date is not established; confirm the missing programme link or register date.';}
+      else if(timing.forecastLate){state='unknown';diagnostics.push('PROCUREMENT_FORECAST_AFTER_NEED');scopeNote='At risk: forecast delivery is '+(-timing.headroomCalendarDays!)+' calendar days after '+timing.needDateBasis+'; a forecast date alone is not a confirmed blocker'+(timing.needDatePassedOnProgrammeOnly?'. '+programmeOnlyNeedDateText(timing):'');}
+      else {state='unknown';scopeNote=timing.needDatePassedOnProgrammeOnly?programmeOnlyNeedDateText(timing):timing.needDate?'No date-based delivery blocker is established; physical readiness still requires delivery evidence.':'The selected need date is not established; confirm the missing programme link or register date.';}
       if(timing.deliveryDateConflict){diagnostics.push('PROCUREMENT_DELIVERY_DATE_CONFLICT');scopeNote+='; the completed status conflicts with a delivery date after the reporting date. Review the source receipt and dates.';}
-      const finish=dateValue(activity?.forecastFinishIso??activity?.currentFinishIso??'');
-      if(!timing.notApplicable&&procurementDateChoice!=='programme'&&due&&finish&&due>finish){state='unknown';scopeNote='Source package is linked, but required-on-site date '+due+' is after activity finish '+finish+'; confirm the link and required date before assessing material readiness';diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
+      if(timing.linkTimingMismatch){state='unknown';scopeNote=linkTimingMismatchText(timing);diagnostics.push('MATERIAL_LINK_TIMING_MISMATCH');}
     }
 
     if(sourceStatus.conflicted){
