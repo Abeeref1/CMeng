@@ -12,7 +12,7 @@ import {hasFinancialSecurityContent} from './security-document-content';
 import {scenarioName,migrateScheduleAuthority,explicitScheduleDecision,isScenarioRevision} from './schedule-authority';
 import {parentPort} from 'node:worker_threads';
 import {persistProjectMetadata,projectMetadata} from './project-catalog';
-import {readSnapshotJson,writeSnapshotJson,writeSourceAtomic} from './snapshot-json';
+import {readSnapshotJson,writeSnapshotJson,writeSourceAtomic,hashJsonStream} from './snapshot-json';
 import {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 export {normalizeProjectCode,isProgrammeScheduleRevision} from './project-identity';
 import {projectDataDate,projectControlSchedule} from './canonical-time-claims';
@@ -597,12 +597,12 @@ const SAVE_BOOKKEEPING_FIELDS=new Set(["version","sourceIntegrationVersion","las
 const MIGRATION_RECEIPT_CODE=/^[A-Z0-9_]+_(?:MIGRATION|REFRESH)_V\d+$/;
 function projectContentFingerprint(state:ProjectRuntimeState):string{
   const root=serializeProject(state);
-  const text=JSON.stringify(root,function(this:unknown,key:string,value:unknown){
-    if(this===root&&SAVE_BOOKKEEPING_FIELDS.has(key))return undefined;
+  // Streamed: a large project (ABB-100) is longer than one JavaScript string can be.
+  return hashJsonStream(root,(holder,key,value)=>{
+    if(holder===root&&SAVE_BOOKKEEPING_FIELDS.has(key))return undefined;
     if(key==="diagnostics"&&Array.isArray(value))return value.filter(code=>!(typeof code==="string"&&MIGRATION_RECEIPT_CODE.test(code)));
     return value;
   });
-  return createHash("sha256").update(text??"").digest("hex");
 }
 
 function specialistIdentification(

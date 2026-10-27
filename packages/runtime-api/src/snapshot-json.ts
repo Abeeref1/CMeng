@@ -1,6 +1,6 @@
 import {openSync,closeSync,readSync,writeSync,fsyncSync,renameSync,unlinkSync,readFileSync,statSync} from 'node:fs';
 import {dirname} from 'node:path';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {JSONParser} from '@streamparser/json';
 
 // Retain the ordinary JSON format, but never require the complete snapshot to
@@ -17,11 +17,13 @@ export function readSnapshotJson<T>(path:string):T {
   return result!;
 }
 
-export function writeSnapshotJson(path:string,value:unknown):void {
-  const temporary=path+'.'+process.pid+'.'+randomUUID()+'.tmp';
-  let fd:number|undefined,parts:string[]=[],length=0;
+/** The one streaming JSON encoder: ordinary JSON text in bounded chunks, so no
+ * caller ever needs a whole project as one JavaScript string. `filter` works like
+ * a JSON.stringify replacer (holder, key, value); returning undefined omits the key. */
+function encodeJsonChunks(value:unknown,write:(text:string)=>void,filter?:(holder:any,key:string,value:unknown)=>unknown):void {
+  let parts:string[]=[],length=0;
   const ancestors=new Set<object>();
-  const flush=()=>{if(!length)return;const bytes=Buffer.from(parts.join(''),'utf8');let offset=0;while(offset<bytes.length)offset+=writeSync(fd!,bytes,offset,bytes.length-offset);parts=[];length=0;};
+  const flush=()=>{if(!length)return;write(parts.join(''));parts=[];length=0;};
   const append=(text:string)=>{parts.push(text);length+=text.length;if(length>=64*1024)flush();};
   const string=(text:string)=>{
     if(text.length<=16*1024){append(JSON.stringify(text));return;}
@@ -30,10 +32,11 @@ export function writeSnapshotJson(path:string,value:unknown):void {
     append('"');
   };
   const omitted=(v:unknown)=>v===undefined||typeof v==='function'||typeof v==='symbol';
-  const prepare=(input:any,key:string)=>input&&typeof input.toJSON==='function'?input.toJSON(key):input;
+  const prepare=(holder:any,input:any,key:string)=>{const v=input&&typeof input.toJSON==='function'?input.toJSON(key):input;return filter?filter(holder,key,v):v;};
   // Native serialization is safe for bounded flat records. Large containers and
   // text still use the streaming path, so the whole-project string limit cannot return.
   const inlineRecord=(v:any):boolean=>{
+    if(filter)return false;
     if(Array.isArray(v)||Object.getPrototypeOf(v)!==Object.prototype||typeof v.toJSON==='function')return false;
     const keys=Object.keys(v);if(keys.length>64)return false;let budget=32*1024;
     const scalar=(value:any)=>{if(value!==null&&typeof value==='object'||typeof value==='bigint')return false;budget-=typeof value==='string'?value.length*6+2:32;return budget>=0;};
@@ -51,15 +54,31 @@ export function writeSnapshotJson(path:string,value:unknown):void {
     if(inlineRecord(v)){append(JSON.stringify(v));return;}
     ancestors.add(v);
     if(Array.isArray(v)){
-      append('[');for(let i=0;i<v.length;i++){if(i)append(',');encode(prepare(v[i],String(i)));}append(']');
+      append('[');for(let i=0;i<v.length;i++){if(i)append(',');encode(prepare(v,v[i],String(i)));}append(']');
     }else{
       append('{');let first=true;
-      for(const k of Object.keys(v)){const child=prepare(v[k],k);if(omitted(child))continue;if(!first)append(',');first=false;string(k);append(':');encode(child);}append('}');
+      for(const k of Object.keys(v)){const child=prepare(v,v[k],k);if(omitted(child))continue;if(!first)append(',');first=false;string(k);append(':');encode(child);}append('}');
     }
     ancestors.delete(v);
   };
+  encode(prepare({'':value},value,''));flush();
+}
+
+/** SHA-256 of the JSON text of a value, streamed: never one whole string. */
+export function hashJsonStream(value:unknown,filter?:(holder:any,key:string,value:unknown)=>unknown):string {
+  const hash=createHash('sha256');
+  encodeJsonChunks(value,text=>hash.update(text,'utf8'),filter);
+  return hash.digest('hex');
+}
+
+export function writeSnapshotJson(path:string,value:unknown):void {
+  const temporary=path+'.'+process.pid+'.'+randomUUID()+'.tmp';
+  let fd:number|undefined;
   try{
-    fd=openSync(temporary,'wx',0o600);encode(prepare(value,''));flush();fsyncSync(fd);closeSync(fd);fd=undefined;
+    fd=openSync(temporary,'wx',0o600);
+    const out=fd;
+    encodeJsonChunks(value,text=>{const bytes=Buffer.from(text,'utf8');let offset=0;while(offset<bytes.length)offset+=writeSync(out,bytes,offset,bytes.length-offset);});
+    fsyncSync(fd);closeSync(fd);fd=undefined;
     renameSync(temporary,path);
     const directory=openSync(dirname(path),'r');try{fsyncSync(directory);}finally{closeSync(directory);}
   }finally{
