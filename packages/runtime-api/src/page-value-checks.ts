@@ -48,3 +48,13 @@ export function checkPageValues(pages:Map<string,ModuleRuntimeResult>):PageValue
   compare('Overdue activity exceptions',[['lookahead-schedule','overdueBacklogCount'],['master-dashboard','deliveryExceptions.overdueActivityCount'],['command-center','deliveryExceptions.overdueActivityCount']]);
   return checks;
 }
+
+/** ABB G1_MANAGEMENT-77: the cross-module consistency badge reads the page-value
+ * checks too. Each compared check is counted; a failed one fails the badge and is
+ * named. A check with nothing to compare is not counted. The shared-fact checks
+ * keep their own state and ids. */
+export function consistencyWithPageValueChecks<C extends {state:'pass'|'fail'|'pending';checkCount:number;failedCheckIds:string[]}>(consistency:C,pageChecks:readonly PageValueCheck[]):C{
+  const compared=pageChecks.filter(c=>c.state!=='not_comparable'),failed=pageChecks.filter(c=>c.state==='failed');
+  return {...consistency,checkCount:consistency.checkCount+compared.length,state:failed.length?'fail':consistency.state,
+    failedCheckIds:[...consistency.failedCheckIds,...failed.map(c=>'page-value:'+c.metric)]};
+}

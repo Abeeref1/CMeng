@@ -33,7 +33,7 @@ import {deliveryFeasibilityForState} from './delivery-feasibility';
 import {recoveryScenarioForState} from './recovery-scenario';
 import {suppliedBoqFigures,resolveBoqSource} from './boq-source';
 import {registerReadIssuesForModule} from './register-read-issues';
-import {checkPageValues} from './page-value-checks';
+import {checkPageValues,consistencyWithPageValueChecks} from './page-value-checks';
 import {sourceQualityPosition,withPositionVerdict} from './position-review';
 import {scheduleBasisReview,durationEditReview} from './schedule-basis-review';
 import {quantityBasisReview,contractValueBasisReview} from './source-basis-review';
