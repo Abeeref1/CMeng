@@ -1,0 +1,29 @@
+name: CMeng speed bisect (temporary)
+on:
+  push:
+    branches: [perf/bisect-20261027]
+jobs:
+  latency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        sha: [bd851ecc, b354c596, ae359263, 540fa919, 09e78a53, 00dc3391, 3de16d6a, 9ce68822, 7c5501f7, 5da3be8f, 5ec4187c, 0c7862aa, e55facaa, d35da977]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - name: Release latency, three runs
+        run: |
+          for k in 1 2 3; do
+            CMENG_LATENCY_RESULT=/tmp/lat-$k.json node scripts/release-latency.cjs > /tmp/lat-$k.log 2>&1 || true
+            node -e "const d=JSON.parse(require('fs').readFileSync('/tmp/lat-$k.json','utf8'));const c=d.coldProjectShapes||{};console.log('RESULT ${{ matrix.sha }} run $k coldShapesMax='+Math.round(c.maxProjectMs)+' wall='+Math.round(c.wallMs)+' priorCold='+Math.round(d.priorColdGate.coldRequestMs)+' firstDash='+Math.round(d.firstDashboardMs)+' uploadToReady='+Math.round(d.uploadToReadyMs)+' passed='+d.passed)" || tail -20 /tmp/lat-$k.log
+          done
