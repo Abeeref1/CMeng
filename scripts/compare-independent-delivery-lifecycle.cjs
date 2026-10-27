@@ -6,9 +6,10 @@ const {changeDelivery,deliveryRecords}=require('../dist/packages/runtime-api/src
 const {deliveryPosition,deliveryModule}=require('../dist/packages/runtime-api/src/delivery-projections');
 const {buildDeliveryWorkbook}=require('../dist/packages/runtime-api/src/delivery-export');
 const {deliveryScript}=require('../dist/packages/runtime-api/src/ui-delivery');
+const {fieldKeyColumns,worksheetByTableKey}=require('./independent-workbook-keys.cjs');
 const dir=resolve(process.argv[2]),bytes=readFileSync(join(dir,'reference.json')),hash=b=>createHash('sha256').update(b).digest('hex');
 if(hash(bytes)!==readFileSync(join(dir,'reference.sha256'),'utf8').trim())throw Error('Frozen reference changed.');
-const ref=JSON.parse(bytes),results=[];
+const ref=JSON.parse(bytes),results=[];let fieldKeyChecks=0;
 async function main(){
  const root=mkdtempSync(join(tmpdir(),'cmeng-lifecycle-')),store=new RuntimeProjectStore({dataDir:root,durable:true});
  const ui={escapeHtml:x=>String(x)};runInNewContext(deliveryScript(),ui);
@@ -41,10 +42,12 @@ async function main(){
   check('positiveFilterCount',filtered.length,1);check('positiveFilterIdentity',filtered[0]?.recordId,r2.recordId);
   const page=deliveryModule(state,'delivery-submittals');
   const bookBytes=await buildDeliveryWorkbook(state.projectId,page),book=new ExcelJS.Workbook();await book.xlsx.load(bookBytes);
-  const index=book.getWorksheet('Dataset index'),indexRow=index.getRows(2,index.rowCount-1).find(row=>row.getCell(2).value==='Delivery.rows');
-  const sheet=book.getWorksheet(indexRow.getCell(1).value),headers=sheet.getRow(1).values;
-  check('exportCurrentRows',sheet.rowCount-1,1);check('exportReference',sheet.getRow(2).getCell(headers.indexOf('reference')).value,c.reference);
-  check('exportDescription',sheet.getRow(2).getCell(headers.indexOf('description')).value,'Drawing revision 2');check('exportProject',sheet.getRow(2).getCell(headers.indexOf('projectId')).value,c.id.toUpperCase());
+  // Headings and the index's Table column are reader words; the table is found by
+  // its table key and each column by its field key (Dataset index, Column keys).
+  const columns=fieldKeyColumns(book,'Column keys',worksheetByTableKey(book,'Dataset index','Delivery.rows')),sheet=columns.sheet,first=sheet?.getRow(2);
+  for(const key of ['reference','description','projectId']){fieldKeyChecks++;const difference=columns.headingCheck(key);if(difference)differences.push({field:'exportFieldKey/'+key,...difference});}
+  check('exportCurrentRows',sheet?sheet.rowCount-1:null,1);check('exportReference',columns.cell(first,'reference'),c.reference);
+  check('exportDescription',columns.cell(first,'description'),'Drawing revision 2');check('exportProject',columns.cell(first,'projectId'),c.id.toUpperCase());
   mkdirSync(join(dir,'exports'),{recursive:true});writeFileSync(join(dir,'exports',c.id+'.xlsx'),bookBytes);
   await upload('Snag.csv');const snag=deliveryRecords(state).records.find(r=>r.reference===c.snagReference);review(snag);population('snag');
   check('unverifiedClosure',deliveryPosition(state).registerRows.find(r=>r.recordId===snag.recordId).currentStatus,c.expected.initialClosure);
@@ -60,7 +63,7 @@ async function main(){
   check('restartHistory',restarted.delivery.decisions.length,state.delivery.decisions.length);
   results.push({id:c.id,pass:!differences.length,checks,differences,observations});
  }}finally{rmSync(root,{recursive:true,force:true});}
- const report={referenceSha256:hash(bytes),total:results.length,passed:results.filter(r=>r.pass).length,failed:results.filter(r=>!r.pass).length,checks:results.reduce((n,r)=>n+r.checks,0),results};
+ const report={referenceSha256:hash(bytes),total:results.length,passed:results.filter(r=>r.pass).length,failed:results.filter(r=>!r.pass).length,checks:results.reduce((n,r)=>n+r.checks,0),fieldKeyChecks,results};
  writeFileSync(join(dir,process.argv[3]||'comparison.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({...report,results:results.filter(r=>!r.pass).slice(0,3)}));process.exitCode=report.failed?1:0;
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
