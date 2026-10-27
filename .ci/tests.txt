@@ -70,6 +70,8 @@ r15-g6-consistency-reading
 t05-counts-true-total-every-screen
 ui-management-experience
 w9-management-brief-answer-first
+f16-f45-resource-hours-earned
+r15-g4-wording-rules
 # required by the brief
 f01-real-browser-every-page
 management-brief-acceptance

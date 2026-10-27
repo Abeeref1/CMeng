@@ -86,7 +86,7 @@ function renderLookAhead(p:ReturnType<typeof buildLookAheadProjection>):string {
   const end=script.indexOf('function renderMonteCarloRiskVisual(data){',start);
   assert.ok(start>=0&&end>start);
   const source=createSourceFile('browser.js',script,ScriptTarget.Latest,true);
-  const required=['sourcePopulationControl','responseListPopulation','indexResponsePopulations','knownScreenCount','screenCountText'];
+  const required=['sourcePopulationControl','responseListPopulation','indexResponsePopulations','knownScreenCount','screenCountText','readinessReviewState'];
   const helpers=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&required.includes(n.name.text));assert.equal(helpers.length,required.length);
   const scope:Record<string,unknown>={
     currentModuleResult:null,responsePopulationRoot:null,responsePopulationIndex:new WeakMap(),responseRowPopulationIndex:new WeakMap(),
