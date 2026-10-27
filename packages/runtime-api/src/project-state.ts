@@ -1499,6 +1499,11 @@ export class RuntimeProjectStore {
       return;
     }
 
+    // Diagnostic (27 Oct, ABB-100): which restore stage fails. Technical data only:
+    // stage, project id, error name, the code frames of the stack and record counts.
+    let restoreStage='read_snapshot',restoreProjectId:string|null=null,restoreState:ProjectRuntimeState|null=null;
+    const stageStarted=new Map<string,number>();
+    const stage=(name:string)=>{restoreStage=name;stageStarted.set(name,Date.now());};
     try {
       const parsed = readSnapshotJson<RuntimeStateSnapshot>(this.stateFile);
       let restoredStateChanged=false;
@@ -1518,19 +1523,29 @@ export class RuntimeProjectStore {
         const serialized of
           parsed.projects
       ) {
+        restoreProjectId=typeof (serialized as any)?.projectId==='string'?(serialized as any).projectId:null;restoreState=null;
+        stage('hydrate_project');
         const state =
           hydrateProject(
             serialized,
           );
+        restoreState=state;
+        stage('restore_source_paths');
         if(restoreSourcePaths(state,this.dataDir))restoredStateChanged=true;
+        stage('content_fingerprint_before');
         const contentBeforeMigration=projectContentFingerprint(state);
+        stage('evidence_family_migration');
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
+        stage('xer_calendar_refresh');
         const calendarReadRefreshed=refreshStoredXerCalendars(state);
         // R3: stored documents get the shared whole-source reading state once.
+        stage('reading_state_refresh');
         const readingRefresh=refreshStoredReadingStates(state);
         // The contract basis keeps a completion date the user confirmed (T04): the
         // shared promotion rule holds it and names a different contract date.
+        stage('contract_basis_after_reading_refresh');
         if(readingRefresh.contractsRead.length)this.selectContractBasis(state,readingRefresh.contractsRead.at(-1)!);
+        stage('v5_governance_migration');
         let controlBasisMigrated = false;
         const priorSourceIntegrationVersion =
           state.sourceIntegrationVersion;
@@ -1671,6 +1686,7 @@ export class RuntimeProjectStore {
           }
         }
 
+        stage('v6_role_and_basis_migration');
         const requiresV6RoleAndBasisMigration =
           priorSourceIntegrationVersion !==
             "canonical-source-v6" &&
@@ -1686,6 +1702,7 @@ export class RuntimeProjectStore {
               )
             : false;
 
+        stage('schedule_authority_migration');
         const scheduleAuthorityMigrated=migrateScheduleAuthority(state,rebuildEvidenceFamily);
         if (scheduleRoleMigrated) {
           for (const familyKey of roleFamilies) {
@@ -1696,6 +1713,7 @@ export class RuntimeProjectStore {
           }
         }
 
+        stage('active_boq_migration');
         const activeBoqMigrated =
           requiresV6RoleAndBasisMigration
             ? synchronizeActiveBoq(
@@ -1703,6 +1721,7 @@ export class RuntimeProjectStore {
               )
             : false;
 
+        stage('v7_productivity_governance_migration');
         const requiresV7ProductivityGovernance =
           priorSourceIntegrationVersion !==
           "canonical-source-v7";
@@ -1729,23 +1748,38 @@ export class RuntimeProjectStore {
           // SW-52: the marker upgrade is saved, but a migration that leaves
           // the content unchanged keeps the version, the board publications
           // and the rerun receipt (previously every marker upgrade bumped it).
+          stage('content_fingerprint_after');
           if(projectContentFingerprint(state)!==contentBeforeMigration){
             state.version += 1;
             this.staleFinalizedBoardPublications(state);
             state.lastRerunReceipt = null;
           }
         }
+        stage('canonical_time_sync');
         const priorDelay=state.controls.delayClaims,priorTime=state.controls.contractTimeBasis,priorHistory=state.delayEventHistory.length;
         synchronizeCanonicalTimeClaims(state, true);
+        stage('compare_time_basis');
         if(priorHistory!==state.delayEventHistory.length||!isDeepStrictEqual(priorDelay,state.controls.delayClaims)||!isDeepStrictEqual(priorTime,state.controls.contractTimeBasis))restoredStateChanged=true;
         this.projects.set(
           state.projectId,
           state,
         );
-      for(const restored of this.projects.values()) if(!this.auditWatermarks.has(restored.projectId)) {this.auditWatermarks.set(restored.projectId,{fingerprint:this.auditFingerprint(restored),version:restored.version});this.auditSourceFingerprints.set(restored.projectId,this.auditSources(restored));}
+      stage('audit_fingerprint');restoreProjectId=null;restoreState=null;
+      for(const restored of this.projects.values()) if(!this.auditWatermarks.has(restored.projectId)) {restoreProjectId=restored.projectId;this.auditWatermarks.set(restored.projectId,{fingerprint:this.auditFingerprint(restored),version:restored.version});this.auditSourceFingerprints.set(restored.projectId,this.auditSources(restored));}
       }
+      stage('persist_snapshot');restoreProjectId=null;
       if(restoredStateChanged)this.persistSnapshot();
     } catch (error) {
+      try{
+        const count=(v:unknown)=>Array.isArray(v)?v.length:null;
+        const st=restoreState as any;
+        console.error(JSON.stringify({event:'cmeng_state_restore_failure',stage:restoreStage,stageMs:Date.now()-(stageStarted.get(restoreStage)??Date.now()),projectId:restoreProjectId,
+          errorName:error instanceof Error?error.name:typeof error,errorMessage:(error instanceof Error?error.message:String(error)).slice(0,160),
+          frames:error instanceof Error?String(error.stack??'').split('\n').filter(line=>/^\s+at /.test(line)).slice(0,40).map(line=>line.trim()):[],
+          counts:st?{schedules:count(st.schedules),activitiesPerRevision:Array.isArray(st.schedules)?st.schedules.map((x:any)=>count(x?.revision?.model?.activities)):null,
+            evidenceDocuments:count(st.evidenceDocuments),contractDocuments:count(st.contractDocuments),delayEventHistory:count(st.delayEventHistory),auditHistory:count(st.auditHistory),
+            boardPublications:count(st.boardPublicationHistory),sourceIntegrationVersion:st.sourceIntegrationVersion??null,version:st.version??null}:null}));
+      }catch{}
       throw new Error(
         "CMENG_STATE_RESTORE_FAILED:" +
           (
