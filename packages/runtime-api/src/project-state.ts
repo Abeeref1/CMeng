@@ -595,6 +595,9 @@ function serializeProject(
  * diagnostics are bookkeeping, not content. Same serializer as the snapshot. */
 const SAVE_BOOKKEEPING_FIELDS=new Set(["version","sourceIntegrationVersion","lastRerunReceipt"]);
 const MIGRATION_RECEIPT_CODE=/^[A-Z0-9_]+_(?:MIGRATION|REFRESH)_V\d+$/;
+// A receipt code is written verbatim in JSON text ([A-Z0-9_] needs no escape), so
+// text without this pattern has no receipt code for the filter to remove.
+const MIGRATION_RECEIPT_TEXT=/_(?:MIGRATION|REFRESH)_V\d/;
 function projectContentFingerprint(state:ProjectRuntimeState):string{
   const root=serializeProject(state);
   // Streamed: a large project (ABB-100) is longer than one JavaScript string can be.
@@ -602,7 +605,7 @@ function projectContentFingerprint(state:ProjectRuntimeState):string{
     if(holder===root&&SAVE_BOOKKEEPING_FIELDS.has(key))return undefined;
     if(key==="diagnostics"&&Array.isArray(value))return value.filter(code=>!(typeof code==="string"&&MIGRATION_RECEIPT_CODE.test(code)));
     return value;
-  });
+  },text=>MIGRATION_RECEIPT_TEXT.test(text));
 }
 
 function specialistIdentification(

@@ -73,3 +73,15 @@ test('R17 the encoder gives the JSON.stringify text and hash at every depth, wit
  try{const path=join(root,'s.json');writeSnapshotJson(path,value);assert.equal(readFileSync(path,'utf8'),JSON.stringify(value));}
  finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test('R17 a value the fingerprint filter cannot touch hashes the same with or without calling the filter per key',()=>{
+ const receipt=(i:number)=>i%7===0?['KEEP_'+i,'ROW_'+i+'_MIGRATION_V'+(i%9)]:['KEEP_'+i];
+ const value:any={version:9,sourceIntegrationVersion:'v7',a:{b:{rows:Array.from({length:300},(_,i)=>({id:i,diagnostics:receipt(i),text:'MIGRATION_V not a code '+i,nested:{diagnostics:i%11===0?['X_REFRESH_V12']:[]}}))}},
+  c:{d:{e:[{diagnostics:['PLAIN']},{diagnostics:['Y_MIGRATION_V5','Z']}]}},diagnostics:['TOP_MIGRATION_V1','TOP']};
+ const filter=(holder:any,key:string,v:unknown)=>{if(holder===value&&(key==='version'||key==='sourceIntegrationVersion'))return undefined;
+  if(key==='diagnostics'&&Array.isArray(v))return v.filter(c=>!(typeof c==='string'&&/^[A-Z0-9_]+_(?:MIGRATION|REFRESH)_V\d+$/.test(c)));return v;};
+ const expected=sha(JSON.stringify(value,function(this:any,key,v){return filter(this,key,v);}));
+ assert.equal(hashJsonStream(value,filter),expected);
+ assert.equal(hashJsonStream(value,filter,text=>/_(?:MIGRATION|REFRESH)_V\d/.test(text)),expected);
+ assert.notEqual(hashJsonStream(value),expected,'the filter does remove receipt codes here');
+});

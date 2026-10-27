@@ -93,7 +93,10 @@ export function parseJsonBuffer(buf:Buffer):unknown {
  * caller ever needs a whole project as one JavaScript string. `filter` works like
  * a JSON.stringify replacer (holder, key, value); returning undefined omits the key. */
 const NATIVE_ENCODE_DEPTH=3;
-function encodeJsonChunks(value:unknown,write:(text:string)=>void,filter?:(holder:any,key:string,value:unknown)=>unknown):void {
+/* `filterApplies(text)` is optional: it returns false only when `filter` leaves
+ * every value inside that JSON text unchanged. A value whose plain text the filter
+ * cannot touch is then written without calling the filter for each key. */
+function encodeJsonChunks(value:unknown,write:(text:string)=>void,filter?:(holder:any,key:string,value:unknown)=>unknown,filterApplies?:(text:string)=>boolean):void {
   let parts:string[]=[],length=0;
   const ancestors=new Set<object>();
   const flush=()=>{if(!length)return;write(parts.join(''));parts=[];length=0;};
@@ -126,6 +129,7 @@ function encodeJsonChunks(value:unknown,write:(text:string)=>void,filter?:(holde
     if(typeof v.toJSON==='function')return undefined;
     try{
       if(!filter)return JSON.stringify(v);
+      if(filterApplies){const plain=JSON.stringify(v);if(!filterApplies(plain))return plain;}
       let top=true;
       return JSON.stringify(v,function(this:any,key:string,item:unknown){if(top){top=false;return item;}return filter(this,key,item);});
     }catch(error){if(error instanceof RangeError)return undefined;throw error;}
@@ -150,9 +154,9 @@ function encodeJsonChunks(value:unknown,write:(text:string)=>void,filter?:(holde
 }
 
 /** SHA-256 of the JSON text of a value, streamed: never one whole string. */
-export function hashJsonStream(value:unknown,filter?:(holder:any,key:string,value:unknown)=>unknown):string {
+export function hashJsonStream(value:unknown,filter?:(holder:any,key:string,value:unknown)=>unknown,filterApplies?:(text:string)=>boolean):string {
   const hash=createHash('sha256');
-  encodeJsonChunks(value,text=>hash.update(text,'utf8'),filter);
+  encodeJsonChunks(value,text=>hash.update(text,'utf8'),filter,filterApplies);
   return hash.digest('hex');
 }
 
