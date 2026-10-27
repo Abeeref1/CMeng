@@ -2710,7 +2710,8 @@ export class RuntimeProjectStore {
           .digest("hex");
 
       let projectChanged = false;
-      const contentBeforeRefresh=projectContentFingerprint(state);
+      // T11: the content before this refresh is fingerprinted at its first change point, not up front. Every earlier step only reads and skips (no change and no wait), so it is the same content; a refresh that changes nothing no longer encodes the whole project.
+      let contentBeforeRefresh:string|undefined;
 
       const documents =
         state.evidenceDocuments.filter(
@@ -2830,6 +2831,7 @@ export class RuntimeProjectStore {
           continue;
         }
 
+        contentBeforeRefresh??=projectContentFingerprint(state);
         const parser =
           new (await import('pdf-parse')).PDFParse({
             data:
@@ -3603,7 +3605,8 @@ export class RuntimeProjectStore {
 
     for (const state of this.projects.values()) {
       let projectChanged = false;
-      const contentBeforeRefresh=projectContentFingerprint(state);
+      // T11: the content before this refresh is fingerprinted at its first change point, not up front. Every earlier step only reads and skips (no change and no wait), so it is the same content; a refresh that changes nothing no longer encodes the whole project.
+      let contentBeforeRefresh:string|undefined;
       let projectReadyForV5 = true;
       const basisDocuments =
         state.evidenceDocuments.filter(
@@ -3666,6 +3669,7 @@ export class RuntimeProjectStore {
           continue;
         }
 
+        contentBeforeRefresh??=projectContentFingerprint(state);
         const identified =
           await identifyEvidenceDocument({
             bytes,
@@ -3849,6 +3853,7 @@ export class RuntimeProjectStore {
           continue;
         }
 
+        contentBeforeRefresh??=projectContentFingerprint(state);
         const identified =
           await identifyEvidenceDocument({
             bytes,
@@ -3990,6 +3995,7 @@ export class RuntimeProjectStore {
             state.sourceIntegrationVersion ?? "",
           )
         ) {
+          contentBeforeRefresh??=projectContentFingerprint(state);
           state.sourceIntegrationVersion =
             "canonical-source-v5";
           projectChanged = true;
