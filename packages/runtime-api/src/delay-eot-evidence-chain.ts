@@ -5,6 +5,7 @@ import type { NoticesClaimsProjection } from "../../notices-claims/src";
 import type { WindowsAnalysisProjection } from "../../windows-analysis/src";
 import type {MilestonesProjection} from '../../milestones-analysis/src';
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
+import {activityDateExceptionReader} from '../../activity-analytics/src/exceptions';
 
 export type DelayEvidencePopulationState = "established" | "partial" | "missing" | "quarantined";
 export type DelayEvidenceLinkState = "established" | "candidate" | "partial" | "missing" | "conflicted" | "review_required" | "quarantined";
@@ -33,6 +34,11 @@ export interface DelayProgrammePressureRow {
   varianceDays: number | null;
   totalFloatHours: number | null;
   milestone: boolean;
+  /** ABB G5_DELAY-14 (additive): calendar days the unfinished activity's own forecast finish is before the Data Date (shared activity-analytics rule). */
+  finishOverdueCalendarDays?: number | null;
+  /** Lowest movement against baseline at the Data Date: unfinished work cannot finish before the Data Date. */
+  varianceAtDataDateDays?: number | null;
+  pressureReason?: string;
 }
 export interface DelayProgrammeContext {
   projectCompletionMovementDays: number | null;
@@ -87,18 +93,40 @@ function effectiveFinish(activity:CanonicalScheduleModel["activities"][number]):
     : activity.forecastFinishIso??activity.currentFinishIso;
 }
 function activityPressure(model:CanonicalScheduleModel,reviewedIds:ReadonlySet<string>):DelayProgrammePressureRow[] {
-  return model.activities
+  // ABB G5_DELAY-14: one shared as-of lateness rule (activity-analytics). An
+  // unfinished activity whose own forecast finish is before the Data Date is
+  // overdue; it cannot finish before the Data Date, so its movement against
+  // baseline is at least the Data Date less the baseline finish. Rows are
+  // ranked by consequence: overdue or negative float first, then zero float,
+  // then work that is only later than baseline with positive float.
+  const lateness=activityDateExceptionReader(model.dataDateIso);
+  const dataDate=model.dataDateIso;
+  const rows=model.activities
     .filter(activity=>activity.status!=="completed"&&((activity.activityType!=="wbs_summary"&&activity.activityType!=="level_of_effort")||reviewedIds.has(activity.activityId)))
     .map(activity=>{
       const finish=effectiveFinish(activity),baseline=activity.baselineFinishIso??activity.baselineStartIso;
       const varianceDays=daysBetween(baseline,finish);
       const milestone=["milestone","start_milestone","finish_milestone"].includes(activity.activityType)||reviewedIds.has(activity.activityId);
+      const overdue=lateness(activity);
+      const finishOverdueCalendarDays=overdue.finishOverdue===true?overdue.finishOverdueCalendarDays:null;
+      const atDataDate=finishOverdueCalendarDays!==null?daysBetween(baseline,dataDate):null;
+      const varianceAtDataDateDays=atDataDate!==null&&(varianceDays===null||atDataDate>varianceDays)?atDataDate:varianceDays;
+      const float=activity.totalFloatHours;
+      const pressureReason=finishOverdueCalendarDays!==null?"Forecast finish passed before the Data Date; still unfinished"
+        :float!==null&&float<0?"Negative float"
+        :milestone&&float!==null&&float<=0?"Milestone with no float"
+        :float===0?"Later than baseline; zero float"
+        :float!==null&&float>0?"Later than baseline; positive float"
+        :"Later than baseline; float not in source";
       return {activityId:activity.activityId,name:activity.name??activity.activityId,wbsId:activity.wbsId,
         baselineFinishIso:baseline,currentFinishIso:activity.currentFinishIso,forecastFinishIso:activity.forecastFinishIso,
-        varianceDays,totalFloatHours:activity.totalFloatHours,milestone};
+        varianceDays,totalFloatHours:float,milestone,finishOverdueCalendarDays,varianceAtDataDateDays,pressureReason};
     })
-    .filter(row=>(row.varianceDays!==null&&row.varianceDays>0)||(row.totalFloatHours!==null&&row.totalFloatHours<0)||(row.milestone&&row.totalFloatHours!==null&&row.totalFloatHours<=0))
-    .sort((a,b)=>(b.varianceDays??Number.NEGATIVE_INFINITY)-(a.varianceDays??Number.NEGATIVE_INFINITY)||
+    .filter(row=>(row.varianceDays!==null&&row.varianceDays>0)||row.finishOverdueCalendarDays!==null||(row.totalFloatHours!==null&&row.totalFloatHours<0)||(row.milestone&&row.totalFloatHours!==null&&row.totalFloatHours<=0));
+  const rank=(row:typeof rows[number])=>row.finishOverdueCalendarDays!==null||(row.totalFloatHours!==null&&row.totalFloatHours<0)?0
+    :row.totalFloatHours!==null&&row.totalFloatHours<=0?1:row.totalFloatHours===null?2:3;
+  return rows
+    .sort((a,b)=>rank(a)-rank(b)||(b.varianceAtDataDateDays??Number.NEGATIVE_INFINITY)-(a.varianceAtDataDateDays??Number.NEGATIVE_INFINITY)||
       (a.totalFloatHours??Number.MAX_SAFE_INTEGER)-(b.totalFloatHours??Number.MAX_SAFE_INTEGER)||a.activityId.localeCompare(b.activityId))
     .slice(0,25);
 }
