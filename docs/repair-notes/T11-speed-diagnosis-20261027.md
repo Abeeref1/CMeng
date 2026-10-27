@@ -39,3 +39,57 @@ Three 8,900-activity projects uploaded and opened at once: 3.0 to 3.8 s each (20
 ## Not met
 
 The 5 s gate on a 4-CPU GitHub runner with four large projects at once is not met by any build since at least 16 Oct on today's runners. Meeting it there needs the four cold calculations to use about 40 % less CPU each; that is engineering work on the calculation itself, not a configuration or storage change.
+
+## 27 Oct evening: restore speed-up, candidate 36873462 (not deployed)
+
+Production stays on 84489879. The 5 s gates are still not met, so this candidate was not deployed.
+
+### Change
+
+A save larger than 32 MB is read into one buffer, split at value boundaries, and each bounded value is decoded by the native JSON parser. Before, a token-by-token reader decoded the whole file. The change fingerprint and the save now hand each value below the top levels to the native serializer, falling back to the old encoder when a value is too long. Saves larger than 384 MB still use the old reader.
+
+Values, hashes and saved bytes are identical. This was checked on three real saves (ABB 191 MB, 180 MB, 90 MB):
+
+- the parsed values are deep-equal to the old reader's;
+- the fingerprint hash is equal;
+- the saved file is byte-identical.
+
+The 545 MB durability gate (upload, retry and restart) passes.
+
+### Measured
+
+ABB, local copy of the real sources (2 CPU machine). The test starts a fresh server with no stored page reads, then opens the first Overview, then the first Dashboard:
+
+| | 84489879 | 36873462 |
+| --- | --- | --- |
+| Restore of the 191 MB save | 16.0 s | 9.9 s |
+| First Overview | 32.8 s | 18.0 s |
+| First Dashboard (after Overview) | 22.3 s | 19.6 s |
+
+Four large projects at once, `scripts/release-latency.cjs` on GitHub. Each job ran both builds alternately on the same runner, three times each (workflow run 40565741465). Slowest project in ms:
+
+| Runner | 84489879 | candidate |
+| --- | --- | --- |
+| Job 1 | 5,837 / 5,860 / 5,880 | 5,291 / 5,260 / 5,267 |
+| Job 2 | 9,708 / 9,727 / 9,756 | 8,550 / 8,610 / 8,499 |
+| Job 3 | 7,677 / 7,691 / 7,712 | 6,783 / 6,707 / 6,866 |
+
+The gain is in loading each project. The calculation itself is unchanged: 3.8 to 6.9 s per project under four-way load, depending on the runner.
+
+A 96 MB young generation for project workers was measured too. It was 8 to 10 % faster on this machine but showed no gain on GitHub runners, so it is not in the candidate.
+
+### Why 5 s is still not met
+
+1. ABB first Overview still waits for the project to load, about 18 s locally:
+   - module load, about 1 s;
+   - restore, 9.9 s. This is made up of reading 2.9 s, change fingerprint 2.4 s, time-claim synchronisation 2.4 s and table analysis 2.1 s.
+   - two start-up refreshes, 5.0 s. Each computes the change fingerprint again (4.1 s together), even when nothing changes.
+   - the Overview itself, 1.9 s.
+2. The ABB Dashboard calculation takes 19.6 s locally. On Railway it measured 15.1 s on 84489879; the calculation is unchanged in the candidate. The CPU profile is flat: about 30 functions of 0.5 to 3 s each, and garbage collection is 16 %. No single fix removes a large share.
+3. The four-project gate needs about 25 to 40 % less calculation CPU per project. How much depends on the runner.
+
+### Remaining work (not started)
+
+- Compute the change fingerprint only when a migration or refresh actually changes data. This requires restructuring the restore and refresh paths so that each step reports its change before mutating.
+- Keep table analyses and claim-to-activity correspondence with the project, keyed by source hash and reader version, instead of recomputing them on every start.
+- Dashboard: reuse each module's result across restarts and releases, keyed by its own code fingerprint and input fingerprint, or compute only the modules the Dashboard depends on. This is a structural change to the calculation pipeline.
