@@ -42,7 +42,11 @@ export function contractNoticeRules(state:ProjectRuntimeState,noticeKind:'claim_
     for(const days of periods){
       const term=labelledTerms.find(t=>t.documentId===document.documentId&&t.value===days);
       const conflictingDayBasis=new Set(labelledTerms.filter(t=>t.documentId===document.documentId&&t.value===days).map(t=>t.unit)).size>1;
-      const ruleText=matches.filter(m=>m.days===days).map(m=>m.context).join(' ');
+      // Each distinct context once: a labelled term cites the whole contract text as
+      // its context for every source reference, and joining that once per reference
+      // made a string longer than JavaScript allows on a large contract (ABB-100,
+      // 27 Oct: RangeError Invalid string length during restore).
+      const ruleText=[...new Set(matches.filter(m=>m.days===days).map(m=>m.context))].join(' ');
       rules.push({requirementId:document.documentId+':'+noticeKind+':'+days,
         sourceFilename:evidence?.sourceFilename??document.documentId,
         noticeKind,eventCategories:[],noticePeriodDays:days,
