@@ -24,7 +24,7 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number;unpublished?:{version:number;served:string}|undefined};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
-export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null;workerExecArgv?:string[]}={}){
+export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null;workerExecArgv?:string[];prepareRelease?:boolean;releasePreparationMs?:number}={}){
   await clearDerivedReadCaches(root,calculationRelease());
   const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
   const catalog=await loadProjectCatalog(root),lanes=new Map<string,Lane>(),progress=new Map<string,any>();
@@ -217,6 +217,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   // Background cache fills must NEVER keep summaryJobs open or hold one project
   // lane across every management page. That blocks foreground project navigation.
   let warmPageTail:Promise<void>=Promise.resolve();
+  const releasePreparation:{state:'not_needed'|'preparing'|'complete'|'timed_out';prepared:number;total:number;elapsedMs:number|null}={state:'not_needed',prepared:0,total:0,elapsedMs:null};
   const scheduledWarmups=new Set<string>();
   const pendingSecondaryWarmups=new Map<string,number>();
   let secondaryWarmupActive=false;
@@ -418,7 +419,11 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(url.pathname.startsWith('/internal/')){send(res,404,{error:'not_found'});return;}
     if(url.pathname.startsWith('/external-ai')||url.pathname.startsWith('/.well-known/oauth-')||url.pathname==='/settings/ask-ai'){await externalController().handle(req,res);return;}
     if(/^Bearer\s+cmeng_(ext|refresh)_/i.test(String(req.headers.authorization??''))){send(res,403,{error:'external_route_required',message:'External AI credentials may only call the external read-only gateway.'});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
+    // T11: while a new calculation release prepares the projects saved by the
+    // previous release, the deployment is not ready, so the platform keeps
+    // traffic away until every first Overview and Dashboard is calculated.
+    if(req.method==='GET'&&url.pathname==='/health'&&releasePreparation.state==='preparing'){send(res,503,{status:'preparing',service:'cmeng',release:release(),calculationVersion:calculationRelease(),preparedProjects:releasePreparation.prepared,totalProjects:releasePreparation.total});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',releasePreparation:{state:releasePreparation.state,preparedProjects:releasePreparation.prepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs},service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
@@ -543,6 +548,47 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   }
   // The full portfolio remains accessible even if another project's warmup fails.
   const initialWarmup=setTimeout(warmSweep,4000);initialWarmup.unref();
+  // T11 release preparation. A new calculation release finds every project's
+  // saved results stamped with the previous release, so the first Overview and
+  // Dashboard of each project would be a full cold calculation (ABB-100: about
+  // 40 s). Before this deployment reports ready, each such project is
+  // recalculated by THIS release through the normal request path (summary, then
+  // Accountability, Dashboard and Overview) and stored with this release and the
+  // project's version. Nothing is reused across releases or versions: a saved
+  // result is served only for the same calculation release and project version,
+  // and any change to a project removes its saved results (see proxy()).
+  // Projects never calculated before (no saved summary) are not prepared here,
+  // so a new project's first calculation is always measured cold.
+  // After the time limit the deployment reports ready and preparation continues
+  // in the background, so a slow project can never keep the service down.
+  const preparationEnabled=options.prepareRelease??(process.env.CMENG_PREPARE_RELEASE?.trim()==='1'||Boolean(process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim())&&process.env.CMENG_PREPARE_RELEASE?.trim()!=='0');
+  const preparationTargets=preparationEnabled?recentFirst([...catalog.values()])
+    .filter(e=>e.summary&&!e.metadata?.demo&&e.summaryRelease!==calculationRelease())
+    .map(e=>e.projectId):[];
+  releasePreparation.total=preparationTargets.length;
+  if(preparationTargets.length){
+    releasePreparation.state='preparing';
+    const started=Date.now(),queue=[...preparationTargets];
+    const limitMs=options.releasePreparationMs??Number(process.env.CMENG_RELEASE_PREPARATION_SECONDS??90)*1000;
+    const lanesForPreparation=Math.max(1,Math.min(maxWorkers,4));
+    const prepareOne=async(id:string)=>{
+      const projectStarted=Date.now();
+      try{
+        await refreshSummary(id);
+        const entry=catalog.get(id),version=entry?.metadata?.version;
+        if(version!==undefined&&entry?.summaryRelease===calculationRelease())await warmProjectPages(id,version,'priority');
+      }catch(error){console.warn('[release-preparation] '+id+': '+String(error));}
+      releasePreparation.prepared++;
+      console.log(JSON.stringify({event:'release_preparation_project',projectId:id,ms:Math.round(Date.now()-projectStarted)}));
+    };
+    const preparation=Promise.all(Array.from({length:lanesForPreparation},async()=>{for(let id=queue.shift();id!==undefined&&!closing;id=queue.shift())await prepareOne(id);}));
+    let limitTimer:NodeJS.Timeout|undefined;
+    void Promise.race([preparation.then(()=>'complete' as const),new Promise<'timed_out'>(resolve=>{limitTimer=setTimeout(()=>resolve('timed_out'),limitMs);limitTimer.unref();})]).then(outcome=>{
+      if(limitTimer)clearTimeout(limitTimer);
+      releasePreparation.state=outcome;releasePreparation.elapsedMs=Date.now()-started;
+      console.log(JSON.stringify({event:'release_preparation',state:outcome,preparedProjects:releasePreparation.prepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs}));
+    });
+  }
   const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values(),...pendingReadPublications.values(),...siblingPublications]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
