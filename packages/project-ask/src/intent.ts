@@ -9,7 +9,7 @@ const formats: [RegExp,Presentation['format']][]=[[/\bexcel\b|xlsx|اكسل|إك
 const defaults=(question:string):AnalysisPlan=>({objective:question,kind:'facts',authorities:[],filters:[],groupBy:[],rankBy:null,rankDirection:'desc',limit:null,metricIds:[],issuesOnly:false,criticalOnly:false,nextDays:null,deliveryBelowPercent:null,asOf:null,scenario:null,attachmentIds:[]});
 const mentions=mentionsConcept;
 export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],principal:AskSession,page:PageContext|null,previous:AnalysisResult|null){
-  const q=normalized(substantiveQuestion(question)).replace(/worst(\d)/g,'worst $1').replace(/\bprocument\b/g,'procurement').replace(/\bprogess\b/g,'progress');
+  const q=normalized(substantiveQuestion(question)).replace(/worst(\d)/g,'worst $1').replace(/\bprocument\b/g,'procurement').replace(/\bprogess\b/g,'progress').replace(/\b(?:schedule|programme|program)\s+risks?\b/g,'float-risk activities');
   const fullList=/^(?:(?:show|give|list)(?: me)?\s+)?(?:(?:the|a)\s+)?(?:full|complete|all)(?:\s+(?:the\s+)?(?:list|activities|rows|results|details|path|network|of them|\d+))?[.!?]*$/.test(q);
   const simpleFollowup=/^(?:make (?:it|that) (?:easy|simple|simpler)|(?:in )?(?:plain|simple) (?:english|language)|simpler|explain (?:it )?simply)[.!?]*$/.test(q);
   if(/\b(across|all|compare|other|another)\s+(projects|portfolios|programmes)\b|organization.wide|portfolio.rollup|cross.project|جميع المشاريع|كل المشاريع/.test(q))

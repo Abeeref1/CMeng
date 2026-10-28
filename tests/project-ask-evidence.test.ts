@@ -124,3 +124,18 @@ test('AI path fix: a missing qualification acknowledgement gets the same single 
   await new OpenAiAskModel('fake','fake',once.request).explain(result,[]);
   assert.equal(once.requests.length,2);assert.equal(once.requests[1].input.coverageCorrection.rejected,'MODEL_QUALIFICATION_INVALID');assert.equal(result.coverage!.representedToModel,true);
 });
+
+test('AI path fix: the gaps acknowledgement must be backed by a block citing every unresolved gap',async()=>{
+  const make=()=>{const r=analysis([{activityId:'LAST',critical:true}],'activities',[finding(1)]);r.unresolved.push('Certified physical progress is not established.');return r;};
+  const noBlock=mockProvider(input=>{const output=response(input);const gaps=input.items.filter((i:EvidenceItem)=>i.kind==='gap').map((i:EvidenceItem)=>i.id);
+    for(const b of output.blocks)b.evidenceIds=b.evidenceIds.filter((id:string)=>!gaps.includes(id));output.blocks[0].evidenceIds.length||output.blocks[0].evidenceIds.push(input.items.find((i:EvidenceItem)=>i.kind!=='gap').id);return output;});
+  const rejected=make();await assert.rejects(()=>new OpenAiAskModel('fake','fake',noBlock.request).explain(rejected,[]),/MODEL_QUALIFICATION_INVALID/);assert.equal(rejected.coverage!.representedToModel,false);
+  const withBlock=mockProvider(input=>{const output=response(input);const gaps=input.items.filter((i:EvidenceItem)=>i.kind==='gap').map((i:EvidenceItem)=>i.id);
+    output.blocks.push({heading:'Gaps and caveats',text:'Certified physical progress is not established, so the progress position is qualified.',traceIds:[],evidenceIds:gaps,entityIds:[],claimScope:'selected_evidence',claimType:'observation'});return output;});
+  const accepted=make();const blocks=await new OpenAiAskModel('fake','fake',withBlock.request).explain(accepted,[]);
+  assert.ok(blocks.some(b=>b.heading==='Gaps and caveats'));assert.equal(accepted.coverage!.representedToModel,true);
+});
+test('AI path fix: "schedule risks" asks for float-risk activities, not the risk register',()=>{
+  const plan=resolveIntent('What are the top 3 schedule risks?',[...catalogue,{id:'activities',title:'Activities',description:'Programme activities',module:'programme',domains:['schedule' as any],concepts:['activities','float'],fields:['totalFloatHours'],historical:false}],user,null,null).plan;
+  assert.equal(plan.limit,3);assert.notEqual(plan.rankBy,'score');
+});
