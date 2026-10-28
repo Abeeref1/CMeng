@@ -149,3 +149,19 @@ test('AI path fix: the single correction turn names the broken rule (invented tr
   const again=analysis([{activityId:'LAST',critical:true}],'activities',[finding(1)]);
   await assert.rejects(()=>new OpenAiAskModel('fake','fake',always.request).explain(again,[]),/MODEL_CITATION_INVALID/);assert.equal(always.requests.length,2);
 });
+
+test('AI design fix: the model writes explanation only; CMeng adds verified figures, record names and sources, and every existing rule still applies',async()=>{
+  const plain=(input:any)=>{const output=response(input);const metric=input.items.find((i:EvidenceItem)=>i.kind==='metric');const row=input.items.find((i:EvidenceItem)=>i.kind==='row');
+    output.blocks=[{heading:'Critical path',text:'The finish is driven by the activities on the calculated critical path. The figures below come from the selected programme.',traceIds:[],evidenceIds:input.items.filter((i:EvidenceItem)=>i.kind!=='gap').map((i:EvidenceItem)=>i.id),entityIds:row?[row.id]:[],metricIds:metric?[metric.id]:[],claimScope:'selected_evidence',claimType:'observation'},
+      ...(input.items.some((i:EvidenceItem)=>i.kind==='gap')?[{heading:'Gaps and caveats',text:'Some evidence is not established.',traceIds:[],evidenceIds:input.items.filter((i:EvidenceItem)=>i.kind==='gap').map((i:EvidenceItem)=>i.id),entityIds:[],metricIds:[],claimScope:'selected_evidence',claimType:'observation'}]:[])];
+    return output;};
+  const result=analysis([{activityId:'LAST',name:'Final handover',critical:true}],'activities',[finding(1)]);
+  const ok=mockProvider(input=>plain(input));const blocks=await new OpenAiAskModel('fake','fake',ok.request).explain(result,[]);
+  const metric=ok.requests[0].input.items.find((i:EvidenceItem)=>i.kind==='metric');
+  assert.match(blocks[0]!.text,/Verified figures: /);assert.ok(blocks[0]!.text.includes((metric.data as any).label+': '));
+  assert.ok(blocks[0]!.traceIds.length>0&&blocks[0]!.traceIds.includes((metric.data as any).traceId),'sources come from the cited evidence');
+  for(const mutate of [(o:any)=>{o.blocks[0].metricIds=['not-a-metric'];},(o:any)=>{o.blocks[0].text='The finish moved by 12 days.';},(o:any)=>{o.blocks[0].traceIds=['invented-trace'];},(o:any)=>{o.projectId='PROJECT-B';}]){
+    const bad=mockProvider(input=>{const o=plain(input);mutate(o);return o;});
+    await assert.rejects(()=>new OpenAiAskModel('fake','fake',bad.request).explain(analysis([{activityId:'LAST',critical:true}],'activities',[finding(1)]),[]),/MODEL_/);
+  }
+});

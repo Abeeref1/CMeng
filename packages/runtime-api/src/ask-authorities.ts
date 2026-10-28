@@ -13,6 +13,7 @@ import {moduleForProject} from './project-projections';
 import {resolveBoqSource,suppliedBoqFigures,suppliedBoqReportedTotals} from './boq-source';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {projectControlSchedule} from './canonical-time-claims';
+import {quantityMappingForState} from './quantity-mapping-runtime';
 import {deliveryPosition,deliveryModule} from './delivery-projections';
 import {isDeliveryPage} from '../../delivery-core/src/registry';
 import {projectScheduleControlBasis} from './schedule-control-basis';
@@ -110,6 +111,16 @@ function produceBoq({state}:AskProducerContext,scope:ProjectScope,plan?:Analysis
   const source=resolveBoqSource(state,scope.programmeRevision??''),figures=suppliedBoqFigures(source.boq,source.quantities),intelligence=boqScopeIntelligence(state);
   const status=source.selection.adoptedSource?source.boq?.complete?'established':'partial':source.selection.state==='candidate'?'candidate':'unavailable';
   const b=new AuthorityBuilder('boq','BOQ / Scope','boq',scope,status,source.selection.explanation);
+  // AI design fix (28 Oct): a question about BOQ items not linked to the programme is
+  // answered from the governed BOQ-to-programme mapping: the items it could not map.
+  if(/\b(?:not|un)[ -]?(?:linked|mapped|connected|assigned)\b|\bwithout (?:a |any )?(?:link|activit)/i.test(plan?.objective??'')){
+    const schedule=projectControlSchedule(state)?.revision.model;
+    const mapping:any=schedule&&state.quantities?quantityMappingForState(state,schedule):null;
+    const unmapped:string[]=mapping?(mapping.summary?.unmappedItemIds??mapping.unmappedItemIds??[]):[];
+    const byId=new Map((state.quantities?.items??[]).map((item:any)=>[item.quantityItemId,item]));
+    b.metric('unlinked-items','BOQ items not linked to the programme',mapping?unmapped.length:null,'items',mapping?'BOQ items the governed BOQ-to-programme mapping could not link to any programme activity.':'No governed BOQ quantities or programme to map.',{fact:true,state:mapping?'established':'unavailable'});
+    if(mapping)b.table('unlinked-items','BOQ items not linked to the programme',unmapped.map(id=>{const item:any=byId.get(id)??{};return {quantityItemId:id,itemNumber:item.itemNumber??null,description:item.description??null,section:item.section??null,unit:item.unit??null,contractQuantity:typeof item.contractQuantity==='number'?item.contractQuantity:null};}),'Governed BOQ-to-programme mapping: items with no programme activity link.',{});
+  }
   b.metric('items','Readable BOQ items',figures.itemCount,'items',figures.basis,{fact:true});
   b.metric('disciplines','Disciplines identified',new Set(intelligence.rows.map(r=>r.discipline).filter(Boolean)).size,'disciplines','Disciplines deterministically classified from BOQ section/item wording.',{state:intelligence.coverage.discipline?'partial':'unavailable'});
   b.metric('locations','Location labels identified',new Set(intelligence.rows.flatMap(r=>[r.building,r.tower,r.zone,r.floor,r.level,r.area]).filter(Boolean)).size,'locations','Explicit building/tower/zone/floor/level/area wording found in the BOQ.',{state:intelligence.coverage.location?'partial':'unavailable'});
