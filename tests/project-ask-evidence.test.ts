@@ -139,3 +139,13 @@ test('AI path fix: "schedule risks" asks for float-risk activities, not the risk
   const plan=resolveIntent('What are the top 3 schedule risks?',[...catalogue,{id:'activities',title:'Activities',description:'Programme activities',module:'programme',domains:['schedule' as any],concepts:['activities','float'],fields:['totalFloatHours'],historical:false}],user,null,null).plan;
   assert.equal(plan.limit,3);assert.notEqual(plan.rankBy,'score');
 });
+
+test('AI path fix: the single correction turn names the broken rule (invented trace ID) and the corrected answer passes the unchanged validator',async()=>{
+  const result=analysis([{activityId:'LAST',critical:true}],'activities',[finding(1)]);
+  const once=mockProvider((input,_stage,call)=>{const output=response(input);if(call===1)output.blocks[0].traceIds=['invented-trace'];return output;});
+  await new OpenAiAskModel('fake','fake',once.request).explain(result,[]);
+  assert.equal(once.requests.length,2);assert.equal(once.requests[1].input.coverageCorrection.rejected,'MODEL_CITATION_INVALID');assert.match(once.requests[1].input.coverageCorrection.rule,/traceId/);
+  const always=mockProvider(input=>{const output=response(input);output.blocks[0].traceIds=['invented-trace'];return output;});
+  const again=analysis([{activityId:'LAST',critical:true}],'activities',[finding(1)]);
+  await assert.rejects(()=>new OpenAiAskModel('fake','fake',always.request).explain(again,[]),/MODEL_CITATION_INVALID/);assert.equal(always.requests.length,2);
+});
