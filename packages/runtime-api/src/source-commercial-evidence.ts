@@ -2,6 +2,7 @@ import {cell,dateValue,numberValue,governedTables} from '../../truth-kernel/src'
 import type {ProjectRuntimeState} from './project-state-types';
 import {contractValueBasisReview} from './source-basis-review';
 import {contractTaxBasis,likeForLikeCertifiedRatio,type CertifiedRatio,type ContractTaxEvidence} from './commercial-sum-basis';
+import {paymentReviewIsCurrent} from './link-validity';
 
 /** Match retained business references, not row positions or amounts. An ambiguous
  * certificate remains unlinked. This projection never writes a cash ledger. */
@@ -26,12 +27,13 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
  for(const row of certificates){const k=key(row.paymentId);if(k)byNumber.set(k,[...(byNumber.get(k)??[]),row]);}
  type PaymentLink={reference:string;certificateNumber:string;certificateDate:string|null;paymentDate:string|null;amount:number|null;currency:string|null;state:'linked'|'ambiguous'|'unlinked'|'date_missing'|'cutoff_missing'|'future';certificateReference:string|null;basis:string;sourceRefs:string[]};
  const links:PaymentLink[]=[];const seen=new Set<string>();
- const reviewedRelationships=state.linkCandidateReviews??[],projectVersion=state.version;
+ // R2: a confirmed relationship is read while its two records are unchanged, never by project version.
+ const reviewedRelationships=(state.linkCandidateReviews??[]).filter(r=>r.kind==='payment_certificate'&&r.state==='confirmed'&&paymentReviewIsCurrent(state,r));
  const retain=(reference:string,certificateNumber:string,certificateDate:string|null,paymentDate:string|null,amount:number|null,currency:string|null,sourceRefs:string[])=>{
   const identity=sourceRefs.join('|')+'|'+certificateNumber+'|'+paymentDate;
   if(seen.has(identity))return;seen.add(identity);
   let matches=byNumber.get(key(certificateNumber))??[];
-  const reviewed=reviewedRelationships.filter(r=>r.kind==='payment_certificate'&&r.state==='confirmed'&&r.basisVersion===projectVersion&&sourceRefs.includes(r.sourceId));
+  const reviewed=reviewedRelationships.filter(r=>sourceRefs.includes(r.sourceId));
   const confirmedTargets=new Set(reviewed.map(r=>r.targetId));
   // A saved source-bound choice restricts the candidates; if the selected
   // receipt is missing, unread or incompatible, NEVER silently fall back to
@@ -72,7 +74,7 @@ export function sourceCommercialEvidence(state:ProjectRuntimeState,ledger:any,po
    const paid=numberValue(cell(row,'paid amount','amount paid','payment amount','receipt amount','amount received'));
    const number=cell(row,'certificate no','certificate number','ipc no','ipc number','payment certificate','certificate ref');
    if(paid===null||!paymentDate)continue;
-   if(!number&&!(state.linkCandidateReviews??[]).some(r=>r.kind==='payment_certificate'&&r.state==='confirmed'&&r.basisVersion===state.version&&refs(row).includes(r.sourceId)))continue;
+   if(!number&&!reviewedRelationships.some(r=>refs(row).includes(r.sourceId)))continue;
    retain(cell(row,'payment reference','receipt reference','transaction no')||number||refs(row)[0]||'Payment source record',number,dateValue(cell(row,'certificate date','certification date')),paymentDate,paid,cell(row,'currency')||null,refs(row));
   }
  }

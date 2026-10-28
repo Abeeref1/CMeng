@@ -2,9 +2,15 @@ import {createHash} from 'node:crypto';
 export type LinkKind='boq_activity'|'payment_certificate';
 export interface LinkEntity {id:string;projectId:string;reference:string;description:string;sourceRefs:string[];unit?:string|null;area?:string|null;currency?:string|null;amount?:number|null;dateIso?:string|null;certified?:boolean;party?:string|null}
 export interface LinkInput {kind:LinkKind;projectId:string;basisVersion:number;dataDateIso:string|null;source:LinkEntity;targets:LinkEntity[];requestHash:string}
-export interface LinkCandidate {id:string;kind:LinkKind;projectId:string;basisVersion:number;requestHash:string;sourceId:string;targetId:string;sourceLabel:string;targetLabel:string;confidence:number;reason:string;sourceRefs:string[];state:'candidate'|'confirmed'|'rejected';proposedAt:string;reviewedAt?:string;reviewedBy?:string;reviewActor?:string}
+export interface LinkCandidate {id:string;kind:LinkKind;projectId:string;basisVersion:number;requestHash:string;sourceId:string;targetId:string;sourceLabel:string;targetLabel:string;confidence:number;reason:string;sourceRefs:string[];state:'candidate'|'confirmed'|'rejected';proposedAt:string;reviewedAt?:string;reviewedBy?:string;reviewActor?:string;sourceFingerprint?:string;targetFingerprint?:string}
 export const linkHash=(v:unknown)=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const norm=(v:unknown)=>String(v??'').normalize('NFKC').trim().toLowerCase().replace(/\s+/g,' ');
+/** P0-A R2: the content a relationship is bound to. Provenance (file, revision,
+ * row position) is left out, so re-reading the same record keeps the relationship;
+ * any change to what the record says makes it stale. */
+export function linkEntityFingerprint(kind:LinkKind,e:LinkEntity):string{
+ return linkHash([kind,e.id,norm(e.reference),norm(e.description),norm(e.unit),norm(e.area),String(e.currency??'').toUpperCase(),typeof e.amount==='number'?e.amount:null,e.dateIso??null,e.certified===true,norm(e.party)]).slice(0,32);
+}
 export function compatibleLink(kind:LinkKind,source:LinkEntity,target:LinkEntity,cutoff:string|null):string|null{
  if(source.projectId!==target.projectId)return 'different_project';
  if(kind==='boq_activity'){
@@ -32,20 +38,22 @@ export function assessLinkProposal(input:LinkInput,proposal:any):LinkCandidate[]
   if(typeof p.confidence!=='number'||!Number.isFinite(p.confidence)||p.confidence<0.9||p.confidence>1||typeof p.reason!=='string'||p.reason.trim().length<8||p.reason.length>1000)continue;
   const refs=new Set([...input.source.sourceRefs,...target.sourceRefs]);
   if(!Array.isArray(p.sourceRefs)||!p.sourceRefs.length||p.sourceRefs.some((x:any)=>typeof x!=='string'||!refs.has(x))||!p.sourceRefs.some((x:string)=>input.source.sourceRefs.includes(x))||!p.sourceRefs.some((x:string)=>target.sourceRefs.includes(x)))continue;
-  used.add(p.targetId);out.push({id:'link-'+linkHash([input.kind,input.projectId,input.requestHash,input.source.id,p.targetId]).slice(0,24),kind:input.kind,projectId:input.projectId,basisVersion:input.basisVersion,requestHash:input.requestHash,sourceId:input.source.id,targetId:p.targetId,sourceLabel:input.source.reference+' · '+input.source.description,targetLabel:target.reference+' · '+target.description,confidence:p.confidence,reason:p.reason.trim(),sourceRefs:[...new Set<string>(p.sourceRefs)],state:'candidate',proposedAt:new Date().toISOString()});
+  used.add(p.targetId);out.push({id:'link-'+linkHash([input.kind,input.projectId,input.requestHash,input.source.id,p.targetId]).slice(0,24),kind:input.kind,projectId:input.projectId,basisVersion:input.basisVersion,sourceFingerprint:linkEntityFingerprint(input.kind,input.source),targetFingerprint:linkEntityFingerprint(input.kind,target),requestHash:input.requestHash,sourceId:input.source.id,targetId:p.targetId,sourceLabel:input.source.reference+' · '+input.source.description,targetLabel:target.reference+' · '+target.description,confidence:p.confidence,reason:p.reason.trim(),sourceRefs:[...new Set<string>(p.sourceRefs)],state:'candidate',proposedAt:new Date().toISOString()});
  }
  return out;
 }
-export function reviewLink(rows:LinkCandidate[],id:string,version:number,review:{decision:'confirm'|'reject';confirmed:boolean;reviewer:string;actor:string}):LinkCandidate[]{
+/** P0-A R2: isCurrent says whether a row's own source and target records are unchanged.
+ * The project version is recorded for audit only; it never decides validity. */
+export function reviewLink(rows:LinkCandidate[],id:string,version:number,review:{decision:'confirm'|'reject';confirmed:boolean;reviewer:string;actor:string},isCurrent:(row:LinkCandidate)=>boolean=()=>true,bound?:{sourceFingerprint:string;targetFingerprint:string}|null):LinkCandidate[]{
  const record=rows.find(r=>r.id===id);if(!record)throw Error('LINK_CANDIDATE_NOT_FOUND');
- if(record.basisVersion!==version)throw Error('LINK_SOURCE_CHANGED');
+ if(!isCurrent(record))throw Error('LINK_SOURCE_CHANGED');
  if(review.confirmed!==true||!review.reviewer.trim()||!review.actor.trim())throw Error('LINK_EXPLICIT_REVIEW_REQUIRED');
  if(!['confirm','reject'].includes(review.decision))throw Error('LINK_REVIEW_INVALID');
  if(record.state!=='candidate'&&!(record.state==='confirmed'&&review.decision==='reject'))throw Error('LINK_ALREADY_REVIEWED');
  // One explicit receipt relationship at a time. Split-payment allocation is a
  // separate documented financial operation, never guessed by this matcher.
- if(review.decision==='confirm'&&record.kind==='payment_certificate'&&rows.some(r=>r.id!==id&&r.kind===record.kind&&r.sourceId===record.sourceId&&r.state==='confirmed'&&r.basisVersion===version))throw Error('PAYMENT_ALREADY_LINKED');
- return rows.map(r=>({...r,...(r.basisVersion===version?{basisVersion:version+1}:{}),...(r.id===id?{state:review.decision==='confirm'?'confirmed' as const:'rejected' as const,reviewedAt:new Date().toISOString(),reviewedBy:review.reviewer.trim(),reviewActor:review.actor}:{})}));
+ if(review.decision==='confirm'&&record.kind==='payment_certificate'&&rows.some(r=>r.id!==id&&r.kind===record.kind&&r.sourceId===record.sourceId&&r.state==='confirmed'&&isCurrent(r)))throw Error('PAYMENT_ALREADY_LINKED');
+ return rows.map(r=>r.id!==id?r:{...r,...(bound??{}),basisVersion:version,state:review.decision==='confirm'?'confirmed' as const:'rejected' as const,reviewedAt:new Date().toISOString(),reviewedBy:review.reviewer.trim(),reviewActor:review.actor});
 }
 /** True when the source text cites the target's own reference as a whole token sequence. */
 export function citesReference(source:LinkEntity,target:LinkEntity):boolean{

@@ -2,6 +2,7 @@ import type {ProjectRuntimeState} from './project-state-types';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import {quantityMappingForState} from './quantity-mapping-runtime';
 import {resolveBoqSource} from './boq-source';
+import {boqActivityReviewChecker} from './link-validity';
 const cache=new WeakMap<ProjectRuntimeState,{version:number;model:CanonicalScheduleModel;value:any}>();
 export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalScheduleModel){
  const cached=cache.get(state);if(cached?.version===state.version&&cached.model===model)return cached.value;
@@ -9,7 +10,9 @@ export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalSched
  const activityIds=new Set(model.activities.map(a=>a.activityId)),links=new Map<string,Set<string>>();
  for(const link of mapping?.sourceWbsLinks??[])if(link.wbsId)for(const activityId of link.activityIds){const group=links.get(link.quantityItemId)??new Set<string>();group.add(activityId);links.set(link.quantityItemId,group);}
  const confirmedScope=new Set<string>(),quantityIds=new Set((quantity?.items??[]).map(i=>i.quantityItemId));
- for(const r of state.linkCandidateReviews??[])if(r.kind==='boq_activity'&&r.state==='confirmed'&&r.basisVersion===state.version&&activityIds.has(r.targetId)&&quantityIds.has(r.sourceId)){
+ // R2: a confirmed link counts while its BOQ item and its activity are unchanged, whatever else was saved.
+ const linkIsCurrent=boqActivityReviewChecker(state,model,quantity?.items??[]);
+ for(const r of state.linkCandidateReviews??[])if(r.kind==='boq_activity'&&r.state==='confirmed'&&activityIds.has(r.targetId)&&quantityIds.has(r.sourceId)&&linkIsCurrent(r)){
   const group=links.get(r.sourceId)??new Set<string>();group.add(r.targetId);links.set(r.sourceId,group);confirmedScope.add(r.sourceId);
  }
  const approved=new Set<string>();

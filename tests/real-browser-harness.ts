@@ -2,6 +2,7 @@ import {spawn,type ChildProcess} from 'node:child_process';
 import {existsSync,readdirSync,readFileSync} from 'node:fs';
 import {createServer} from 'node:net';
 import {join} from 'node:path';
+import assert from 'node:assert/strict';
 
 // Shared real-browser harness: the process, Chrome and DevTools helpers first written
 // for F01, exported so other real-browser regression tests use the same code.
@@ -85,3 +86,42 @@ export async function launchChrome(binary:string,profile:string){
   return {child,url};
 }
 
+
+/** The real built server on its own data folder and port; started here, so this test may stop it. */
+// CMENG_TEST_SERVER runs the same invariant against another build (for example the previous release).
+export const BUILT_SERVER=process.env.CMENG_TEST_SERVER||join(__dirname,'../packages/runtime-api/src/project-gateway.js');
+export async function startBuiltServer(dataDir:string,port:number,extraEnv:Record<string,string|undefined>={}){
+  const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:dataDir,PORT:String(port),HOST:'127.0.0.1'};
+  for(const name of ['RAILWAY_VOLUME_MOUNT_PATH','NODE_TEST_CONTEXT','CMENG_PROJECT_WORKER','NODE_OPTIONS'])delete env[name];
+  for(const [name,value] of Object.entries(extraEnv)){if(value===undefined)delete env[name];else env[name]=value;}
+  const child=own(spawn(process.execPath,[BUILT_SERVER],{env,stdio:['ignore','pipe','pipe'],detached:true}));
+  let log='';child.stdout!.on('data',d=>{log=(log+d).slice(-20000);});child.stderr!.on('data',d=>{log=(log+d).slice(-20000);});
+  const deadline=Date.now()+60_000;
+  for(;;){
+    if(child.exitCode!==null)assert.fail('server exited during start: '+log.slice(-3000));
+    try{const r=await fetch('http://127.0.0.1:'+port+'/health',{signal:AbortSignal.timeout(2000)});if(r.ok)return child;}catch{}
+    if(Date.now()>deadline)assert.fail('server did not answer /health within 60 s: '+log.slice(-3000));
+    await new Promise(r=>setTimeout(r,300));
+  }
+}
+/** A small valid P6 programme: one five-day calendar, a chain of tasks, a finish milestone. */
+export function smallProgrammeXer(projectId:string,dataDate:string,names:(i:number)=>string=i=>'Works package '+(i+1),count=12){
+  const shift=(iso:string,days:number)=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+  const shifts=[['08:00','12:00'],['13:00','17:00']] as const;
+  const intervals=shifts.map(([s,e],i)=>'(0||'+i+'(s|'+s+'|f|'+e+')())').join('');
+  const days=[1,2,3,4,5,6,7].map(d=>'(0||'+d+'()('+(d>=2&&d<=6?intervals:'')+'))').join('');
+  const calendar='(0||CalendarData()((0||DaysOfWeek()('+days+'))(0||Exceptions()())))'.replaceAll('(0||','\x7f\x7f  (0||');
+  const lines=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\t'+projectId+'\t'+dataDate,
+    '%T\tPROJWBS','%F\twbs_id\tproj_id\tparent_wbs_id\twbs_short_name\twbs_name','%R\t10\t1\t\tROOT\tMain Works',
+    '%T\tCALENDAR','%F\tclndr_id\tclndr_name\tday_hr_cnt\tweek_hr_cnt\tclndr_data','%R\tC1\tFive Day 8h\t8\t40\t'+calendar,
+    '%T\tTASK','%F\ttask_id\tproj_id\twbs_id\tclndr_id\ttask_code\ttask_name\ttask_type\tstatus_code\ttarget_start_date\ttarget_end_date\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt\tphys_complete_pct'];
+  for(let i=0;i<count;i++){
+    const last=i===count-1,start=shift(dataDate,i*7),finish=shift(dataDate,i*7+6);
+    lines.push(['%R',String(2000+i),'1','10','C1',last?'MS-FINISH':'ACT-'+(100+i),last?'Project Completion':names(i),
+      last?'TT_FinMile':'TT_Task','TK_NotStart',last?finish:start,finish,last?finish:start,finish,last?'0':'40',last?'0':'40','0','0'].join('\t'));
+  }
+  lines.push('%T\tTASKPRED','%F\ttask_pred_id\tproj_id\ttask_id\tpred_proj_id\tpred_task_id\tpred_type\tlag_hr_cnt');
+  for(let i=1;i<count;i++)lines.push(['%R',String(7000+i),'1',String(2000+i),'1',String(1999+i),'PR_FS','0'].join('\t'));
+  lines.push('%E');
+  return lines.join('\n');
+}
