@@ -103,3 +103,17 @@ test('monetary Top N never ranks incomparable currencies by raw numbers',()=>{
  const result=analysis([{reference:'AED',amount:100,currency:'AED'},{reference:'USD',amount:90,currency:'USD'}],'boq');const table=result.sections[0]!.tables[0]!;table.columns.find(c=>c.key==='amount')!.unit='row currency';const plan=resolveIntent('Top 1 BOQ cost items',catalogue,user,null,null).plan;
  const queried=queryTable(table,plan);assert.equal(queried.table.selection!.ranked,false);assert.equal(queried.table.rows.length,2);assert.ok(queried.gaps.some(g=>g.includes('single currency')));
 });
+
+test('AI path fix: one correction turn names missing mandatory evidence; the corrected answer passes the same validator, a second miss still falls back',async()=>{
+  const fixed=analysis([{activityId:'LAST',critical:true}],'activities',[finding(1),finding(2)]);
+  const once=mockProvider((input,_stage,call)=>{const output=response(input);if(call===1)output.coveredEvidenceIds=output.coveredEvidenceIds.slice(0,1);return output;});
+  const blocks=await new OpenAiAskModel('fake','fake',once.request).explain(fixed,[]);
+  assert.ok(blocks.length>0);assert.equal(fixed.coverage!.representedToModel,true);assert.equal(once.requests.length,2);
+  const correction=once.requests[1].input.coverageCorrection;
+  assert.ok(correction.missingEvidenceIds.length>0&&correction.missingEvidenceIds.every((id:string)=>once.requests[1].input.requiredEvidenceIds.includes(id)));
+  assert.deepEqual(once.requests[0].input.requiredEvidenceIds,once.requests[0].input.items.filter((i:EvidenceItem)=>i.mandatory).map((i:EvidenceItem)=>i.id));
+  const twice=analysis([{activityId:'LAST',critical:true}],'activities',[finding(1),finding(2)]);
+  const never=mockProvider(input=>{const output=response(input);output.coveredEvidenceIds=[];return output;});
+  await assert.rejects(()=>new OpenAiAskModel('fake','fake',never.request).explain(twice,[]),/MODEL_MATERIAL_COVERAGE_INVALID/);
+  assert.equal(never.requests.length,2,'exactly one correction turn');assert.equal(twice.coverage!.representedToModel,false);
+});
