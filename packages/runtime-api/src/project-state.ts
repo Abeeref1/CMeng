@@ -4495,6 +4495,13 @@ export class RuntimeProjectStore {
       );
     if (index >= 0) {
       const previous=state.evidenceDocuments[index]!;
+      // P0-A R2: an identical file keeps the user's decisions about it. The type
+      // decision (and the family it implies) and the confirmed column meanings are
+      // statements about this exact content, so re-uploading it never asks again.
+      if(previous.sourceHashSha256===document.sourceHashSha256){
+        if(previous.classificationDecision?.sourceHash===document.sourceHashSha256){document.classificationDecision=previous.classificationDecision;if(previous.classificationHistory)document.classificationHistory=previous.classificationHistory;document.category=previous.category;document.documentType=previous.documentType;document.familyKey=previous.familyKey;document.logicalDocumentKey=previous.logicalDocumentKey;}
+        if(previous.tableConfirmations?.length&&!document.tableConfirmations?.length)document.tableConfirmations=previous.tableConfirmations;
+      }
       if(previous.sourceHashSha256===document.sourceHashSha256&&previous.familyKey===document.familyKey){document.basisState=previous.basisState;document.supersedesDocumentIds=previous.supersedesDocumentIds;document.supersededByDocumentId=previous.supersededByDocumentId;if(previous.relationshipDecision)document.relationshipDecision=previous.relationshipDecision;if(previous.relationshipHistory)document.relationshipHistory=previous.relationshipHistory;if(previous.scheduleAdoption)document.scheduleAdoption=previous.scheduleAdoption;}
       state.evidenceDocuments[index] =
         document;

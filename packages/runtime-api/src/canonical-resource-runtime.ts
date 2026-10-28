@@ -9,6 +9,7 @@ import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {refreshResourceSourceFields} from './resource-source-refresh';
 import {isExecutionActivity} from '../../schedule-analysis-core/src';
 import {recordedHoursByTradeWeek} from './resource-trade-week-hours';
+import {currentCapacityConfirmations} from './capacity-confirmations';
 
 export function criticalResourceHours(model:import('../../schedule-analysis-core/src').CanonicalScheduleModel,resources:import('../../schedule-resource-core/src').CanonicalResourceModel){
  const activities=new Map(model.activities.filter(a=>isExecutionActivity(a)&&a.status!=='completed'&&a.totalFloatHours!==null&&a.totalFloatHours<=0).map(a=>[a.activityId,a]));
@@ -53,7 +54,7 @@ function calculateResourceModule(state:ProjectRuntimeState,key:string):ModuleRun
  let data:unknown;
  if(key==='resource-utilization'){
   const hourly=resourceModel&&current&&resourceModel.assignments.length>0?buildResourceUtilizationProjection(resourceModel,current.revision.model,{generatedAt,producerVersion:'p6-hourly-capacity-v1',
-  capacityConfirmations:(state.resourceCapacityConfirmations??[]).filter(row=>row.sourceRevisionId===current.revision.revisionId)}):null;
+  capacityConfirmations:currentCapacityConfirmations(state,current.revision.revisionId)}):null;
   const weeklyAssignedResourceCount=new Set(summary.points.map(p=>p.resourceId).filter(Boolean)).size;
   const distinctResourceCount=summary.masterResources.length||summary.observedResourceCount||hourly?.resourceCount||summary.resourceCount;
   // SW-46: without a stored resource model the assignment counts are not established (null), never 0.

@@ -130,6 +130,7 @@ import {projectFactsForState} from "./project-facts";
 import {aiReadingCoverage} from './evidence-semantic-ai';
 import {projectDocumentReading,readingSetup} from './document-read-review';
 import {configuredProviderState} from '../../project-ask/src/provider';
+import {resourceFingerprint} from './capacity-confirmations';
 
 const advancedControlKeys=new Set([
   'scope-classification','monte-carlo-risk','earned-schedule','evm-by-wbs','risk-register','contract-risk','final-account','tender-readiness',
@@ -2071,7 +2072,8 @@ async function route(
         message:'Confirm a current resource, non-negative approved units per hour, effective date, approving authority and supporting source reference.'});return;
     }
     const record={resourceId,sourceRevisionId:current!.revision.revisionId,
-      capacityUnitsPerHour:amount,effectiveFromIso:date,approvedBy:approval,sourceRef,confirmedAt:new Date().toISOString()};
+      capacityUnitsPerHour:amount,effectiveFromIso:date,approvedBy:approval,sourceRef,confirmedAt:new Date().toISOString(),
+      resourceFingerprint:resourceFingerprint(stored!.resources.find(r=>r.resourceId===resourceId)!)};
     state.resourceCapacityConfirmations=[...(state.resourceCapacityConfirmations??[]),record];
     runtimeProjects.touch(state);
     json(res,201,{projectId:state.projectId,projectVersion:state.version,record,

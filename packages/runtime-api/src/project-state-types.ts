@@ -480,7 +480,7 @@ export interface ProjectRuntimeState {
     quantityItemId:string;activityId:string;sourceRevisionId:string;boqRevisionId:string;
     proposedBy:string;sourceRef:string;reason:string;proposedAt:string;state:'candidate';
   }>;
-  resourceCapacityConfirmations?:Array<{resourceId:string;sourceRevisionId:string;capacityUnitsPerHour:number;effectiveFromIso:string;approvedBy:string;sourceRef:string;confirmedAt:string}>;
+  resourceCapacityConfirmations?:Array<{resourceId:string;sourceRevisionId:string;capacityUnitsPerHour:number;effectiveFromIso:string;approvedBy:string;sourceRef:string;confirmedAt:string;resourceFingerprint?:string}>;
   schedules: StoredScheduleRevision[];
   evidenceDocuments: StoredEvidenceDocument[];
   resourcesByRevision: Map<

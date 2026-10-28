@@ -7,6 +7,7 @@ import {refreshResourceSourceFields} from './resource-source-refresh';
 import {projectScopeClassification} from './location-review';
 import {cachedIndependentForecast} from './forecast-cache';
 import type {ActivityScopeClassification} from './schedule-scope-classification';
+import {currentCapacityConfirmations} from './capacity-confirmations';
 
 /** F46: the one shared repeated-trade-chain resource position, read by the
  * project facts and the Resources page. Cached per project version. */
@@ -66,7 +67,7 @@ function calculate(state:ProjectRuntimeState):TradeChainResourcePosition{
     drivingActivityIds:network?network.activityIds:null,
     drivingPathBasis:network?'Driving network traced from the independent CPM finish of the current programme.':'Driving path not established: the independent CPM calculation of the current programme is not complete.',
     registerCapacity,
-    capacityConfirmations:(state.resourceCapacityConfirmations??[]).filter(row=>row.sourceRevisionId===current.revision.revisionId),
+    capacityConfirmations:currentCapacityConfirmations(state,current.revision.revisionId),
   });
 }
 

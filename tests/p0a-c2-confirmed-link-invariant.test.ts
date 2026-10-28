@@ -115,3 +115,41 @@ test('C2 payment relationship: a version change alone keeps it; a changed certif
   assert.equal(linkEntityFingerprint('payment_certificate',e(100)),linkEntityFingerprint('payment_certificate',{...e(100),sourceRefs:['other-file:row:9']}),'re-reading the same record (new file or row) keeps the relationship');
   assert.notEqual(linkEntityFingerprint('payment_certificate',e(100)),linkEntityFingerprint('payment_certificate',e(120)),'a changed certified amount must change the binding');
 });
+
+test('R2 identical re-upload: the saved document type decision is kept and not asked again',{timeout:600_000},async()=>{
+  const root=await mkdtemp(join(tmpdir(),'cmeng-p0a-r2-reupload-'));
+  let server:ChildProcess|null=null;
+  try{
+    const port=await freePort(),base='http://127.0.0.1:'+port+'/api/projects/P0A-R2-REUPLOAD';
+    server=await startBuiltServer(join(root,'data'),port,{CMENG_ASK_AI_API_KEY:undefined,CMENG_ASK_AI_CONFIG_FILE:undefined});
+    assert.equal((await fetch('http://127.0.0.1:'+port+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:'P0A-R2-REUPLOAD',testProject:false})})).status,201);
+    // A cost report whose file name says "latest" (read as a schedule update by name): a type review is raised.
+    const csv='Metric,Value,Currency/Unit,As Of\nBAC,1000000,SAR,2033-02-28\nEAC,1100000,SAR,2033-02-28\nCPI,0.95,index,2033-02-28\n';
+    const upload=async(n:number)=>{const r=await fetch(base+'/evidence/uploads',{method:'POST',body:Buffer.from(csv,'utf8'),headers:{'content-type':'text/csv','x-source-filename-encoded':'COST01_Latest_EVM.csv','x-source-relative-path-encoded':'COST01_Latest_EVM.csv','x-upload-id':'R2-'+n,'x-upload-intent':'add_update'}});assert.equal(r.status,201);};
+    await upload(0);
+    const actions=async()=>(await (await fetch(base+'/actions?page=0&pageSize=25&dataGapsPage=0&query=&category=all')).json() as any);
+    const before=await actions();
+    const review=(before.actions as any[]).find(a=>a.target?.kind==='review-document-classification');
+    if(!review)return; // the reader resolved the type without a review: nothing to keep
+    const choice=review.target.reviewOptions.find((o:any)=>/cost/.test(o.value))?.value??review.target.reviewChoice;
+    const saved=await fetch(base+'/actions/confirm-review',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:before.projectVersion,actionId:review.id,sourceFingerprint:review.reviewFingerprint,choice,reference:'R2 type check'})});
+    assert.equal(saved.status,200,'type decision failed: '+(await saved.text()).slice(0,300));
+    await upload(1); // the identical file again
+    const after=await actions();
+    assert.ok(!(after.actions as any[]).some(a=>a.target?.kind==='review-document-classification'),'the identical file asks for its type again');
+    const docs=await (await fetch(base+'/evidence/documents')).json() as any;
+    const doc=docs.documents.find((d:any)=>d.sourceFilename==='COST01_Latest_EVM.csv');
+    assert.equal(doc.documentType,choice,'the decided type was lost on re-upload');
+  }finally{await stop(server);await rm(root,{recursive:true,force:true}).catch(()=>{});}
+});
+
+test('R2 capacity confirmation: kept for a new programme revision with the same resource; stale when that resource changes',async()=>{
+  const {currentCapacityConfirmations,resourceFingerprint}=await import('../packages/runtime-api/src/capacity-confirmations');
+  const resource=(name:string)=>({resourceId:'R-CARP',nativeId:'1',shortName:'CARP',name,parentResourceId:null,resourceType:'labor',unitId:null,unitName:'Hour',unitAbbreviation:'h',calendarId:null,priceTimeUnit:null,rates:[],sourceRefs:[]});
+  const confirmation={resourceId:'R-CARP',sourceRevisionId:'REV-1',capacityUnitsPerHour:6,effectiveFromIso:'2033-01-01',approvedBy:'Planner',sourceRef:'Memo 4',confirmedAt:'2033-01-02T00:00:00Z',resourceFingerprint:resourceFingerprint(resource('Carpenters'))};
+  const state=(name:string)=>({resourceCapacityConfirmations:[confirmation],resourcesByRevision:new Map([['REV-2',{resources:[resource(name)]}]])}) as any;
+  assert.equal(currentCapacityConfirmations(state('Carpenters'),'REV-2').length,1,'a new programme revision alone must not drop the confirmation');
+  assert.equal(currentCapacityConfirmations(state('Steel fixers'),'REV-2').length,0,'a changed resource must make the confirmation stale');
+  const legacy={...state('Carpenters'),resourceCapacityConfirmations:[{...confirmation,resourceFingerprint:undefined}]};
+  assert.equal(currentCapacityConfirmations(legacy,'REV-2').length,1,'a confirmation saved before fingerprints is kept while the resource exists');
+});
