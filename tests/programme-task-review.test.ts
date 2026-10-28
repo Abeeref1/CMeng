@@ -78,7 +78,7 @@ test('task and milestone review submit real multiline activity IDs from the rend
   const node={querySelector:(selector:string)=>({value:selector==='.review-choice'?'selected_tasks':selector==='.review-activity-ids'?' A1\r\nA2\n ':selector==='.review-reference'?'CHECK':''}),querySelectorAll:()=>[]};
   const context={action,escapeHtml:String,project:()=> 'P',document:{querySelector:()=>node},CSS:{escape:String},api:async(_url:string,request:any)=>{sent.push(JSON.parse(request.body));},refresh:async()=>{}};
   const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',context);assert.match(html,/A1\nA2/);
-  await runInNewContext(projectActionsScript+`;projectActionState={projectId:'P',status:'ready',data:{projectVersion:4,actions:[action]}};resolveReviewDecision('scope')`,{...context});
+  await runInNewContext(projectActionsScript+`;projectActionState={projectId:'P',status:'ready',data:{projectVersion:4,actions:[action]}};resolveReviewDecision('scope',{closest:()=>node})`,{...context,node});
   assert.equal(sent.length,1);assert.deepEqual(sent[0].activityIds,['A1','A2']);assert.equal(sent[0].reference,'CHECK');
  }
 });

@@ -236,7 +236,10 @@ function pageSplitReasonBlock(block,lines,rank){
    if(!String(child.textContent||'').trim()&&!child.querySelector('svg,canvas,img,table'))continue;
    const holds=lines.some(line=>child===line||child.contains(line)),height=pageBlockHeight(child);
    // A short part that holds a reason (a card, a notice) stays whole.
-   if(holds&&!lines.includes(child)&&height>PAGE_REASON_PANEL_MAX_PX&&child.children.length&&!/^(?:DETAILS|TABLE|UL|OL)$/.test(child.tagName)){walk(child,chain.concat(child));continue;}
+   // C1: an element with an id is a render target (for example the action panel that
+   // Actions required re-renders by id). It is moved whole, never taken apart: moving
+   // its children into id-less copies would strand them when the target is rendered again.
+   if(holds&&!child.id&&!lines.includes(child)&&height>PAGE_REASON_PANEL_MAX_PX&&child.children.length&&!/^(?:DETAILS|TABLE|UL|OL)$/.test(child.tagName)){walk(child,chain.concat(child));continue;}
    const stays=holds||child.matches('h1,h2,h3,h4,h5,header,.planning-panel-head,.management-panel-head');
    parts.push({node:child,chain,rank:stays?0:rank>0?rank:-1,height,titleHint:title});
   }

@@ -76,7 +76,12 @@ async function loadProjectActions(){
  projectActionState={projectId:owner,status:'loading',data:actionStateCurrent()?projectActionState?.data:null};updateActionIndicator();
  try{const query=new URLSearchParams({page:String(projectActionPage),pageSize:'25',dataGapsPage:String(projectDataGapsPage),query:projectActionSearch,category:projectActionFilter});const data=await api('/api/projects/'+encodeURIComponent(owner)+'/actions?'+query);if(seq!==projectActionRequest||!projectRequestIsCurrent(owner,projectSeq))return;if(data.projectId!==owner)throw new Error('The action list belongs to a different project.');projectActionState={projectId:owner,status:'ready',data};}
  catch(e){if(seq!==projectActionRequest||!projectRequestIsCurrent(owner,projectSeq))return;projectActionState={projectId:owner,status:'error',message:e.message};}
- updateActionIndicator();for(const id of ['projectActionPanel','projectReviewPanel']){const panel=el(id);if(panel){panel.innerHTML=renderProjectActionList();bindProjectActions(panel);}}
+ updateActionIndicator();
+ // C1: the action list lives only in its two panels. Any action block left elsewhere
+ // (for example moved out of a panel by a page layout) is stale and is removed, so the
+ // page never shows or saves an out-of-date copy.
+ if(typeof document!=='undefined'&&typeof document.querySelectorAll==='function')for(const stale of Array.from(document.querySelectorAll('.project-action'))){if(typeof stale.closest==='function'&&!stale.closest('#projectActionPanel,#projectReviewPanel'))stale.remove();}
+ for(const id of ['projectActionPanel','projectReviewPanel']){const panel=el(id);if(panel){panel.innerHTML=renderProjectActionList();bindProjectActions(panel);}}
 }
 function projectReviewFinding(i){
  const code=String(i.code||''),detail=String(i.detail||''),all=(code+' '+detail+' '+i.summary).toLowerCase();
@@ -208,17 +213,17 @@ function renderProjectActionList(){
  };
  return '<div class="action-summary"><b>'+fmt(decisionCount)+' decision'+(decisionCount===1?' needs':'s need')+' your review</b><small>Checked '+escapeHtml(formatDocumentTime(data.checkedAt))+'</small><button class="btn small" data-action-refresh>Refresh</button><button class="btn small" data-action-close>Close</button></div><p>Confirm source decisions that require your authority. Other project-team work is under Accountability. <button class="btn small" data-action-module="cross-domain-accountability">Open Accountability</button></p><div class="action-filters"><input class="project-action-search" aria-label="Find an action" placeholder="Find an action or document" value="'+escapeHtml(projectActionSearch)+'"><select class="project-action-filter" aria-label="Action type">'+[['all','All decisions'],['confirmation','Confirm / choose'],['review','Source review']].map(([value,label])=>'<option value="'+value+'" '+(projectActionFilter===value?'selected':'')+'>'+label+'</option>').join('')+'</select></div><div class="project-action-list">'+pageRows.map(a=>article(a,false)).join('')+'</div>'+(total>perPage?'<p><button class="btn small" data-action-page="-1" '+(projectActionPage===0?'disabled':'')+'>Previous</button> '+fmt(projectActionPage*perPage+1)+'–'+fmt(Math.min((projectActionPage+1)*perPage,total))+' of '+fmt(total)+' <button class="btn small" data-action-page="1" '+((projectActionPage+1)*perPage>=total?'disabled':'')+'>Next</button></p>':'')+(!filtered.length?'<p>'+(items.length?'No actions match this filter.':'No decisions or source confirmations await your response.')+'</p>':'')+((data.dataGapsTotalCount??data.information?.length)>0?'<details class="review-inline"><summary>Data gaps and recorded decisions · '+screenCountText(data.dataGapsTotalCount??listTotal(data.information))+'</summary><p>Review missing source fields and saved reporting decisions here. Available source figures remain visible.</p>'+(data.information||[]).map(a=>article(a,true)).join('')+(data.dataGapsTotalCount>perPage?'<p><button class="btn small" data-gap-page="-1" '+(projectDataGapsPage===0?'disabled':'')+'>Previous gaps</button> '+fmt(projectDataGapsPage*perPage+1)+'–'+fmt(Math.min((projectDataGapsPage+1)*perPage,data.dataGapsTotalCount))+' of '+fmt(data.dataGapsTotalCount)+' <button class="btn small" data-gap-page="1" '+((projectDataGapsPage+1)*perPage>=data.dataGapsTotalCount?'disabled':'')+'>More gaps</button></p>':'')+'</details>':'')+(comparisonInformation.length?'<details class="review-inline"><summary>Additional information · programme calculation qualifications</summary>'+comparisonInformation.map(a=>article(a,true)).join('')+'</details>':'');
 }
-async function resolveReviewDecision(id){
+async function resolveReviewDecision(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=[...projectActionState.data.actions,...(projectActionState.data.information||[])].find(x=>x.id===id);
  if(!a)return;
- const node=actionNode(id),choice=node?.querySelector('.review-choice')?.value,matrixText=node?.querySelector('.review-matrix')?.value||'';
- if(!choice){actionMessage(id,'Select the applicable decision.');return;}
- setActionBusy(id,true);actionMessage(id,'Recording the decision…');
+ const node=actionNode(id,from),choice=node?.querySelector('.review-choice')?.value,matrixText=node?.querySelector('.review-matrix')?.value||'';
+ if(!choice){actionMessage(id,from,'Select the applicable decision.');return;}
+ setActionBusy(id,from,true);actionMessage(id,from,'Recording the decision…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-review',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,sourceFingerprint:a.reviewFingerprint,choice,matrixText,noticeSourceKeys:Array.from(node?.querySelectorAll('.review-notice-source:checked')||[]).map(input=>input.value),locationAssignmentsText:node?.querySelector('.review-location-assignments')?.value,activityIds:(node?.querySelector('.review-activity-ids')?.value||'').split(/\r?\n/).map(id=>id.trim()).filter(Boolean),asOfIso:node?.querySelector('.review-as-of')?.value,additionalDays:node?.querySelector('.review-additional-days')?.value,enteredValue:node?.querySelector('.review-entered-value')?.value,enteredCurrency:node?.querySelector('.review-entered-currency')?.value,enteredDateIso:node?.querySelector('.review-entered-date')?.value,reference:node?.querySelector('.review-reference')?.value,reviewedRates:Object.fromEntries(['trir','trirBasisHours','ltifr','ltifrBasisHours'].map(key=>[key,node?.querySelector('.review-hse-'+key)?.value]))})});
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){actionMessage(id,from,e.message);setActionBusy(id,from,false);}
 }
 /** T09: inline owner and due-date inputs (save and clear) for an open action. */
 function actionAssignEditor(a){
@@ -229,24 +234,27 @@ function actionAssignEditor(a){
   (a.assignmentState==='assigned'?' <button type="button" class="management-module-link" data-assign-clear="'+escapeHtml(a.id)+'">Clear</button>':'')+
   '<p class="action-inline-message" aria-live="polite"></p></div>';
 }
-async function saveActionAssignment(id,clear=false){
+async function saveActionAssignment(id,clear=false,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
- const owner=project(),version=projectActionState.data.projectVersion,node=actionNode(id);
+ const owner=project(),version=projectActionState.data.projectVersion,node=actionNode(id,from);
  const body=clear?{action:'clear'}:{owner:(node?.querySelector('.action-assign-owner')?.value||'').trim(),dueIso:node?.querySelector('.action-assign-due')?.value||''};
- if(!clear&&!body.owner&&!body.dueIso){actionMessage(id,'Enter an owner name or a due date.');return;}
- setActionBusy(id,true);actionMessage(id,clear?'Clearing…':'Saving…');
+ if(!clear&&!body.owner&&!body.dueIso){actionMessage(id,from,'Enter an owner name or a due date.');return;}
+ setActionBusy(id,from,true);actionMessage(id,from,clear?'Clearing…':'Saving…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/actions/assign',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,...body})});
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){actionMessage(id,from,e.message);setActionBusy(id,from,false);}
 }
-function actionNode(id){return document.querySelector('[data-action-id="'+CSS.escape(id)+'"]');}
-function actionMessage(id,text){const node=actionNode(id)?.querySelector('.action-inline-message');if(node)node.textContent=text;}
-function setActionBusy(id,busy){actionNode(id)?.querySelectorAll('button,input,select').forEach(node=>node.disabled=busy);}
-async function resolveScheduleAction(id){
+// C1: the same action list is rendered in the page panel and in the Project review drawer.
+// A save must read only the action block that holds the control the user clicked;
+// a page-wide lookup returns the first copy and saves the other copy's values.
+function actionNode(id,from){const node=from&&typeof from.closest==='function'?from.closest('[data-action-id]'):null;if(!node)return null;if(typeof node.getAttribute==='function'&&node.getAttribute('data-action-id')!==String(id))return null;return node;}
+function actionMessage(id,from,text){const node=actionNode(id,from)?.querySelector('.action-inline-message');if(node)node.textContent=text;}
+function setActionBusy(id,from,busy){actionNode(id,from)?.querySelectorAll('button,input,select').forEach(node=>node.disabled=busy);}
+async function resolveScheduleAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
- const t=a.target,node=actionNode(id);setActionBusy(id,true);actionMessage(id,'Saving programme selection…');
+ const t=a.target,node=actionNode(id,from);setActionBusy(id,from,true);actionMessage(id,from,'Saving programme selection…');
  try{
   if(t.needsPurpose){
    const role=node.querySelector('.action-schedule-role').value,approval=node.querySelector('.action-schedule-approval').value.trim();
@@ -259,18 +267,18 @@ async function resolveScheduleAction(id){
    await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-schedule',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id})});
   }
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){actionMessage(id,from,e.message);setActionBusy(id,from,false);}
 }
-async function resolveDocumentAction(id){
+async function resolveDocumentAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
- const t=a.target,node=actionNode(id),kind=node.querySelector('.action-document-kind').value,target=node.querySelector('.action-document-target')?.value||'';
- if(kind!=='new_record'&&!target){actionMessage(id,'Choose the current document this replaces or amends.');return;}
- setActionBusy(id,true);actionMessage(id,'Saving document relationship…');
+ const t=a.target,node=actionNode(id,from),kind=node.querySelector('.action-document-kind').value,target=node.querySelector('.action-document-target')?.value||'';
+ if(kind!=='new_record'&&!target){actionMessage(id,from,'Choose the current document this replaces or amends.');return;}
+ setActionBusy(id,from,true);actionMessage(id,from,'Saving document relationship…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/evidence/documents/'+encodeURIComponent(t.documentId)+'/relationship',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,sourceHash:t.sourceHash,kind,targetDocumentId:kind==='new_record'?null:target,note:'Confirmed in Actions required: '+kind.replaceAll('_',' ')})});
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){actionMessage(id,from,e.message);setActionBusy(id,from,false);}
 }
 /** F30: each missing field once, with the control that supplies it: the inline
  * input of this matter, or an upload naming the document type and the field. */
@@ -287,14 +295,14 @@ function actionGapsHtml(a){
  };
  return '<div class="action-gaps"><b>Information needed · '+fmt(rows.length)+' field'+(rows.length===1?'':'s')+'</b><ul>'+rows.map((row,index)=>'<li data-gap-row="'+index+'"><span>'+escapeHtml(row.field+' · '+(row.supply?.type==='upload'?row.supply.documentType:row.file)+' · '+owner(row))+'</span>'+control(row,index)+'</li>').join('')+'</ul><p class="gap-inline-message" role="status"></p></div>';
 }
-async function resolveUploadAction(id,gapIndex=null){
+async function resolveUploadAction(id,gapIndex=null,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),a=[...projectActionState.data.actions,...(projectActionState.data.information||[])].find(x=>x.id===id);if(!a)return;
  const gap=gapIndex===null?null:a.missingFields?.[gapIndex]?.supply;if(gapIndex!==null&&gap?.type!=='upload')return;
- const t=gap||a.target,node=gapIndex===null?actionNode(id):actionNode(id)?.querySelector('[data-gap-row="'+gapIndex+'"]'),cls=gapIndex===null?'.action-upload':'.gap-upload',file=node?.querySelector(cls+'-file')?.files?.[0];
- const say=text=>{if(gapIndex===null){actionMessage(id,text);return;}const m=actionNode(id)?.querySelector('.gap-inline-message');if(m)m.textContent=text;};
+ const t=gap||a.target,node=gapIndex===null?actionNode(id,from):actionNode(id,from)?.querySelector('[data-gap-row="'+gapIndex+'"]'),cls=gapIndex===null?'.action-upload':'.gap-upload',file=node?.querySelector(cls+'-file')?.files?.[0];
+ const say=text=>{if(gapIndex===null){actionMessage(id,from,text);return;}const m=actionNode(id,from)?.querySelector('.gap-inline-message');if(m)m.textContent=text;};
  if(!file){say('Choose a file to upload.');return;}
- setActionBusy(id,true);say('Uploading and updating the Project position…');
+ setActionBusy(id,from,true);say('Uploading and updating the Project position…');
  try{
   const headers={'content-type':fileType(file),'x-source-filename':file.name,'x-source-relative-path':file.webkitRelativePath||file.name,'x-rerun-after-upload':'true'};
   let path='/api/projects/'+encodeURIComponent(owner)+'/evidence/uploads';
@@ -307,39 +315,39 @@ async function resolveUploadAction(id,gapIndex=null){
   }else Object.assign(headers,{'x-upload-intent':'add_update'});
   await api(path,{method:'POST',headers,body:file});
   if(project()===owner)await refresh(false);
- }catch(e){say(e.message);setActionBusy(id,false);}
+ }catch(e){say(e.message);setActionBusy(id,from,false);}
 }
-async function resolveContractCompletionAction(id){
+async function resolveContractCompletionAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
- const node=actionNode(id),date=node?.querySelector('.action-contract-completion-date')?.value||'';
- if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){actionMessage(id,'Enter the contractual completion date.');return;}
- setActionBusy(id,true);actionMessage(id,'Saving contractual completion date…');
+ const node=actionNode(id,from),date=node?.querySelector('.action-contract-completion-date')?.value||'';
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){actionMessage(id,from,'Enter the contractual completion date.');return;}
+ setActionBusy(id,from,true);actionMessage(id,from,'Saving contractual completion date…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-contract-completion',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,dateIso:date})});
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){actionMessage(id,from,e.message);setActionBusy(id,from,false);}
 }
-async function resolveMissingValueAction(id){
+async function resolveMissingValueAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
- const node=actionNode(id),value=cls=>(node?.querySelector(cls)?.value||'').trim();
+ const node=actionNode(id,from),value=cls=>(node?.querySelector(cls)?.value||'').trim();
  const body=a.target.kind==='contract-value'?{amount:value('.action-missing-amount'),currency:value('.action-missing-currency')}:a.target.kind==='commencement-date'?{dateIso:value('.action-missing-date')}:{days:value('.action-missing-days')};
- if(Object.values(body).some(v=>v==='')){actionMessage(id,'Enter every field before saving.');return;}
- setActionBusy(id,true);actionMessage(id,'Saving…');
+ if(Object.values(body).some(v=>v==='')){actionMessage(id,from,'Enter every field before saving.');return;}
+ setActionBusy(id,from,true);actionMessage(id,from,'Saving…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/actions/confirm-missing-value',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,actionId:id,...body})});
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){actionMessage(id,from,e.message);setActionBusy(id,from,false);}
 }
-async function resolvePopulationAction(id){
+async function resolvePopulationAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
  const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
- setActionBusy(id,true);actionMessage(id,'Saving confirmation…');
+ setActionBusy(id,from,true);actionMessage(id,from,'Saving confirmation…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/delivery/records',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,action:'confirm_population',kind:a.target.kind,note:'Confirmed complete register in Actions required.'})});
   if(project()===owner)await refresh(false);
- }catch(e){actionMessage(id,e.message);setActionBusy(id,false);}
+ }catch(e){actionMessage(id,from,e.message);setActionBusy(id,from,false);}
 }
 async function openProjectActions(inlineForCurrentPage=false){
  if(!overview)return;
@@ -361,16 +369,16 @@ function bindProjectActions(root){
  root.querySelectorAll('[data-gap-page]').forEach(b=>b.onclick=()=>{projectDataGapsPage=Math.max(0,projectDataGapsPage+Number(b.dataset.gapPage));void loadProjectActions();});
  root.querySelectorAll('[data-action-module]').forEach(b=>b.onclick=()=>{if(!names[b.dataset.actionModule])return;const drawer=el('projectReviewDrawer');if(drawer){drawer.open=false;drawer.hidden=true;}selected=b.dataset.actionModule;localStorage.setItem('cmeng-module',selected);syncBrowserRoute();renderNav();loadModule(selected);});
  root.querySelectorAll('[data-boq-numeric-review]').forEach(b=>b.onclick=()=>openBoqNumericReview());
- root.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>resolveReviewDecision(b.dataset.resolveReview));
- root.querySelectorAll('[data-assign-save]').forEach(b=>b.onclick=()=>saveActionAssignment(b.dataset.assignSave));
- root.querySelectorAll('[data-assign-clear]').forEach(b=>b.onclick=()=>saveActionAssignment(b.dataset.assignClear,true));
- root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule));
- root.querySelectorAll('[data-resolve-document]').forEach(b=>b.onclick=()=>resolveDocumentAction(b.dataset.resolveDocument));
- root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload));
- root.querySelectorAll('[data-resolve-gap-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveGapUpload,Number(b.dataset.gapIndex)));
- root.querySelectorAll('[data-resolve-population]').forEach(b=>b.onclick=()=>resolvePopulationAction(b.dataset.resolvePopulation));
- root.querySelectorAll('[data-resolve-contract-completion]').forEach(b=>b.onclick=()=>resolveContractCompletionAction(b.dataset.resolveContractCompletion));
- root.querySelectorAll('[data-resolve-missing-value]').forEach(b=>b.onclick=()=>resolveMissingValueAction(b.dataset.resolveMissingValue));
+ root.querySelectorAll('[data-resolve-review]').forEach(b=>b.onclick=()=>resolveReviewDecision(b.dataset.resolveReview,b));
+ root.querySelectorAll('[data-assign-save]').forEach(b=>b.onclick=()=>saveActionAssignment(b.dataset.assignSave,false,b));
+ root.querySelectorAll('[data-assign-clear]').forEach(b=>b.onclick=()=>saveActionAssignment(b.dataset.assignClear,true,b));
+ root.querySelectorAll('[data-resolve-schedule]').forEach(b=>b.onclick=()=>resolveScheduleAction(b.dataset.resolveSchedule,b));
+ root.querySelectorAll('[data-resolve-document]').forEach(b=>b.onclick=()=>resolveDocumentAction(b.dataset.resolveDocument,b));
+ root.querySelectorAll('[data-resolve-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveUpload,null,b));
+ root.querySelectorAll('[data-resolve-gap-upload]').forEach(b=>b.onclick=()=>resolveUploadAction(b.dataset.resolveGapUpload,Number(b.dataset.gapIndex),b));
+ root.querySelectorAll('[data-resolve-population]').forEach(b=>b.onclick=()=>resolvePopulationAction(b.dataset.resolvePopulation,b));
+ root.querySelectorAll('[data-resolve-contract-completion]').forEach(b=>b.onclick=()=>resolveContractCompletionAction(b.dataset.resolveContractCompletion,b));
+ root.querySelectorAll('[data-resolve-missing-value]').forEach(b=>b.onclick=()=>resolveMissingValueAction(b.dataset.resolveMissingValue,b));
  root.querySelectorAll('.action-document-kind').forEach(select=>select.onchange=()=>{const label=select.closest('.action-resolution').querySelector('.action-document-target-label');if(label)label.hidden=select.value==='new_record';});
  root.querySelectorAll('[data-action-refresh]').forEach(b=>b.onclick=()=>loadProjectActions());
  root.querySelectorAll('[data-action-close]').forEach(b=>b.onclick=()=>{const drawer=el('projectReviewDrawer');drawer.open=false;drawer.hidden=true;el('moduleContent')?.scrollIntoView({block:'start'});});

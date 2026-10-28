@@ -35,6 +35,6 @@ test('T04 conflicted pages offer an actionable same-page source choice, not a de
  assert.match(src,/openProjectActions\(true\)/);
  assert.match(src,/sourceConflicts\.flatMap\(issue=>issue\.sourceRefs/);
  assert.match(src,/Clear source values remain available in analysis/);
- assert.match(projectActionsScript,/resolveReviewDecision\(b\.dataset\.resolveReview\)/);
- assert.match(projectActionsScript,/resolveDocumentAction\(b\.dataset\.resolveDocument\)/);
+ assert.match(projectActionsScript,/resolveReviewDecision\(b\.dataset\.resolveReview,b\)/);
+ assert.match(projectActionsScript,/resolveDocumentAction\(b\.dataset\.resolveDocument,b\)/);
 });

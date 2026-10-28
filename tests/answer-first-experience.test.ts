@@ -137,7 +137,8 @@ test('Actions required completes schedule confirmation, document choice, upload 
   {id:'population',target:{type:'delivery',population:true,kind:'risk'},category:'confirmation'}
  ]}};
  runInNewContext(projectActionsScript+'\nprojectActionState=seed;',ctx);
- await ctx.resolveScheduleAction('schedule');await ctx.resolveDocumentAction('document');await ctx.resolveUploadAction('upload');await ctx.resolvePopulationAction('population');
+ const from=(id:string)=>({closest:()=>nodes[id]});
+ await ctx.resolveScheduleAction('schedule',from('schedule'));await ctx.resolveDocumentAction('document',from('document'));await ctx.resolveUploadAction('upload',null,from('upload'));await ctx.resolvePopulationAction('population',from('population'));
  assert.deepEqual(calls.map((c:any)=>c.path),[
   '/api/projects/UX-INLINE/actions/confirm-schedule',
   '/api/projects/UX-INLINE/evidence/documents/DOC-1/relationship',
