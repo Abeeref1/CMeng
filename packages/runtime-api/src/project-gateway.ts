@@ -217,7 +217,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   // Background cache fills must NEVER keep summaryJobs open or hold one project
   // lane across every management page. That blocks foreground project navigation.
   let warmPageTail:Promise<void>=Promise.resolve();
-  const releasePreparation:{state:'not_needed'|'preparing'|'complete'|'timed_out';prepared:number;pagesPrepared:number;total:number;priorityElapsedMs:number|null;elapsedMs:number|null}={state:'not_needed',prepared:0,pagesPrepared:0,total:0,priorityElapsedMs:null,elapsedMs:null};
+  const releasePreparation:{state:'not_needed'|'preparing'|'complete'|'timed_out';prepared:number;pagesPrepared:number;total:number;elapsedMs:number|null}={state:'not_needed',prepared:0,pagesPrepared:0,total:0,elapsedMs:null};
   const scheduledWarmups=new Set<string>();
   const pendingSecondaryWarmups=new Map<string,number>();
   let secondaryWarmupActive=false;
@@ -423,7 +423,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // previous release, the deployment is not ready, so the platform keeps
     // traffic away until every first Overview and Dashboard is calculated.
     if(req.method==='GET'&&url.pathname==='/health'&&releasePreparation.state==='preparing'){send(res,503,{status:'preparing',service:'cmeng',release:release(),calculationVersion:calculationRelease(),preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',releasePreparation:{state:releasePreparation.state,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,priorityElapsedMs:releasePreparation.priorityElapsedMs,elapsedMs:releasePreparation.elapsedMs},service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',releasePreparation:{state:releasePreparation.state,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs},service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
@@ -512,6 +512,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   let activeSummaryWarmups=0;
   const maxSummaryWarmups=Math.max(1,Math.min(3,maxWorkers-1));
   const warmSweep=()=>{
+    // Release preparation owns the background work until it finishes.
+    if(releasePreparation.state==='preparing')return;
     publishIdleLanes();
     // Never begin heavyweight background calculations while project pages are
     // being opened or uploaded; these jobs previously queued ahead of the
@@ -572,29 +574,29 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const started=Date.now();
     const limitMs=options.releasePreparationMs??Number(process.env.CMENG_RELEASE_PREPARATION_SECONDS??240)*1000;
     const lanesForPreparation=Math.max(1,Math.min(maxWorkers,4));
-    // Phase 1 prepares every project's summary, Accountability, Dashboard and
-    // Overview; phase 2 the remaining pages (modules, actions, documents), which
-    // are projections of the same calculation. Readiness waits for both.
-    const prepareOne=async(id:string,phase:'priority'|'secondary')=>{
+    // Each project is prepared completely in one go while its worker holds the
+    // calculation: summary, then Accountability, Dashboard and Overview, then the
+    // remaining pages (modules, actions, documents), which are projections of
+    // the same calculation. Readiness waits for every project.
+    const prepareOne=async(id:string)=>{
       const projectStarted=Date.now();
       try{
-        if(phase==='priority')await refreshSummary(id);
+        await refreshSummary(id);
         const entry=catalog.get(id),version=entry?.metadata?.version;
-        if(version!==undefined&&entry?.summaryRelease===calculationRelease())await warmProjectPages(id,version,phase);
+        if(version!==undefined&&entry?.summaryRelease===calculationRelease()){
+          await warmProjectPages(id,version,'priority');releasePreparation.prepared++;
+          await warmProjectPages(id,version,'secondary');releasePreparation.pagesPrepared++;
+        }
       }catch(error){console.warn('[release-preparation] '+id+': '+String(error));}
-      if(phase==='priority')releasePreparation.prepared++;else releasePreparation.pagesPrepared++;
-      console.log(JSON.stringify({event:'release_preparation_project',phase,projectId:id,ms:Math.round(Date.now()-projectStarted)}));
+      console.log(JSON.stringify({event:'release_preparation_project',projectId:id,ms:Math.round(Date.now()-projectStarted)}));
     };
-    const runPhase=async(phase:'priority'|'secondary')=>{
-      const queue=[...preparationTargets];
-      await Promise.all(Array.from({length:lanesForPreparation},async()=>{for(let id=queue.shift();id!==undefined&&!closing;id=queue.shift())await prepareOne(id,phase);}));
-    };
-    const preparation=runPhase('priority').then(()=>{releasePreparation.priorityElapsedMs=Date.now()-started;return runPhase('secondary');});
+    const queue=[...preparationTargets];
+    const preparation=Promise.all(Array.from({length:lanesForPreparation},async()=>{for(let id=queue.shift();id!==undefined&&!closing;id=queue.shift())await prepareOne(id);}));
     let limitTimer:NodeJS.Timeout|undefined;
     void Promise.race([preparation.then(()=>'complete' as const),new Promise<'timed_out'>(resolve=>{limitTimer=setTimeout(()=>resolve('timed_out'),limitMs);limitTimer.unref();})]).then(outcome=>{
       if(limitTimer)clearTimeout(limitTimer);
       releasePreparation.state=outcome;releasePreparation.elapsedMs=Date.now()-started;
-      console.log(JSON.stringify({event:'release_preparation',state:outcome,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,priorityElapsedMs:releasePreparation.priorityElapsedMs,elapsedMs:releasePreparation.elapsedMs}));
+      console.log(JSON.stringify({event:'release_preparation',state:outcome,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs}));
     });
   }
   const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values(),...pendingReadPublications.values(),...siblingPublications]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
