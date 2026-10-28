@@ -6708,10 +6708,10 @@ function renderModuleResult(result){
     el('programmeActionLink').onclick=()=>openProjectActions();
   }
   removeDuplicatePageBlocks(container);
-  // L1/L3: the answer leads; every other panel goes into More detail (moved, never removed).
-  arrangePageDetail(container);
-  // L3: opened detail stays short: long tables page by 25 rows and blocks of the same kind share one selector.
-  compactPageDetail(container);
+  // Regression guard: preserve each module's authored result layout. The global
+  // More detail transform moved and collapsed substantive project results,
+  // paginated tables and hid same-kind blocks behind selectors. Do not apply it
+  // across every CMeng page; page-specific layouts must remain readable in place.
 }
 function progressBreakdownSystemFailures(data){
   const failures=(data?.issueAssessment?.issues||[]).filter(issue=>issue.kind==='system_defect');
