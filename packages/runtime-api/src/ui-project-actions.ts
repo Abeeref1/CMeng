@@ -196,7 +196,7 @@ function renderProjectActionList(){
   const records=team&&a.recordCount>1?'<p><b>Records in this owner group:</b> '+fmt(a.recordCount)+' · review individual record dates and evidence in the supporting view.</p>':'';
   return '<article class="project-action '+(information?'action-information'+(a.target?.kind?.startsWith('review-')?' action-review-recorded':''):team?'action-follow-up':'')+'" data-action-id="'+escapeHtml(a.id)+'">'+
    (!information?'<span class="action-type">'+(team?'PROJECT-TEAM FOLLOW-UP':a.category==='review'?'REVIEW EXISTING DOCUMENTS':'CONFIRMATION / DECISION')+'</span>':'')+
-   '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
+   '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+
    '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+(a.assignedOwner?escapeHtml(a.assignedOwner)+' <small>Assigned in CMeng</small>':ownerMissingHtml(a.owner,a.accountableRole))+'</p>'+records+(information?'':actionAssignEditor(a))+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    actionGapsHtml(a)+
