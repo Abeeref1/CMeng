@@ -353,6 +353,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // environment, but neither may be spent by an anonymous/browser-forged
     // request. Deterministic Ask remains available when this header is 0.
     let allowPaidModel='0';
+    // Owner decision (28 Oct): the deployment may allow AI for every visitor of
+    // the app without sign-in (CMENG_AI_FOR_ALL_VISITORS=1). Off by default; the
+    // per-question call and token limits still apply.
+    if(process.env.CMENG_AI_FOR_ALL_VISITORS?.trim()==='1')allowPaidModel='1';
     try{if(externalController().access.identity(req).externalAdmin)allowPaidModel='1';}catch{}
 
     const mutation=req.method!=='GET'&&req.method!=='HEAD'&&!/\/intelligence(?:\/|$)/.test(path);
