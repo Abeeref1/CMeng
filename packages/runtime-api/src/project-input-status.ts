@@ -1,5 +1,6 @@
 import {resolveWorkingCalendar} from '../../schedule-cpm/src/calendar';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
+import {managementReviewStateOf} from './forecast-review-state';
 /** The fields both weekly capacity readers supply. */
 export interface WeeklyCapacityLike {
   state:'available'|'partial'|'candidate'|'not_found';
@@ -450,8 +451,8 @@ export function bindSharedInputStatus<T extends Record<string,any>>(key:string,d
     // P0-B: one shared rule (the gate's). The finish is shown whenever the network
     // can be calculated; this page adds no hold of its own.
     const gate=out.forecastReconciliationGate;
-    out.managementReviewState=gate.publishable===true?'accepted_for_analysis':gate.usable===true?'calculated_with_qualifications':'review_required';
-    out.managementReviewReason=gate.publishable===true?null:gate.reason??out.managementReviewReason??null;
+    out.managementReviewState=managementReviewStateOf(gate);
+    out.managementReviewReason=out.managementReviewState==='accepted_for_analysis'?null:gate.reason??out.managementReviewReason??null;
     if(out.forecastTaxonomy?.cmengCpm)out.forecastTaxonomy={...out.forecastTaxonomy,cmengCpm:{...out.forecastTaxonomy.cmengCpm,publishableAsManagementForecast:gate.usable===true}};
   }
   return out as T;

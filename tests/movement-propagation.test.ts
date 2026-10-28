@@ -410,7 +410,10 @@ test('unreconciled calendar scenarios cannot become EOT time-impact days',()=>{
  const eot=buildEotAssessmentProjection(windows,delay,contractTime,{generatedAt:'2031-02-01',producerVersion:'test'});
  const row=eot.windowCandidates[0]!;assert.equal(row.analyticalTimeImpactCandidateDays,null);assert.equal(row.includedCandidateDays,0);
  assert.equal(row.positiveProgrammeMovementDays,19);assert.equal(row.positiveIndependentMovementDays,400);
- assert.ok(row.reasons.includes('SUBMITTED_DATE_MOVEMENT_RECORDED_NO_CAUSAL_EVENT_ESTABLISHED'));
- assert.ok(row.reasons.includes('SEPARATE_CALENDAR_MODEL_MOVEMENT_REQUIRES_RECONCILIATION'));
+ // P0-B (C12): the calendar question about CMeng's own recalculation is stated
+ // with the window, not a hold. Candidate days only ever come from the submitted
+ // programme movement; here no causal event exists, so none are included.
+ assert.ok(row.reasons.includes('NO_ELIGIBLE_EMPLOYER_OR_NEUTRAL_EVENT'));
+ assert.ok(row.assumptions.includes('SEPARATE_CALENDAR_MODEL_MOVEMENT_REQUIRES_RECONCILIATION'));
  assert.ok(!row.reasons.includes('CALENDAR_LOGIC_RECALCULATION_REQUIRES_RECONCILIATION_NOT_DELAY'));
 });

@@ -106,7 +106,8 @@ test('W5 plain words: the required finish is said once per page, as one plain se
  const data={independentForecastCompletionIso:'2030-12-31',sourceForecastCompletionIso:'2030-12-31',dataDateIso:'2030-01-31',complete:true,forecastReconciliationGate:gate,managementReviewState:'review_required',managementReviewReason:gate.reason,probabilistic:{}};
  const warning=runInNewContext('renderForecastVisual(data)',{data,escapeHtml,fmt:String,humanizeKey:String,projectionFor:(d:any)=>d,planningKpis:()=>'',planningDateLadder:()=>'',renderVisualPanel:()=>'',renderVisualBars:()=>'',
   experienceBrief:()=>({review:gate.reason})}) as string;
- assert.match(warning,/Forecast differences require review/);
+ // P0-B: the calculated finish is shown first; its qualifications follow under one heading.
+ assert.match(warning,/What qualifies this finish/);
  assert.equal(count(text(warning),plain),1,'said once, in the gate table');
  assert.ok(!text(warning).split('\n').some(line=>!line.includes('\t')&&line.includes(plain)&&!/^\s*No confirmed/.test(line)),'the warning does not repeat the reason');
  const issue={kind:'governance_review',code:'CALCULATION_BASIS_REVIEW',summary:'Calculated basis requires review',detail:gate.reason,moduleKeys:['independent-forecast'],sourceRefs:['schedule:R2']};

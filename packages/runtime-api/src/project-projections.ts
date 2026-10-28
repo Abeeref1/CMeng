@@ -92,7 +92,7 @@ import { contractCompletionPosition } from "./contract-completion";
 import { buildDelayEotEvidenceChain } from "./delay-eot-evidence-chain";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
-import { forecastControlForState } from "./forecast-control";
+import { forecastControlForState, managementReviewStateOf } from "./forecast-control";
 import { completionDelayCalendar } from "./completion-delay-calendar";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
@@ -1479,11 +1479,7 @@ function buildBundle(
           forecastControl.gate
             .managementForecastCompletionIso,
         managementReviewState:
-          forecastControl.gate.publishable
-            ? "accepted_for_analysis"
-            : forecastControl.gate.usable
-              ? "calculated_with_qualifications"
-              : "review_required",
+          managementReviewStateOf(forecastControl.gate),
         managementReviewReason:
           forecastControl.gate.publishable
             ? null
@@ -6170,9 +6166,7 @@ function buildSpecialistModuleFast(
           forecastControl.gate
             .managementForecastCompletionIso,
         managementReviewState:
-          finalReviewReason
-            ? "review_required"
-            : "accepted_for_analysis",
+          managementReviewStateOf(forecastControl.gate),
         managementReviewReason:
           finalReviewReason,
       },
@@ -7580,9 +7574,7 @@ function resolveProjectModuleCandidate(
             control.gate
               .managementForecastCompletionIso,
           managementReviewState:
-            finalReview
-              ? "review_required"
-              : "accepted_for_analysis",
+            managementReviewStateOf(control.gate),
           managementReviewReason:
             finalReview,
           probabilistic: {

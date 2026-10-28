@@ -103,9 +103,9 @@ test('F07 shared prerequisites: the project facts state the four inputs counted 
   [['Civil',2,0,2],['ELEC',1,1,0],['Electrical',1,0,1]],'Civil from the WBS name, ELEC from the Discipline code, Electrical from "switchgear"; the milestone matches none');
  const c=inputs.cpmCoverage;
  assert.deepEqual([c.state,c.activityCount,c.calculatedActivityCount,c.unresolvedActivityCount,c.coveragePercent,c.calculationComplete,c.publishable],
-  ['partial',5,5,0,100,true,false],'all 5 activities calculate; the CMeng finish (19 Sep) differs from the submitted finish (22 Sep), so it is held');
- assert.equal(c.holdReasons.length,1,'every reconciliation check passes; only the finish difference holds it: '+JSON.stringify(c.holdReasons));
- assert.match(c.holdReasons[0],/^Calendar or finish difference held/);
+  ['partial',5,5,0,100,true,true],'all 5 activities calculate; the CMeng finish (19 Sep) is shown, qualified by its difference from the submitted finish (22 Sep) (P0-B)');
+ assert.equal(c.holdReasons.length,1,'only the finish difference qualifies it: '+JSON.stringify(c.holdReasons));
+ assert.match(c.holdReasons[0],/contractor's programme finish/);
 });
 
 test('F07 shared prerequisites: every page that shows or gates on these inputs carries the project facts status',async()=>{
@@ -134,7 +134,8 @@ test('F07 shared prerequisites: a page cannot show an input confirmed while anot
   'installed quantities':{quantities:['available','partial'].includes(quantity.installedQuantityStatus.state),challenge:prerequisite('remaining_quantities').established,
    breakdown:breakdownMeasured>0,delivery:tracking.mappedCount>0},
   'BOQ quantities':{challenge:prerequisite('boq').established,quantities:quantity.boqItemCount>0,delivery:delivery.boqIntelligence.itemCount>0},
-  'CMeng CPM publishable':{completionForecast:forecast.forecastReconciliationGate.publishable===true,dashboard:independentDays!==null&&independentDays!==undefined},
+  // P0-B: "shown" is one rule: the gate's usable finish (publishable now means fully reconciled).
+  'CMeng CPM publishable':{completionForecast:forecast.forecastReconciliationGate.usable===true,dashboard:independentDays!==null&&independentDays!==undefined},
  };
  const conflicts=Object.entries(shown).filter(([,pages])=>new Set(Object.values(pages)).size>1).map(([input,pages])=>input+': '+JSON.stringify(pages));
  assert.deepEqual(conflicts,[],'an input confirmed on one page is confirmed on all');
@@ -157,8 +158,8 @@ test('F07 shared prerequisites: a page cannot show an input confirmed while anot
  assert.equal(page(id,'pmo-analysis').forecast.activityCoveragePercent,cpm.coveragePercent,'Management Brief CPM coverage = facts');
  assert.equal(forecast.activityCoveragePercent,cpm.coveragePercent,'Completion Forecast CPM coverage = facts');
  assert.equal(forecast.calculatedActivityCount,cpm.calculatedActivityCount);
- assert.equal(forecast.forecastReconciliationGate.publishable,cpm.publishable,'Completion Forecast publication = facts');
- assert.equal(forecast.managementReviewState,cpm.publishable?'accepted_for_analysis':'review_required');
+ assert.equal(forecast.forecastReconciliationGate.usable,cpm.publishable,'Completion Forecast publication = facts (P0-B: one rule, the finish is shown when the gate can use it)');
+ assert.equal(forecast.managementReviewState,!cpm.publishable?'review_required':forecast.forecastReconciliationGate.publishable===true?'accepted_for_analysis':'calculated_with_qualifications');
  // Discipline list: filters, Construction by discipline, schedule breakdowns.
  const values=inputs.disciplines.disciplines.map((r:any)=>r.value);
  const filters=activityRegisterView(page(id,'activity-analytics')).activitySummary.filterOptions.discipline;

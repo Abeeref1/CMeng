@@ -123,6 +123,7 @@ test('F09 Portfolio card forecast and claim count equal the Dashboard',()=>{
  assert.equal(row.calendarRecalculationIso,(dashboard.projectDiagnosis?dashboard.projectDiagnosis.completion:dashboard.completionPosition)?.independentFinishIso??null);
  assert.equal(row.claimCount,dashboard.managementContext.crossModule.claimsEot.claimCount,'card claim count is the Dashboard claim count');
  assert.equal(row.claimCount,null,'no claim population: unknown, never 0');
- assert.equal(row.forecastLabel,'Submitted programme finish','an unpublished recalculation is not the card forecast');
- assert.equal(row.forecastCompletionIso,'2031-05-31');
+ // P0-B: a calculable recalculation is the headline on the Dashboard, so it is the card forecast too.
+ assert.equal(row.forecastLabel,'Calculated programme finish','the card follows the Dashboard headline');
+ assert.equal(String(row.forecastCompletionIso).slice(0,10),String(row.calendarRecalculationIso).slice(0,10));
 });

@@ -6,6 +6,7 @@ import {isScenarioRevision} from "./schedule-authority";
 import {sourceProductivityForecastEvidence} from "./source-productivity-forecast";
 import {commercialPositionForState} from './commercial-runtime';
 import {contractTimeDatesFrom} from './contract-time-reader';
+export {managementReviewStateOf} from './forecast-review-state';
 
 export const FORECAST_TAXONOMY_LABELS = [
   "Contractual completion",
@@ -179,12 +180,18 @@ export function buildForecastReconciliationGate(input: {
   // anomalies and the difference from the contractor's finish qualify it and
   // say what would reconcile it; they never erase it. Only a network CMeng
   // cannot calculate gives no finish, and then the cause is named.
-  const calculatedFinish = forecast.calculatedCompletionIso ?? forecast.independentForecastCompletionIso;
+  // A network that cannot be calculated never gives a finish, whatever else a result carries.
+  const networkFailed = forecast.diagnostics.some(code => code.startsWith("CPM_NETWORK_NOT_CALCULABLE"));
+  const calculatedFinish = networkFailed ? null : forecast.calculatedCompletionIso !== undefined
+    ? forecast.calculatedCompletionIso
+    : forecast.complete === false ? null : forecast.independentForecastCompletionIso;
   const qualifications = forecastQualifications({forecast, model, materialActivityScreeningDays, materialDivergences: materialDivergences.length,
     unappliedConstraints: unappliedConstraints ? sourceConstraintActivities.length : 0, graphDiagnostics: graphDiagnostics.length});
   const usable = calculatedFinish !== null;
-  // "Publishable" now means fully reconciled: every check passed and nothing qualifies the finish.
-  const publishable = usable && checks.every(check => check.state === "passed") && qualifications.length === 0;
+  // "Publishable" now means fully reconciled: every calculation check passed and nothing
+  // qualifies the finish. A missing contract or required finish is not a fault in the
+  // forecast (C6): it limits the contract comparison only, which is stated separately.
+  const publishable = usable && checks.every(check => check.state === "passed" || check.key === "required_finish_authority") && qualifications.length === 0;
   const failed = checks.filter(check => check.state !== "passed");
   const notCalculableReason = usable ? null :
     (failed.filter(check => check.key !== "required_finish_authority" && check.key !== "material_activity_divergence").map(check => check.label + ": " + check.detail).join(" ") ||
@@ -244,7 +251,7 @@ export function forecastQualifications(input: {
       action: "Confirm whether the programme's durations are in working days or calendar days."});
   // The difference is read in calendar dates. A finish placed at the next morning
   // (a milestone convention) is not a one-day disagreement.
-  const calculated = forecast.calculatedCompletionIso ?? forecast.independentForecastCompletionIso;
+  const calculated = forecast.calculatedCompletionIso !== undefined ? forecast.calculatedCompletionIso : forecast.complete === false ? null : forecast.independentForecastCompletionIso;
   const dateMs = (iso: string | null | undefined) => iso ? Date.parse(iso.slice(0, 10) + "T00:00:00Z") : NaN;
   const variance = calculated && forecast.sourceForecastCompletionIso ? (dateMs(calculated) - dateMs(forecast.sourceForecastCompletionIso)) / 86400000 : null;
   if (typeof variance === "number" && Number.isFinite(variance) && Math.abs(variance) > 1)
