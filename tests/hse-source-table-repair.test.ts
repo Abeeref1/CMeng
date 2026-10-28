@@ -32,14 +32,17 @@ test('a partial exposure extract does not invent cumulative incident counts',()=
  assert.equal(parseHseStatisticsTable('Jan 2033 1200 5000 0 1 0 2 4 0 40','x','page:1'),null);
 });
 
-test('applied source constraints keep the calculated forecast usable while unapplied constraints block it',()=>{
+test('applied source constraints keep the calculated forecast usable; unapplied constraints qualify it (P0-B: never erase it)',()=>{
  const forecast:any={independentForecastCompletionIso:'2033-12-31',activityCoveragePercent:100,calculatedActivityCount:1,unresolvedActivityCount:0,
   diagnostics:['SOURCE_CONSTRAINTS_APPLIED:1'],activities:[{activityId:'A',calendarMode:'source_calendar',status:'calculated',finishVarianceDays:42}]};
  const model:any={activities:[{activityId:'A',sourceConstraints:[{type:'finish_on_or_before',dateIso:'2033-12-31'}]}]};
  const gate=buildForecastReconciliationGate({forecast,model,requiredFinishIso:null});
  assert.equal(gate.usable,true);assert.equal(gate.publishable,false);assert.equal(gate.managementForecastCompletionIso,'2033-12-31');
  assert.equal(gate.checks.find(c=>c.key==='source_constraints')!.state,'passed');
- assert.equal(buildForecastReconciliationGate({forecast:{...forecast,diagnostics:[]},model,requiredFinishIso:null}).managementForecastCompletionIso,null);
+ const unapplied=buildForecastReconciliationGate({forecast:{...forecast,diagnostics:[]},model,requiredFinishIso:null});
+ assert.equal(unapplied.managementForecastCompletionIso,'2033-12-31','an unapplied constraint qualifies the finish; it does not erase it');
+ assert.equal(unapplied.checks.find(c=>c.key==='source_constraints')!.state,'review_required');
+ assert.ok(unapplied.managementForecast.qualifications.some(q=>q.code==='constraints_not_applied'&&q.action));
 });
 
 

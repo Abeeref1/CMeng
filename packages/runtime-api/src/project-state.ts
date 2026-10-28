@@ -1124,10 +1124,15 @@ function hydrateProject(
         uploadIntent:
           document.uploadIntent ??
           "add_update",
+        // C8: a mixed register workbook stored under the old shared family moves to
+        // its own workbook family; both families are rebuilt below.
         familyKey:
-          document.familyKey ??
+          document.documentType==='mixed_register_workbook'&&document.familyKey&&document.familyKey!==baseFamily.familyKey
+            ? (affectedFamilies.add(document.familyKey),affectedFamilies.add(baseFamily.familyKey),baseFamily.familyKey)
+            : document.familyKey ??
           baseFamily.familyKey,
         logicalDocumentKey:
+          document.documentType==='mixed_register_workbook'?baseFamily.logicalDocumentKey:
           document.logicalDocumentKey ??
           baseFamily
             .logicalDocumentKey,

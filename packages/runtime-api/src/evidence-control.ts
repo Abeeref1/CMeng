@@ -136,6 +136,17 @@ function documentIdentifier(
 export const sourceDocumentIdentifier=(documentType:string,text:string)=>documentIdentifier(documentType,text,'');
 export function hasSourceDocumentIdentity(document:StoredEvidenceDocument){return !!document.identification?.sourceDocumentIdentity||documentIdentifier(document.documentType,document.assertions.map(a=>a.sourceText).join('\n'),'')!==null;}
 
+/** The name a workbook keeps across its revisions: extension, revision, date and status words removed. */
+export function workbookStem(filename:string):string{
+  const text=String(filename??'').normalize('NFKC').toLowerCase().replace(/\.[a-z0-9]{2,5}$/,'').replace(/_/g,' ');
+  return text
+    .replace(/(?:^|[^a-z0-9])(?:rev(?:ision)?|ver(?:sion)?|r|v)\s*[-. ]*\d{1,4}(?=$|[^a-z0-9])/g,' ')
+    .replace(/(?:19|20)\d{2}[-. ]?(?:0[1-9]|1[0-2])(?:[-. ]?(?:[0-2]\d|3[01]))?/g,' ')
+    .replace(/\b(?:latest|current|final|old|draft|updated?|copy|superseded|do\s*not\s*use(?:\s*as\s*current)?)\b/g,' ')
+    .replace(/\(\d+\)/g,' ')
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim().replace(/\s+/g,'-')||'workbook';
+}
+
 export function evidenceFamily(
   input: {
     category: string;
@@ -158,6 +169,15 @@ export function evidenceFamily(
     textSample,
     sourceFilename,
   } = input;
+
+  // P0-C (C8): a workbook holding several register types is one workbook, not
+  // one family shared by every such workbook in the project. Revisions of the
+  // same workbook (same name once revision, date and status words are removed)
+  // replace each other; unrelated workbooks never supersede or hold each other.
+  if(documentType==='mixed_register_workbook'){
+    const key=category+':mixed_register_workbook:'+workbookStem(sourceFilename);
+    return {familyKey:key,behavior:'snapshot',logicalDocumentKey:key};
+  }
 
   if(documentType==='installed_measurement_register')return {
     familyKey:'quantity:measurements',behavior:'additive',
