@@ -98,6 +98,12 @@ test('R17 a new release prepares every previously calculated project before it r
       assert.equal(body.releasePreparation.state,'complete');
       assert.equal(body.releasePreparation.totalProjects,2,'only the two previously calculated projects are prepared');
       assert.equal(body.releasePreparation.preparedProjects,2);
+      assert.equal(body.releasePreparation.allPagesProjects,2,'the remaining pages are prepared before ready too');
+      for(const id of ids){
+        const version=gateway.catalog.get(id)!.metadata!.version;
+        for(const path of ['/schedule/modules/near-critical','/commercial/modules/contract-particulars-bonds','/actions'].map(p=>'/api/projects/'+id+p))
+          assert.ok(await stored(root,id,version,path),'module page prepared before ready: '+path);
+      }
       // 3. Every first page is this release's saved calculation and equals the request-time result.
       for(const id of ids){
         const version=gateway.catalog.get(id)!.metadata!.version;assert.equal(version,versions.get(id));
