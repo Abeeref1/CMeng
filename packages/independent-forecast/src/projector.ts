@@ -281,13 +281,16 @@ export function buildIndependentForecastProjection(
         cpmById.get(activity.activityId);
       const sourceFinishIso =
         sourceFinish(activity);
+      // C5: a completed activity is fixed at its actual dates whatever its
+      // calendar, so its calculated dates stand even on an assumed calendar.
+      const stands=calculated?.calendarMode==='source_calendar'||(activity.status==='completed'&&!!calculated);
       const independentEarlyFinishIso =
-        calculated?.calendarMode==='source_calendar'?calculated?.earlyFinishIso??null:null;
+        stands?calculated?.earlyFinishIso??null:null;
 
       return {
         activityId: activity.activityId,
         sourceFinishIso,
-        independentEarlyStartIso:calculated?.calendarMode==='source_calendar'?calculated?.earlyStartIso??null:null,
+        independentEarlyStartIso:stands?calculated?.earlyStartIso??null:null,
         independentEarlyFinishIso,
         finishVarianceDays:
           dayVariance(
@@ -302,7 +305,7 @@ export function buildIndependentForecastProjection(
           calculated?.calendarMode ??
           "elapsed_fallback",
         status:
-          calculated?.calendarMode==='source_calendar'?calculated?.status??'unresolved':'unresolved',
+          calculated?.calendarMode==='source_calendar'?calculated?.status??'unresolved':stands?calculated?.status??'unresolved':'unresolved',
         diagnostics: [
           ...(calculated?.diagnostics ?? [
             "INDEPENDENT_FORECAST_ACTIVITY_NOT_CALCULATED",
@@ -311,8 +314,17 @@ export function buildIndependentForecastProjection(
       };
     });
 
-  const unresolvedCalendarCount=activities.filter(a=>a.calendarMode==='elapsed_fallback').length;
+  // C5: a completed activity is fixed at its actual dates, so its calendar changes
+  // nothing. Only open activities on an assumed (elapsed) calendar qualify the finish.
+  const completedIds=new Set(model.activities.filter(a=>a.status==='completed').map(a=>a.activityId));
+  const openFallback=activities.filter(a=>a.calendarMode==='elapsed_fallback'&&!completedIds.has(a.activityId));
+  const unresolvedCalendarCount=openFallback.length;
   const resolvedFinish=cpm.complete&&unresolvedCalendarCount===0?cpm.projectFinishIso:null;
+  // P0-B: the finish CMeng can calculate from the network, even where some open
+  // activities run on an assumed calendar. It is the management answer; the
+  // assumption is stated beside it. Null only when the network itself cannot be
+  // calculated.
+  const calculatedFinish=cpm.complete?cpm.projectFinishIso:null;
   const calculatedActivityCount =
     activities.filter(
       (activity) =>
@@ -353,11 +365,14 @@ export function buildIndependentForecastProjection(
     sourceForecastCompletionIso,
     independentForecastCompletionIso:
       resolvedFinish,
+    calculatedCompletionIso:calculatedFinish,
+    assumedCalendarOpenActivityIds:openFallback.map(a=>a.activityId),
     forecastVarianceDays:
       dayVariance(
         sourceForecastCompletionIso,
         resolvedFinish,
       ),
+    calculatedVarianceDays:dayVariance(sourceForecastCompletionIso,calculatedFinish),
     requiredFinishIso:
       cpm.requiredFinishIso,
     requiredFinishVarianceDays:

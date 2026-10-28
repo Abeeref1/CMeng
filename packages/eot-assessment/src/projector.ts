@@ -102,12 +102,10 @@ function assessWindow(
   const reasons: string[] = [];
   const assumptions: string[] = [];
 
-  if(window.independentReconciliationRequired){
-    return {windowId:window.windowId,positiveIndependentMovementDays:positiveIndependentMovement,
-      positiveProgrammeMovementDays:window.netCompletionMovementDays===null?null:Math.max(0,window.netCompletionMovementDays),programmeMovementBasis:window.netCompletionMovementBasis,
-      analyticalTimeImpactCandidateDays:null,state:'review',eligibleEventIds:eligible.map(e=>e.eventId),contractorEventIds:contractor.map(e=>e.eventId),
-      reasons:['SUBMITTED_DATE_MOVEMENT_RECORDED_NO_CAUSAL_EVENT_ESTABLISHED','SEPARATE_CALENDAR_MODEL_MOVEMENT_REQUIRES_RECONCILIATION'],assumptions:[...window.assumptions],includedCandidateDays:0};
-  }
+  // P0-B (C12): a calendar-basis question about CMeng's own recalculation does not
+  // hold the window. The candidate rests on the submitted programme movement and
+  // the eligible events; the open calendar question is stated as an assumption.
+  if(window.independentReconciliationRequired)assumptions.push('SEPARATE_CALENDAR_MODEL_MOVEMENT_REQUIRES_RECONCILIATION');
 
   if (positiveProgrammeMovement !== null && positiveProgrammeMovement <= 0) {
     reasons.push(

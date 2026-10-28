@@ -8,7 +8,6 @@ import {floatHoursText,lagHoursText,lagWorkingDays,sourceCalendarWorkingDays} fr
 import {deliveryPosition} from './delivery-projections';
 import {deliveryCurrentRecord,deliveryRecords} from './delivery-records';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
-import {hasUnreconciledScheduleCalendar} from './forecast-control';
 import {countText} from './count-text';
 
 const numeric=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
@@ -97,12 +96,13 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const timed=(part:string)=>{if(!profile)return;const now=performance.now();timings.push({part,ms:now-mark});mark=now;};
  const model=projectControlSchedule(state)?.revision.model;if(!model)return null;
  const forecast=data(modules,'independent-forecast'),analytics=data(modules,'activity-analytics');
- const forecastPublished=forecast?.forecastReconciliationGate?.publishable===true&&!hasUnreconciledScheduleCalendar(forecast);
+ // P0-B: one rule everywhere: the finish is published whenever the network can be calculated.
+ const forecastPublished=forecast?.forecastReconciliationGate?.usable===true;
  const headlineCompletion=forecast?.completionPosition&&!forecastPublished
    ?{...forecast.completionPosition,independentFinishIso:null,differenceElapsedDays:null,
      differenceRows:[],calculationState:'unresolved',
-     interpretation:'Independent CPM/calendar calculation failed reconciliation. No recalculated finish or day difference is presented as a management position.',
-     reason:'Independent recalculation has not passed the required source-calendar and duration checks. Source submitted finish remains visible; technical defects are retained only in the engineering review.'}
+     interpretation:'CMeng cannot calculate a finish from this programme network yet. No recalculated finish or day difference is presented.',
+     reason:String(forecast?.forecastReconciliationGate?.managementForecast?.notCalculableReason??'The programme network cannot be calculated.')+' The submitted finish remains visible.'}
    :forecast?.completionPosition??null;
  const rows:ActivityAnalyticsRow[]=(analytics?.rows??[]).filter((r:ActivityAnalyticsRow)=>!['wbs_summary','level_of_effort'].includes(r.activityType));
  const byId=new Map(rows.map(r=>[r.activityId,r])),sourceById=new Map(model.activities.map(r=>[r.activityId,r]));

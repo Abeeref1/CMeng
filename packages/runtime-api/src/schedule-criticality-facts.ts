@@ -6,7 +6,7 @@ import {projectControlSchedule} from './canonical-time-claims';
 import {projectScheduleControlBasis} from './schedule-control-basis';
 import {cachedIndependentForecast} from './forecast-cache';
 import {activityFloatReconciliation} from './activity-float-reconciliation';
-import {buildForecastReconciliationGate,hasUnreconciledScheduleCalendar} from './forecast-control';
+import {buildForecastReconciliationGate} from './forecast-control';
 
 /** Schedule-only source of headline criticality. This module MUST NOT import
  * project-facts, project-projections, action registers or management modules. */
@@ -77,7 +77,6 @@ export function scheduleCriticalityFacts(state:ProjectRuntimeState,providedFloat
   const independentNearCritical=independentAggregate(nearCriticalKnown);
   const independentNegativeFloat=independentAggregate(negativeKnown);
   const authoritativeIndependent=!!review&&!!check&&check.usable&&
-    !hasUnreconciledScheduleCalendar(independentForecast)&&
     review.summary.independentCpmState==='established'&&review.summary.unresolvedActivityCount===0&&
     review.summary.disputedActivityCount===0&&independentCritical.value!==null&&independentNearCritical.value!==null;
   // A numeric-only difference is disclosed in planner detail; it does not veto

@@ -55,7 +55,13 @@ export interface IndependentForecastProjection {
   relationshipLagCalendar?: import('../../schedule-cpm/src').RelationshipLagCalendarSummary;
   sourceForecastCompletionIso: string | null;
   independentForecastCompletionIso: string | null;
+  /** P0-B: the network finish CMeng calculated, including open activities on an assumed calendar (listed below). Null only when the network cannot be calculated. */
+  calculatedCompletionIso?: string | null;
+  /** Open (not completed) activities calculated on an assumed elapsed calendar. */
+  assumedCalendarOpenActivityIds?: string[];
   forecastVarianceDays: number | null;
+  /** calculatedCompletionIso minus the submitted programme finish, in calendar days. */
+  calculatedVarianceDays?: number | null;
   requiredFinishIso: string | null;
   requiredFinishVarianceDays: number | null;
   calculatedActivityCount: number;

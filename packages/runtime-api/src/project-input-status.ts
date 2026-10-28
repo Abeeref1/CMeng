@@ -340,19 +340,19 @@ export interface CpmForecastLike {
  * activities the CPM calculates, and the CPM is publishable only when every
  * reconciliation check passes and no calendar or finish difference is held
  * (the same rule the Dashboard uses for the CMeng finish). */
-export function cpmCoverageInputStatus(forecast:CpmForecastLike|null|undefined,gate:{publishable:boolean;checks:ReadonlyArray<{label:string;state:string;detail:string}>}|null|undefined,calendarOrFinishHeld:boolean):CpmCoverageInputStatus{
-  const basis='CMeng CPM run on the current programme logic, remaining durations and source calendars; publication needs every forecast reconciliation check passed and no held calendar or finish difference.';
+export function cpmCoverageInputStatus(forecast:CpmForecastLike|null|undefined,gate:{publishable:boolean;usable?:boolean;managementForecast?:{qualifications:ReadonlyArray<{text:string}>;notCalculableReason:string|null};checks:ReadonlyArray<{label:string;state:string;detail:string}>}|null|undefined):CpmCoverageInputStatus{
+  const basis='CMeng CPM run on the current programme logic, remaining durations and source calendars; its finish is shown whenever the network can be calculated, with each qualification stated.';
   if(!forecast)return {state:'missing',activityCount:null,calculatedActivityCount:null,unresolvedActivityCount:null,coveragePercent:null,calculationComplete:false,publishable:false,
     holdReasons:['No current programme is adopted, so the CMeng CPM is not calculated.'],basis,reason:'No current programme is adopted, so CPM coverage is unknown.'};
-  const holdReasons=[...(gate?.checks??[]).filter(check=>check.state!=='passed').map(check=>check.label+': '+check.detail),
-    ...(calendarOrFinishHeld?['Calendar or finish difference held: the CMeng CPM finish differs from the submitted finish, or a calendar is unresolved; it is held until reconciled.']:[]),
-    ...(!gate?['The forecast reconciliation gate is not established.']:[])];
-  const publishable=!!gate&&gate.publishable&&!calendarOrFinishHeld;
+  // P0-B: "publishable" means the finish is shown. Qualifications are listed; they never hold it.
+  const publishable=!!gate&&(gate.usable??gate.publishable)===true;
+  const qualifications=(gate?.managementForecast?.qualifications??[]).map(q=>q.text);
+  const holdReasons=publishable?qualifications:[gate?.managementForecast?.notCalculableReason??(gate?'The programme network cannot be calculated.':'The forecast reconciliation gate is not established.')];
   const calculated=forecast.calculatedActivityCount,total=forecast.activities.length;
-  const state:ProjectInputState=!calculated?'missing':publishable&&forecast.activityCoveragePercent===100?'established':'partial';
+  const state:ProjectInputState=!calculated?'missing':publishable&&forecast.activityCoveragePercent===100&&!qualifications.length?'established':'partial';
   return {state,activityCount:total,calculatedActivityCount:calculated,unresolvedActivityCount:forecast.unresolvedActivityCount,coveragePercent:forecast.activityCoveragePercent,
-    calculationComplete:forecast.complete,publishable,holdReasons:publishable?[]:holdReasons,basis,
-    reason:'The CMeng CPM calculates '+calculated+' of '+total+' '+(total===1?'activity':'activities')+'; '+(publishable?'it is publishable.':'it is not publishable: '+holdReasons.join(' '))};
+    calculationComplete:forecast.complete,publishable,holdReasons,basis,
+    reason:'The CMeng CPM calculates '+calculated+' of '+total+' '+(total===1?'activity':'activities')+'; '+(publishable?(qualifications.length?'its finish is shown with these qualifications: '+qualifications.join(' '):'its finish is shown.'):'no finish can be calculated: '+holdReasons.join(' '))};
 }
 
 export interface DisciplineInputStatus {
@@ -447,14 +447,12 @@ export function bindSharedInputStatus<T extends Record<string,any>>(key:string,d
     if(out.forecast&&typeof out.forecast==='object'&&'activityCoveragePercent' in out.forecast)out.forecast={...out.forecast,activityCoveragePercent:cpm.coveragePercent};
   }
   if(key==='independent-forecast'&&out.forecastReconciliationGate&&typeof out.forecastReconciliationGate==='object'){
-    // Publication of the CMeng CPM finish follows the one shared rule (the
-    // Dashboard's): a held calendar or finish difference also withholds it here.
-    const gate=out.forecastReconciliationGate,held=gate.publishable===true&&!cpm.publishable;
-    out.forecastReconciliationGate={...gate,publishable:cpm.publishable,state:cpm.publishable?'publishable':'review_required',
-      ...(held?{reason:cpm.holdReasons.join(' '),heldBySharedRule:true}:{})};
-    out.managementReviewState=cpm.publishable?'accepted_for_analysis':'review_required';
-    out.managementReviewReason=cpm.publishable?null:held?cpm.holdReasons.join(' '):out.managementReviewReason??gate.reason??null;
-    if(out.forecastTaxonomy?.cmengCpm)out.forecastTaxonomy={...out.forecastTaxonomy,cmengCpm:{...out.forecastTaxonomy.cmengCpm,publishableAsManagementForecast:cpm.publishable}};
+    // P0-B: one shared rule (the gate's). The finish is shown whenever the network
+    // can be calculated; this page adds no hold of its own.
+    const gate=out.forecastReconciliationGate;
+    out.managementReviewState=gate.publishable===true?'accepted_for_analysis':gate.usable===true?'calculated_with_qualifications':'review_required';
+    out.managementReviewReason=gate.publishable===true?null:gate.reason??out.managementReviewReason??null;
+    if(out.forecastTaxonomy?.cmengCpm)out.forecastTaxonomy={...out.forecastTaxonomy,cmengCpm:{...out.forecastTaxonomy.cmengCpm,publishableAsManagementForecast:gate.usable===true}};
   }
   return out as T;
 }

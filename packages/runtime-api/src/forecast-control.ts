@@ -18,6 +18,21 @@ export const FORECAST_TAXONOMY_LABELS = [
 
 export type ForecastGateState = "passed" | "review_required" | "not_established";
 
+/** P0-B: what qualifies a calculated finish and what would firm it up. */
+export interface ForecastQualification {
+  code:
+    | "assumed_calendar"
+    | "elapsed_day_pattern"
+    | "contractor_difference"
+    | "activity_divergence"
+    | "constraints_not_applied"
+    | "network_references"
+    | "partial_coverage";
+  text: string;
+  action: string;
+  count: number | null;
+}
+
 export interface ForecastReconciliationCheck {
   key:
     | "calendar_coverage"
@@ -72,8 +87,11 @@ export function buildForecastReconciliationGate(input: {
   const graphDiagnostics = forecast.diagnostics.filter(code =>
     graphPrefixes.some(prefix => code.startsWith(prefix)),
   );
+  // C5: completed activities are fixed at their actual dates; their calendar changes nothing.
+  const completedActivityIds = new Set(model.activities.filter(activity => activity.status === "completed").map(activity => activity.activityId));
   const unresolvedCalendarActivities = forecast.activities.filter(row =>
-    row.calendarMode !== "source_calendar" || row.status !== "calculated",
+    !completedActivityIds.has(row.activityId) &&
+    (row.calendarMode !== "source_calendar" || row.status !== "calculated"),
   );
   const sourceConstraintActivities = model.activities.filter(activity =>
     (activity.sourceConstraints?.length ?? 0) > 0,
@@ -156,41 +174,104 @@ export function buildForecastReconciliationGate(input: {
     },
   ];
 
-  const publishable =
-    forecast.independentForecastCompletionIso !== null &&
-    checks.every(check => check.state === "passed");
-  // A material difference from the contractor's submitted activity dates
-  // warrants qualification, not suppression of an otherwise valid source-
-  // calendar calculation. Graph, calendar, constraints and complete coverage
-  // remain hard gates: a failed recalculation is NEVER a dashboard value.
-  const usable=forecast.independentForecastCompletionIso!==null&&
-    !hasUnreconciledScheduleCalendar(forecast)&&checks
-    .filter(check=>!['required_finish_authority','material_activity_divergence'].includes(check.key))
-    .every(check=>check.state==='passed');
+  // P0-B invariant: if CMeng can calculate a finish from the network, it is the
+  // management answer. Calendar and data conflicts, completed-activity
+  // anomalies and the difference from the contractor's finish qualify it and
+  // say what would reconcile it; they never erase it. Only a network CMeng
+  // cannot calculate gives no finish, and then the cause is named.
+  const calculatedFinish = forecast.calculatedCompletionIso ?? forecast.independentForecastCompletionIso;
+  const qualifications = forecastQualifications({forecast, model, materialActivityScreeningDays, materialDivergences: materialDivergences.length,
+    unappliedConstraints: unappliedConstraints ? sourceConstraintActivities.length : 0, graphDiagnostics: graphDiagnostics.length});
+  const usable = calculatedFinish !== null;
+  // "Publishable" now means fully reconciled: every check passed and nothing qualifies the finish.
+  const publishable = usable && checks.every(check => check.state === "passed") && qualifications.length === 0;
   const failed = checks.filter(check => check.state !== "passed");
+  const notCalculableReason = usable ? null :
+    (failed.filter(check => check.key !== "required_finish_authority" && check.key !== "material_activity_divergence").map(check => check.label + ": " + check.detail).join(" ") ||
+      "CMeng could not calculate a finish from this programme network.");
+  const managementState = !usable ? "not_calculable" as const : qualifications.length ? "calculated_with_qualifications" as const : "calculated" as const;
   return {
     state: publishable ? "publishable" as const : "review_required" as const,
     publishable,
     usable,
-    valueState:usable?'calculated_with_stated_assumption' as const:'missing' as const,
-    managementForecastCompletionIso: usable ? forecast.independentForecastCompletionIso : null,
+    valueState: usable ? (qualifications.length ? 'calculated_with_stated_assumption' as const : 'calculated' as const) : 'missing' as const,
+    managementForecastCompletionIso: usable ? calculatedFinish : null,
+    managementForecast: {
+      completionIso: usable ? calculatedFinish : null,
+      state: managementState,
+      qualifications,
+      notCalculableReason,
+    },
     materialActivityScreeningDays,
     materialityAuthority: "cmeng_screening_not_contractual" as const,
     materialActivityIds: materialDivergences.map(row => row.activityId),
     checks,
-    reason: publishable
-      ? "All six forecast reconciliation checks passed. The CMeng CPM/network recalculation may be published as a management analytical forecast, separate from contractual and contractor forecasts."
-      // W5/plain words: the required finish is said as one plain sentence, without
-      // the check name in front of it.
-      : (usable?'Calculated using the current programme logic, remaining durations and source calendars; reconciliation remains open. ':'')+failed.map(check => check.key === "required_finish_authority" ? check.detail : check.label + ": " + check.detail).join(" "),
+    reason: !usable
+      ? "CMeng cannot calculate a finish from this programme yet. " + notCalculableReason
+      : publishable
+        ? "All six forecast reconciliation checks passed. The CMeng CPM/network recalculation is the management analytical forecast, separate from contractual and contractor forecasts."
+        : "CMeng calculates the finish from the current programme logic, remaining durations and calendars." +
+          (qualifications.length ? " " + qualifications.map(q => q.text).join(" ") : "") +
+          (requiredFinishIso ? "" : " " + checks.find(check => check.key === "required_finish_authority")!.detail),
     basis:
-      "A matching Project finish does not override failed calendar, graph, source-constraint, activity-coverage, activity-divergence or required-finish-authority checks. The " +
+      "The finish is shown whenever the network can be calculated; each qualification says what would reconcile it. The " +
       materialActivityScreeningDays +
       "-day activity divergence threshold is a CMeng screening threshold, not a contractual materiality rule.",
   };
 }
 
-/** Source-calendar anomalies must not be promoted as a management finish. */
+function plural(count: number, one: string, many: string) { return count === 1 ? one : many; }
+function dayText(days: number) { const n = Math.abs(days); return n + " " + plural(n, "day", "days"); }
+/** The qualifications of a calculated finish, each with the input that would firm it up. */
+export function forecastQualifications(input: {
+  forecast: IndependentForecastProjection;
+  model: CanonicalScheduleModel;
+  materialActivityScreeningDays: number;
+  materialDivergences: number;
+  unappliedConstraints: number;
+  graphDiagnostics: number;
+}): ForecastQualification[] {
+  const {forecast} = input;
+  const out: ForecastQualification[] = [];
+  const assumed = forecast.assumedCalendarOpenActivityIds ?? [];
+  if (assumed.length) out.push({code: "assumed_calendar", count: assumed.length,
+    text: assumed.length + " open " + plural(assumed.length, "activity has", "activities have") + " no readable working calendar; CMeng assumed continuous working for " + plural(assumed.length, "it", "them") + ".",
+    action: "Supply the working calendar (days and shift hours) for " + plural(assumed.length, "this activity", "these activities") + "."});
+  const messages = [...(forecast.diagnostics ?? []), ...(forecast.assumptions ?? [])];
+  if (messages.some(message => message.includes("SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION")))
+    out.push({code: "elapsed_day_pattern", count: null,
+      text: "Some completed tasks have durations that match calendar days, not working days; remaining durations may follow the same basis.",
+      action: "Confirm whether the programme's durations are in working days or calendar days."});
+  // The difference is read in calendar dates. A finish placed at the next morning
+  // (a milestone convention) is not a one-day disagreement.
+  const calculated = forecast.calculatedCompletionIso ?? forecast.independentForecastCompletionIso;
+  const dateMs = (iso: string | null | undefined) => iso ? Date.parse(iso.slice(0, 10) + "T00:00:00Z") : NaN;
+  const variance = calculated && forecast.sourceForecastCompletionIso ? (dateMs(calculated) - dateMs(forecast.sourceForecastCompletionIso)) / 86400000 : null;
+  if (typeof variance === "number" && Number.isFinite(variance) && Math.abs(variance) > 1)
+    out.push({code: "contractor_difference", count: variance,
+      text: "CMeng's finish is " + dayText(variance) + " " + (variance > 0 ? "later" : "earlier") + " than the contractor's programme finish" + (forecast.sourceForecastCompletionIso ? " (" + forecast.sourceForecastCompletionIso.slice(0, 10) + ")" : "") + ".",
+      action: "Reconcile the logic, durations and calendars behind the difference with the programme owner."});
+  if (input.materialDivergences > 0)
+    out.push({code: "activity_divergence", count: input.materialDivergences,
+      text: input.materialDivergences + " " + plural(input.materialDivergences, "activity finishes", "activities finish") + " more than " + input.materialActivityScreeningDays + " days away from the submitted date.",
+      action: "Check the listed activities with the planner."});
+  if (input.unappliedConstraints > 0)
+    out.push({code: "constraints_not_applied", count: input.unappliedConstraints,
+      text: input.unappliedConstraints + " source " + plural(input.unappliedConstraints, "constraint was", "constraints were") + " not applied in this calculation.",
+      action: "Confirm whether the source constraints still apply."});
+  if (input.graphDiagnostics > 0)
+    out.push({code: "network_references", count: input.graphDiagnostics,
+      text: "The programme has " + input.graphDiagnostics + " logic reference " + plural(input.graphDiagnostics, "problem", "problems") + " (for example a missing predecessor).",
+      action: "Correct the listed logic references in the programme."});
+  const other = Math.max(0, (forecast.unresolvedActivityCount ?? 0) - assumed.length);
+  if (other > 0)
+    out.push({code: "partial_coverage", count: other,
+      text: other + " " + plural(other, "activity was", "activities were") + " not fully calculated.",
+      action: "Check the listed activities' logic and durations."});
+  return out;
+}
+
+/** Kept for evidence and older callers only. P0-B: no consumer may use it to withhold a calculated finish; calendar and finish differences are qualifications (see forecastQualifications). */
 export function hasUnreconciledScheduleCalendar(
   forecast: {diagnostics?:readonly string[];assumptions?:readonly string[];forecastVarianceDays?:number|null}|null|undefined,
 ):boolean {

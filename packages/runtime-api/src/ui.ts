@@ -1924,19 +1924,25 @@ function renderForecastVisual(data){
   const gate=p.forecastReconciliationGate||{publishable:false,checks:[],reason:p.managementReviewReason||"Forecast reconciliation is not established.",basis:""};
   const rawProb=p.probabilistic||{};
   const probAvailable=rawProb.status==="available";
+  // P0-B: the calculated finish is the answer whenever the network can be
+  // calculated; qualifications follow it and say what would reconcile it.
+  const calcFinish=gate.managementForecast?gate.managementForecast.completionIso||null:(gate.usable===true?p.managementForecastCompletionIso||null:null);
+  const qualifications=(gate.managementForecast&&gate.managementForecast.qualifications)||[];
+  const notCalculable=(gate.managementForecast&&gate.managementForecast.notCalculableReason)||gate.reason||"CMeng could not calculate a finish from this programme.";
+  const calcVariance=typeof p.calculatedVarianceDays==="number"?p.calculatedVarianceDays:p.forecastVarianceDays;
   const positions=[
     taxonomy.contractualCompletion||{label:"Contractual completion",completionIso:p.requiredFinishIso,state:p.requiredFinishIso?"established":"not_established"},
     taxonomy.contractorProgramme||{label:"Contractor programme forecast",completionIso:p.sourceForecastCompletionIso,state:p.sourceForecastCompletionIso?"established":"missing"},
-    gate.publishable===true?(taxonomy.cmengCpm||{label:"CMeng CPM/network recalculation",completionIso:p.independentForecastCompletionIso,state:p.complete?"calculated":"review_required"}):{label:"CMeng CPM/network recalculation",completionIso:null,state:"Checks failed · not used until corrected"},
+    calcFinish?{...(taxonomy.cmengCpm||{label:"CMeng CPM/network recalculation"}),completionIso:calcFinish,state:gate.publishable===true?"calculated":"calculated with qualifications"}:{label:"CMeng CPM/network recalculation",completionIso:null,state:"Not calculable",basis:notCalculable},
     taxonomy.sourceProductivity||{label:"Source productivity forecast",completionIso:p.sourceProductivityForecastCompletionIso,state:p.sourceProductivityForecastState||"not_established"},
     taxonomy.independentEvidenceBased||{label:"Independent evidence-based forecast",completionIso:null,state:"not_established"},
     taxonomy.scenarioRecovery||{label:"Scenario/recovery forecast",completionIso:null,state:"not_established"}
   ];
-  const managementForecast=gate.publishable===true?p.managementForecastCompletionIso||null:null;
+  const managementForecast=calcFinish;
   const kpis=planningKpis([
-    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Withheld",managementForecast?(gate.publishable?"Candidate CPM analysis; reconciliation checks passed; not a contractual date":"Candidate CPM scenario with stated assumptions; unresolved differences require review"):"Not calculated: correct the missing or failed inputs listed below",managementForecast&&gate.publishable?"success":"warning"],
+    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Not calculable",managementForecast?(gate.publishable?"CMeng CPM analysis; all reconciliation checks passed; not a contractual date":"CMeng CPM analysis with "+qualifications.length+" qualification"+(qualifications.length===1?"":"s")+" listed below; not a contractual date"):notCalculable,managementForecast&&gate.publishable?"success":"warning"],
     ["CPM activity coverage",p.activityCoveragePercent===null?"Not established":fmt(p.activityCoveragePercent)+"%",fmt(p.calculatedActivityCount)+" calculated · "+fmt(p.unresolvedActivityCount)+" unresolved",p.unresolvedActivityCount?"warning":""],
-    ["Submitted vs CPM",!gate.publishable?"Withheld · check failed":p.forecastVarianceDays===null?"Not in source":(p.forecastVarianceDays>0?"+":"")+fmt(p.forecastVarianceDays)+" d","a failed calculation is never used in the reported figures"],
+    ["Submitted vs CPM",!calcFinish?"Not calculable":calcVariance===null||calcVariance===undefined?"Not in source":(calcVariance>0?"+":"")+fmt(calcVariance)+" d","CMeng finish minus the contractor's programme finish"],
     ["Required finish",planningShortDate(taxonomy.contractualCompletion?.completionIso||p.requiredFinishIso),"contractual/required authority if established"]
   ]);
   const positionRows=positions.map(row=>'<tr><td><b>'+escapeHtml(row.label)+'</b></td><td>'+escapeHtml(row.completionIso?planningShortDate(row.completionIso):"Not established")+'</td><td>'+escapeHtml(humanizeKey(row.state||"not_established"))+'</td><td>'+escapeHtml(humanizeKey(row.authority||"not_established"))+'</td><td>'+escapeHtml(row.basis||"")+'</td></tr>').join("");
@@ -1948,20 +1954,20 @@ function renderForecastVisual(data){
   const diagnosticMessages=forecastDiagnosticMessages(p.diagnostics||[]);
   const diagnosticSummary=diagnosticMessages.length?'<ul>'+diagnosticMessages.map(message=>'<li>'+escapeHtml(message)+'</li>').join("")+'</ul>':'<p>No translated CPM/calendar exception is identified by the checked calculation.</p>';
   const technical='<details><summary>Additional technical calculation evidence</summary><p>Untranslated source calculation codes remain in the downloadable calculation data rather than primary management copy.</p></details>';
-  const forecastDrivers=(gate.publishable===true?p.activities||[]:[]).filter(row=>typeof row.finishVarianceDays==="number").sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,20);
+  const forecastDrivers=(calcFinish?p.activities||[]:[]).filter(row=>typeof row.finishVarianceDays==="number").sort((a,b)=>Math.abs(b.finishVarianceDays)-Math.abs(a.finishVarianceDays)).slice(0,20);
   const driverRows=forecastDrivers.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b></td><td>'+escapeHtml(planningShortDate(row.sourceFinishIso))+'</td><td>'+escapeHtml(planningShortDate(row.independentEarlyFinishIso))+'</td><td>'+escapeHtml((row.finishVarianceDays>0?"+":"")+fmt(row.finishVarianceDays)+" d")+'</td><td>'+escapeHtml(humanizeKey(row.calendarMode))+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td></tr>').join("");
   const diagnosticPanel='<section class="planning-panel"><div class="planning-panel-head"><div><h4>CPM reconciliation evidence</h4><p>Business-language diagnostics are shown first. Raw technical codes remain in supporting detail.</p></div></div><div class="planning-panel-body">'+forecastLagCalendarText(p)+diagnosticSummary+constraintTrace+technical+(driverRows?'<details><summary>Largest activity finish divergences</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Submitted finish</th><th>CPM recalculation</th><th>Difference</th><th>Calendar</th><th>State</th></tr></thead><tbody>'+driverRows+'</tbody></table></div></details>':'')+'</div></section>';
   const review=p.managementReviewState==="review_required"||gate.publishable===false;
   const positionBars=[
     {label:"Contractor programme",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceForecastCompletionIso),tone:"current"},
-    {label:"CMeng CPM/network recalculation",value:gate.publishable===true?planningCalendarDaysBetween(p.dataDateIso,p.independentForecastCompletionIso):null,tone:"cmeng"},
+    {label:"CMeng CPM/network recalculation",value:calcFinish?planningCalendarDaysBetween(p.dataDateIso,calcFinish):null,tone:"cmeng"},
     {label:"Source productivity forecast",value:planningCalendarDaysBetween(p.dataDateIso,p.sourceProductivityForecastCompletionIso),tone:"scenario"},
     {label:"Required finish",value:planningCalendarDaysBetween(p.dataDateIso,p.requiredFinishIso),tone:"baseline"}
   ].filter(row=>row.value!==null);
   const probabilityDistance=[
-    {label:"P50 vs CMeng CPM",value:!probAvailable||gate.publishable!==true?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p50CompletionIso),tone:"warning"},
-    {label:"P80 vs CMeng CPM",value:!probAvailable||gate.publishable!==true?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p80CompletionIso),tone:"warning"},
-    {label:"P90 vs CMeng CPM",value:!probAvailable||gate.publishable!==true?null:planningCalendarDaysBetween(p.independentForecastCompletionIso,rawProb.p90CompletionIso),tone:"warning"}
+    {label:"P50 vs CMeng CPM",value:!probAvailable||!calcFinish?null:planningCalendarDaysBetween(calcFinish,rawProb.p50CompletionIso),tone:"warning"},
+    {label:"P80 vs CMeng CPM",value:!probAvailable||!calcFinish?null:planningCalendarDaysBetween(calcFinish,rawProb.p80CompletionIso),tone:"warning"},
+    {label:"P90 vs CMeng CPM",value:!probAvailable||!calcFinish?null:planningCalendarDaysBetween(calcFinish,rawProb.p90CompletionIso),tone:"warning"}
   ];
   const visualOverview='<details><summary>Alternative forecast-distance charts</summary><div class="visual-chart-grid">'+
     renderVisualPanel("Completion distance from Data Date","Calendar-day distance only; each authority remains separate.",renderVisualBars(positionBars,"d"))+
@@ -1976,8 +1982,9 @@ function renderForecastVisual(data){
   // page is not said again here.
   const statedReview=typeof experienceBrief==='function'?(experienceBrief('independent-forecast',data)||{}).review:null;
   const warningReason=unsaidSentences(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.",[statedReview]);
-  const reviewWarning=review?'<div class="notice warn"><b>Forecast differences require review; available calculations remain visible with their assumptions.</b>'+(warningReason?'<p>'+escapeHtml(warningReason)+'</p>':'')+'</div>':'';
-  return '<section class="planning-view independent-forecast-view">'+reviewWarning+kpis+
+  const qualificationList=calcFinish&&qualifications.length?'<div class="notice warn" data-forecast-qualifications><b>What qualifies this finish</b><ul>'+qualifications.map(q=>'<li>'+escapeHtml(q.text)+' <i>'+escapeHtml(q.action)+'</i></li>').join("")+'</ul></div>':'';
+  const reviewWarning=!calcFinish?'<div class="notice warn"><b>CMeng cannot calculate a finish from this programme yet.</b><p>'+escapeHtml(notCalculable)+'</p></div>':qualificationList?'':(review&&warningReason?'<div class="notice info"><p>'+escapeHtml(warningReason)+'</p></div>':'');
+  return '<section class="planning-view independent-forecast-view">'+kpis+qualificationList+reviewWarning+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast taxonomy</h4><p>The six forecast positions remain separate. CMeng CPM/network recalculation is schedule-only and never implies BOQ, productivity, manpower or procurement evidence it does not use.</p></div></div><div class="planning-panel-body">'+taxonomyTable+dateLadder+'</div></section>'+
     gatePanel+visualOverview+
     '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Probabilistic / duration sensitivity</h4><p>Separate non-official sensitivity. It does not replace the six forecast authorities.</p></div></div><div class="planning-panel-body">'+sensitivity+'</div></section>'+

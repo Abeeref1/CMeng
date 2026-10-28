@@ -26,7 +26,7 @@ import {deliveryPosition} from './delivery-projections';
 import {securityValidityReview} from './security-validity';
 import {moduleFeatureAvailability} from './feature-availability';
 import {contractSourceAnalysis,CONTRACT_SOURCE_ANALYTICAL_NOTE,SOURCE_ANALYTICAL_USE} from './contract-source-analysis';
-import {hasUnreconciledScheduleCalendar,buildForecastReconciliationGate} from './forecast-control';
+import {buildForecastReconciliationGate} from './forecast-control';
 import {scheduleCriticalityFacts} from './schedule-criticality-facts';
 import {dateAdditionBasisLabel} from './commercial-sum-basis';
 import {tradeChainResourcesForState,tradeChainFacts} from './trade-chain-resources';
@@ -395,8 +395,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     model,forecast:independentForecast,
     requiredFinishIso:currentContractCompletion
   }):null;
-  const independentFinish=forecastGate?.publishable===true&&!hasUnreconciledScheduleCalendar(independentForecast)
-    ?independentForecast?.independentForecastCompletionIso??null:null;
+  // P0-B: the calculated finish, published with its qualifications whenever the network can be calculated.
+  const independentFinish=forecastGate?.managementForecastCompletionIso??null;
   // F38: the previous dated, adopted revision (latest earlier Data Date in the
   // shared revision history) and its CMeng CPM, under the same publication gate
   // as the current CPM. Only read when the current CPM is publishable.
@@ -405,7 +405,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   const currentDataMs=parseScheduleInstant(model?.dataDateIso??null);
   const previousStored=currentAt>0&&currentDataMs!==null?history.slice(0,currentAt).filter(row=>{const at=parseScheduleInstant(row.revision.model.dataDateIso??null);return at!==null&&at<currentDataMs;}).at(-1)??null:null;
   const previousForecast=previousStored?cachedIndependentForecast(previousStored.revision.model,'project-version:'+state.version):null;
-  const previousPublishable=!!previousStored&&!!previousForecast&&buildForecastReconciliationGate({model:previousStored.revision.model,forecast:previousForecast,requiredFinishIso:currentContractCompletion}).publishable===true&&!hasUnreconciledScheduleCalendar(previousForecast);
+  const previousPublishable=!!previousStored&&!!previousForecast&&buildForecastReconciliationGate({model:previousStored.revision.model,forecast:previousForecast,requiredFinishIso:currentContractCompletion}).usable===true;
   const previousRevision=previousStored?{revisionId:previousStored.revision.revisionId,label:previousStored.revision.label??previousStored.sourceFilename??null,model:previousStored.revision.model,
     forecast:previousPublishable?previousForecast:null,reason:previousPublishable?null:'The CMeng CPM of the previous revision did not pass the same publication gate as the current one, so its total floats are not established.'}:null;
   const controlBasis=projectScheduleControlBasis(scoped);
@@ -748,7 +748,7 @@ export function cpmCoverageInputStatusForState(state:ProjectRuntimeState):CpmCov
   const model=projectControlSchedule(state)?.revision.model??null;
   const forecast=model?scheduleCriticalityFacts(state).independentForecast:null;
   const gate=model&&forecast?buildForecastReconciliationGate({model,forecast,requiredFinishIso:contractTimeDatesFrom(commercialPositionForState(state).timeExposure).governingCompletionIso}):null;
-  return cpmCoverageInputStatus(forecast,gate,!!forecast&&hasUnreconciledScheduleCalendar(forecast));
+  return cpmCoverageInputStatus(forecast,gate);
 }
 /** F07: shared input status for a project, from the same rules the pages use. */
 export function projectInputStatus(state:ProjectRuntimeState):ProjectInputStatus{

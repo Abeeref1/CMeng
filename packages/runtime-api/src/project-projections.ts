@@ -92,7 +92,7 @@ import { contractCompletionPosition } from "./contract-completion";
 import { buildDelayEotEvidenceChain } from "./delay-eot-evidence-chain";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import { sourceProductivityForecastEvidence } from "./source-productivity-forecast";
-import { forecastControlForState, hasUnreconciledScheduleCalendar } from "./forecast-control";
+import { forecastControlForState } from "./forecast-control";
 import { completionDelayCalendar } from "./completion-delay-calendar";
 import { reviewScheduleCalendarBasis } from './schedule-calendar-review';
 import { canonicalResourceModule } from "./canonical-resource-runtime";
@@ -1481,7 +1481,9 @@ function buildBundle(
         managementReviewState:
           forecastControl.gate.publishable
             ? "accepted_for_analysis"
-            : "review_required",
+            : forecastControl.gate.usable
+              ? "calculated_with_qualifications"
+              : "review_required",
         managementReviewReason:
           forecastControl.gate.publishable
             ? null
@@ -3393,14 +3395,13 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           state.projectId,
         scheduleAnalytics,
         progressReport,
-        independentForecast: forecastControl.gate.usable
-          ? independentForecast
-          : {
-              ...independentForecast,
-              // Only an uncalculable network result is withheld. A complete
-              // calculation remains visible with its reconciliation state.
-              independentForecastCompletionIso: null,
-            },
+        // P0-B: the Director shows the same finish as every other page: the
+        // calculated network finish (qualified), or none when it cannot be calculated.
+        independentForecast: {
+          ...independentForecast,
+          independentForecastCompletionIso: forecastControl.gate.managementForecastCompletionIso,
+          forecastVarianceDays: forecastControl.gate.usable ? (independentForecast.calculatedVarianceDays ?? independentForecast.forecastVarianceDays) : null,
+        },
         delayClaims,
         noticesClaims,
         eotAssessment,
@@ -7879,12 +7880,12 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
 
-/** History and the live forecast share one hard publication gate. */
+/** P0-B: history and the live forecast share one rule: a calculable network finish is recorded with its qualifications. */
 export function forecastSnapshotFromProjection(forecast:Parameters<typeof rawForecastSnapshot>[0],snapshotId:string,model:Parameters<typeof buildForecastReconciliationGate>[0]['model']){
   const gate=buildForecastReconciliationGate({forecast,model,requiredFinishIso:null});
   return {...rawForecastSnapshot(forecast,snapshotId),
-    independentForecastCompletionIso:gate.usable?forecast.independentForecastCompletionIso:null,
-    calculationState:gate.usable?'calculated_with_stated_assumption':'withheld',
+    independentForecastCompletionIso:gate.usable?gate.managementForecastCompletionIso:null,
+    calculationState:gate.usable?(gate.publishable?'calculated':'calculated_with_stated_assumption'):'withheld',
     calculationReason:gate.reason,
     calculationChecks:gate.checks,
     // Raw result is audit evidence, never a published history date or difference.
@@ -8809,12 +8810,12 @@ export function managementSurfacesForProject(
     overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
   const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
   const rawCompletion=currentForecast?.completionPosition??null;
-  const withheldCompletion=rawCompletion&&(currentForecast?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(currentForecast))
+  const withheldCompletion=rawCompletion&&currentForecast?.forecastReconciliationGate?.usable!==true
     // Withhold everything derived from the withheld finish (same rule as the
     // project diagnosis), so no day difference survives without its finish.
     ?{...rawCompletion,independentFinishIso:null,differenceElapsedDays:null,differenceRows:[],calculationState:'unresolved',
-      interpretation:'Independent CPM/calendar calculation failed reconciliation. No recalculated finish or day difference is presented as a management position.',
-      reason:'Source calendar semantics or duration/day conversion needs reconciliation; use the submitted programme finish for now.'}
+      interpretation:'CMeng cannot calculate a finish from this programme network yet. No recalculated finish or day difference is presented.',
+      reason:String(currentForecast?.forecastReconciliationGate?.managementForecast?.notCalculableReason??'The programme network cannot be calculated.')+' Use the submitted programme finish for now.'}
     :rawCompletion;
   // F33: the Dashboard is published without the per-page fact binding, so its
   // completion position takes the extended date from the same shared fact.
@@ -9052,8 +9053,8 @@ export function overviewForProject(
     {label:'Original contract completion',value:projectFacts?.time.contractualCompletionIso.value??null,unit:'date',basis:projectFacts?.time.contractualCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Contract completion including awarded EOT',value:projectFacts?.time.extendedContractCompletionIso.value??null,unit:'date',basis:projectFacts?.time.extendedContractCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
     {label:'Submitted programme finish',value:projectFacts?.schedule.submittedProgrammeCompletionIso.value??null,unit:'date',basis:projectFacts?.schedule.submittedProgrammeCompletionIso.basis??'Not calculated in this overview',health:'unavailable'},
-    {label:'Programme calendar recalculation',value:forecastData?.forecastReconciliationGate?.publishable===true&&!hasUnreconciledScheduleCalendar(forecastData)?forecastData?.independentForecastCompletionIso??null:null,unit:'date',
-      basis:(forecastData?.forecastReconciliationGate?.publishable!==true||hasUnreconciledScheduleCalendar(forecastData))?'Withheld from management until all forecast and source-calendar checks pass.':'Independent source-calendar CPM with stated qualifications.',health:'unavailable'},
+    {label:'Programme calendar recalculation',value:forecastData?.forecastReconciliationGate?.usable===true?forecastData?.forecastReconciliationGate?.managementForecastCompletionIso??null:null,unit:'date',
+      basis:forecastData?.forecastReconciliationGate?.usable!==true?String(forecastData?.forecastReconciliationGate?.managementForecast?.notCalculableReason??'The programme network cannot be calculated.'):forecastData?.forecastReconciliationGate?.publishable===true?'Independent source-calendar CPM; all reconciliation checks passed.':'Independent CPM with stated qualifications: '+(forecastData?.forecastReconciliationGate?.managementForecast?.qualifications??[]).map((q:any)=>q.text).join(' '),health:'unavailable'},
     {label:'Critical activities',value:projectFacts?.schedule.criticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.criticalActivityCount.basis??'Not calculated in this overview',health:(projectFacts?.schedule.negativeFloatActivityCount.value??0)>0?'attention':'unavailable'},
     {label:'Near-critical activities',value:projectFacts?.schedule.nearCriticalActivityCount.value??null,unit:null,basis:projectFacts?.schedule.nearCriticalActivityCount.basis??'Not calculated in this overview',health:'unavailable'},
   ];
