@@ -117,3 +117,10 @@ test('AI path fix: one correction turn names missing mandatory evidence; the cor
   await assert.rejects(()=>new OpenAiAskModel('fake','fake',never.request).explain(twice,[]),/MODEL_MATERIAL_COVERAGE_INVALID/);
   assert.equal(never.requests.length,2,'exactly one correction turn');assert.equal(twice.coverage!.representedToModel,false);
 });
+
+test('AI path fix: a missing qualification acknowledgement gets the same single correction turn',async()=>{
+  const result=analysis([{activityId:'LAST',critical:true}],'activities',[finding(1)]);
+  const once=mockProvider((input,_stage,call)=>{const output=response(input);if(call===1)output.unresolvedAcknowledged=false;return output;});
+  await new OpenAiAskModel('fake','fake',once.request).explain(result,[]);
+  assert.equal(once.requests.length,2);assert.equal(once.requests[1].input.coverageCorrection.rejected,'MODEL_QUALIFICATION_INVALID');assert.equal(result.coverage!.representedToModel,true);
+});

@@ -80,7 +80,7 @@ export class OpenAiAskModel implements AskModel, StructuredModel {
     const scope={projectId:result.scope.projectId,projectVersion:result.scope.projectVersion,dataDate:result.scope.dataDate};
     const base={question:result.plan.objective,scope,evidenceHash:evidence.coverage.evidenceHash,language:result.presentation.language,audience:result.presentation.audience,
       coverage:{...evidence.coverage,entries:undefined,populations:evidence.coverage.entries.map(c=>({id:c.id,source:c.sourcePopulation,applicable:c.applicablePopulation,direct:c.directlyRepresented,aggregated:c.aggregated,omitted:c.supportingOmitted,mandatory:c.mandatoryPopulation,state:c.state}))},unresolved:result.unresolved,retrievalCatalogue:{tables:evidence.tables,documents:result.referenceFiles.map(f=>({id:f.id,filename:f.filename,state:f.state,reading:f.reading})),maxRecords:this.limits.retrievalRecords},items:[] as EvidenceItem[]};
-    const fits=(input:unknown,schema:unknown=narrativeSchema,prompt=instructions)=>estimateTokens({instructions:prompt,input,schema})+this.limits.safetyTokens+this.limits.outputTokens<=this.limits.contextTokens;
+    const fits=(input:any,schema:unknown=narrativeSchema,prompt=instructions)=>estimateTokens({instructions:prompt,input:{...input,requiredEvidenceIds:(input?.items??[]).filter((i:EvidenceItem)=>i.mandatory).map((i:EvidenceItem)=>i.id)},schema})+this.limits.safetyTokens+this.limits.outputTokens<=this.limits.contextTokens;
     const batches:EvidenceItem[][]=[];let batch:EvidenceItem[]=[];
     for(const item of evidence.items){if(!fits({...base,items:[...batch,item]})){if(!batch.length)throw new Error('MODEL_MANDATORY_ITEM_CONTEXT_LIMIT');batches.push(batch);batch=[];if(!fits({...base,items:[item]}))throw new Error('MODEL_MANDATORY_ITEM_CONTEXT_LIMIT');}batch.push(item);}if(batch.length)batches.push(batch);
     if(batches.length>this.limits.maxCalls)throw new Error('MODEL_MATERIAL_COVERAGE_LIMIT');
@@ -105,12 +105,12 @@ export class OpenAiAskModel implements AskModel, StructuredModel {
           // AI path fix (28 Oct): the model often listed only the items it wrote about.
           // One correction turn names the missing mandatory items; the corrected answer
           // passes the same validator unchanged, within the same call limit.
-          if(!(error instanceof Error&&error.message==='MODEL_MATERIAL_COVERAGE_INVALID')||telemetry.calls.length>=this.limits.maxCalls)throw error;
+          if(!(error instanceof Error&&['MODEL_MATERIAL_COVERAGE_INVALID','MODEL_QUALIFICATION_INVALID'].includes(error.message))||telemetry.calls.length>=this.limits.maxCalls)throw error;
           const listed:unknown[]=Array.isArray(output?.coveredEvidenceIds)?output.coveredEvidenceIds:[];
           const required=current.filter(i=>i.mandatory).map(i=>i.id);
           output=await this.generate('cmeng_project_section',narrativeSchema,instructions,{...base,section:index+1,sections:batches.length,items:current,requiredEvidenceIds:required,
             coverageCorrection:{missingEvidenceIds:required.filter(id=>!listed.includes(id)),unknownEvidenceIds:listed.filter(id=>typeof id!=='string'||!current.some(i=>i.id===id)),
-              instruction:'Your previous answer did not cover every mandatory evidence item. Return the complete answer again: coveredEvidenceIds must list every requiredEvidenceIds entry and only supplied IDs, and each missing item must be addressed in a block. No retrieval.'}},telemetry);
+              rejected:(error as Error).message,instruction:'Your previous answer was rejected ('+(error as Error).message+'). Return the complete answer again: coveredEvidenceIds must list every requiredEvidenceIds entry and only supplied IDs, each missing item must be addressed in a block, and unresolvedAcknowledged must be true with the unresolved qualifications stated in the text. No retrieval.'}},telemetry);
           validateScope(output,result,evidence.coverage.evidenceHash);
           if(!Array.isArray(output.retrieval)||output.retrieval.length)throw new Error('MODEL_RETRIEVAL_INVALID');
           validated=validateNarrative(output,result,current,evidence.coverage.evidenceHash);
