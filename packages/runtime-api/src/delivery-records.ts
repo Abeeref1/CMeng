@@ -57,6 +57,8 @@ export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:D
  return null;
 }
 const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping:Map<string,string>}>();
+// R2 (M3.4): the file-and-row identity of each source record, for confirmations saved before record identity.
+const legacyIdentity=new WeakMap<DeliveryRecord,{id:string;revision:string}>();
 type DeliveryDocumentReceipt={documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[];columnsNotUsed?:string[]};
 const deliveryRecordsCache=new WeakMap<ProjectRuntimeState,{version:number;decisionFingerprint:string;value:{
  records:DeliveryRecord[];documents:DeliveryDocumentReceipt[];diagnostics:string[];
@@ -81,6 +83,8 @@ export function deliveryRecords(state:ProjectRuntimeState){
  const decidedIds=new Set(store.decisions.map(d=>d.recordId));
  const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
  const documents:DeliveryDocumentReceipt[]=[];
+ // P0-A R2 (M3.4): file-and-row identity kept for decisions saved before record identity.
+ const legacy=new Map<DeliveryRecord,{id:string;revision:string;reclassified:boolean}>();
  for(const t of tables){let count=0,kind:DeliveryKind|null=null;const kindCounts=new Map<DeliveryKind,number>();
   const mapping=store.mappings?.filter(m=>m.documentId===t.document.documentId&&m.sourceHash===t.document.sourceHashSha256).at(-1);
   const mappedColumns=Object.entries(mapping?.columns??{}).map(([target,source])=>[canonicalHeader(target),canonicalHeader(source)] as const),flagMappings=Object.entries(mapping?.valueMappings??{});
@@ -105,8 +109,11 @@ export function deliveryRecords(state:ProjectRuntimeState){
    const previousId=previousKind&&previousKind!==k?'delivery:'+deliveryHash([state.projectId,previousKind,t.document.documentId,row.receipt.locator]).slice(0,24):null;
    const reclassified=!!previousId&&decidedIds.has(previousId);
    if(reclassified)recordId=previousId!; // Retain the decision history, but require a fresh review of the corrected kind.
+   const legacyRevision=deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells,...(reclassified?[k]:[])]);
    records.push({recordId,projectId:state.projectId,kind:k,reference,description:cell(row,'description','package name','name','subject','test',...(k==='permit'?['permit type']:[]))||null,
-    revision:deliveryHash([row.receipt.sourceHash,row.receipt.locator,row.cells,...(reclassified?[k]:[])]),state:'extracted_candidate',fields:{...row.cells},...(sourceValueReview?{sourceFields:{...original.cells},sourceValueReview}:{}),links,receipts:[row.receipt],diagnostics:[...(reference?[]:['Record reference is missing.']),...(reclassified?['Page identity changed the record type. Review the retained decision against the corrected source identity.']:[])],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
+    // R2: the revision is the record's content; the file and row it came from are provenance.
+    revision:deliveryHash(['delivery-content-v1',k,row.cells,...(reclassified?[k]:[])]),state:'extracted_candidate',fields:{...row.cells},...(sourceValueReview?{sourceFields:{...original.cells},sourceValueReview}:{}),links,receipts:[row.receipt],diagnostics:[...(reference?[]:['Record reference is missing.']),...(reclassified?['Page identity changed the record type. Review the retained decision against the corrected source identity.']:[])],sourceActive:['active','additive','candidate'].includes(t.document.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.documentType??'')&&t.document.basisState==='historical'&&!state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.supersededByDocumentId});
+   legacy.set(records.at(-1)!,{id:recordId,revision:legacyRevision,reclassified});legacyIdentity.set(records.at(-1)!,{id:recordId,revision:legacyRevision});
   }
   const read=state.evidenceDocuments.find(d=>d.documentId===t.document.documentId)?.fullTextRead;
   for(const [documentKind,documentCount] of kindCounts.size?[...kindCounts]:[[null,0] as const])documents.push({documentId:t.document.documentId,filename:t.document.sourceFilename,kind:documentKind,rowCount:documentCount,readingComplete:read?.result.complete??null,state:read&&!read.result.complete?'partial_page_reading':count?'parsed_candidates':/^(boq|installed_measurement_register|risk_register|variation_register|payment_certificates)$/.test(t.document.documentType??'')?'existing_authority':t.rows.length?'mapping_required':'parsed_empty',diagnostics:[...(count?[]:[t.rows.length+' source rows; '+(t.rows.length?'Delivery record identity is not mapped.':'the parsed table is empty.')]),...(read&&!read.result.complete?['Physical-page reading is incomplete. Read records do not establish complete register coverage.']:[]),...(t.recognition?.unknown.length?['Source columns read and kept but not used by any calculation: '+t.recognition.unknown.join(', ')+'.']:[])],columnsNotUsed:[...(t.recognition?.unknown??[])]});
@@ -116,8 +123,38 @@ export function deliveryRecords(state:ProjectRuntimeState){
  }
  let continuity=boqContinuityCache.get(state)?.version===state.version?boqContinuityCache.get(state)!.mapping:null;
  if(!continuity){continuity=new Map<string,string>();const currentBoq=resolveBoqSource(state,'').boq;if(currentBoq){const currentItems=currentBoq.canonicalItems.map(i=>({...i,id:i.itemId}));for(const previous of state.boqRevisions)for(const [oldId,newId]of boqItemContinuity(previous.canonicalItems.map(i=>({...i,id:i.itemId})),currentItems))continuity.set(oldId,newId);}boqContinuityCache.set(state,{version:state.version,mapping:continuity});}
+ // P0-A R2 (M3.4): a record that states its own reference is identified by that
+ // reference, not by the file and row it was read from, so a new revision of the
+ // register keeps the decisions made on it. Only a reference held by exactly one
+ // current source row is used; a repeated or missing reference keeps file-and-row
+ // identity. A decision applies while the record's content is unchanged.
+ const refKey=(r:DeliveryRecord)=>r.reference?r.kind+'|'+String(r.reference).normalize('NFKC').trim().toLowerCase().replace(/\s+/g,' '):null;
+ const fromSupersededFile=(r:DeliveryRecord)=>r.receipts.some(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.supersededByDocumentId));
+ const refCount=new Map<string,number>();
+ for(const [r,l] of legacy)if(!l.reclassified&&!fromSupersededFile(r)){const key=refKey(r);if(key)refCount.set(key,(refCount.get(key)??0)+1);}
+ const legacyToCurrent=new Map<string,string>();
+ for(const [r,l] of legacy){const key=refKey(r);if(key&&!l.reclassified&&!fromSupersededFile(r)&&refCount.get(key)===1){r.recordId='delivery:'+deliveryHash([state.projectId,'reference',key]).slice(0,24);legacyToCurrent.set(l.id,r.recordId);}}
  const latest=new Map(store.decisions.map(d=>[d.recordId,d]));
- for(const r of records){const d=latest.get(r.recordId);if(d){if(d.sourceRevision!==r.revision||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
+ // A decision saved on an earlier revision of the register (file-and-row identity)
+ // carries to the same reference in the current revision while the content is the same.
+ const earlierByKey=new Map<string,DeliveryRecord[]>();
+ for(const [r] of legacy)if(fromSupersededFile(r)){const key=refKey(r);if(key){const group=earlierByKey.get(key)??[];group.push(r);earlierByKey.set(key,group);}}
+ const resolved=new Map<DeliveryRecord,{d:(typeof store.decisions)[number];content:boolean}|null>();
+ const resolve=(r:DeliveryRecord)=>{
+  if(resolved.has(r))return resolved.get(r)!;
+  const own=latest.get(r.recordId)??(legacy.get(r)?latest.get(legacy.get(r)!.id):undefined);
+  let out:{d:(typeof store.decisions)[number];content:boolean}|null=own?{d:own,content:own.sourceRevision===r.revision||own.sourceRevision===legacy.get(r)?.revision}:null;
+  const key=refKey(r);
+  if(!out&&key&&legacyToCurrent.has(legacy.get(r)?.id??''))for(const earlier of earlierByKey.get(key)??[]){
+   const d=latest.get(earlier.recordId);
+   if(d&&(d.sourceRevision===legacy.get(earlier)?.revision||d.sourceRevision===earlier.revision)){out={d,content:earlier.revision===r.revision};break;}
+  }
+  resolved.set(r,out);return out;
+ };
+ const decisionFor=(r:DeliveryRecord)=>resolve(r)?.d;
+ const sameContent=(r:DeliveryRecord,_d:unknown)=>resolve(r)?.content===true;
+ const currentId=(id:string)=>legacyToCurrent.get(id)??id;
+ for(const r of records){const d=decisionFor(r);if(d){if(!sameContent(r,d)||!r.sourceActive)r.state='stale';else{r.state=d.state;r.fields={...r.fields,...d.fields};r.links={...emptyLinks(),...structuredClone(d.links)};r.links.recordIds=r.links.recordIds.map(currentId);r.reference=String(r.fields['record reference']??r.reference??'')||null;r.description=String(r.fields.description??r.description??'')||null;}}}
  // T04 one rule: an unreviewed record read from a candidate document becomes
  // current only when the shared candidate rule admits that document (fully
  // parsed, no review needed, the only candidate of its family, no adopted
@@ -125,18 +162,22 @@ export function deliveryRecords(state:ProjectRuntimeState){
  const candidateHold=sourceCandidateHold(state.evidenceDocuments);
  const documentById=new Map(state.evidenceDocuments.map(d=>[d.documentId,d]));
  for(const r of records){
-  const decision=latest.get(r.recordId);
+  const decision=decisionFor(r);
   if(r.state==='extracted_candidate'&&!decision){
    const held=[...new Set(r.receipts.map(receipt=>{const d=documentById.get(receipt.documentId);return d?candidateHold(d):null;}).filter(Boolean))];
    if(held.length)r.diagnostics.push('Source document is a candidate held for review ('+held.join(', ')+'). Not used as current until the source is chosen or adopted.');
   }
-  if(decision?.receipts){r.evidenceRevision=deliveryHash(decision.receipts);r.receipts=structuredClone(decision.receipts);r.sourceActive=r.sourceActive&&r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&!d.supersededByDocumentId&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical')));}
+  // R2: a decision carried to a new revision of the register keeps the current row as its source.
+  // (Its receipts name an earlier revision of the register: the record's own current row is its source;
+  // the content check above has already decided whether the decision still applies.)
+  const carried=!!decision?.receipts&&decision.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.supersededByDocumentId))&&r.sourceActive;
+  if(decision?.receipts&&!carried){r.evidenceRevision=deliveryHash(decision.receipts);r.receipts=structuredClone(decision.receipts);r.sourceActive=r.sourceActive&&r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&!d.supersededByDocumentId&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical')));}
   r.links={...emptyLinks(),...r.links};
   if(r.links.boqItemIds.some(id=>continuity!.has(id)&&continuity!.get(id)!==id))r.diagnostics.push('BOQ links carried to the active revision by unique item number, section, description and unit.');
   r.links.boqItemIds=r.links.boqItemIds.map(id=>continuity!.get(id)??id);r.links.boqAllocations=r.links.boqAllocations.map(a=>({...a,boqItemId:continuity!.get(a.boqItemId)??a.boqItemId}));
   r.diagnostics.push(...deliveryNumericIssues(r.kind,r.fields).map(i=>i.message));
  }
- const superseded=new Set([...latest.values()].filter(d=>['governed','verified'].includes(d.state)).map(d=>d.supersedesId).filter(Boolean));
+ const superseded=new Set([...latest.values()].filter(d=>['governed','verified'].includes(d.state)).map(d=>d.supersedesId).filter(Boolean).map(id=>currentId(id!)));
  for(const r of records){if(!r.sourceActive)r.state='stale';if(superseded.has(r.recordId)||r.receipts.some(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.supersededByDocumentId)))r.state='superseded';}
  const governed=records.filter(deliveryCurrentRecord),references=new Map<string,DeliveryRecord[]>();
  for(const r of governed)if(r.reference){const key=r.kind+'|'+r.reference;const group=references.get(key)??[];group.push(r);references.set(key,group);}
@@ -151,7 +192,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
  // by exactly one current BOQ item; a repeated number stays unlinked with its
  // candidate items listed. Reviewed links are never rewritten.
  const resolveBoq=boqReferenceResolver(resolveBoqSource(state,'').quantities?.items??[]);
- for(const r of records)if(r.state==='extracted_candidate'&&!latest.has(r.recordId)){
+ for(const r of records)if(r.state==='extracted_candidate'&&!decisionFor(r)){
   if(r.links.boqItemIds.length){
    const resolved=r.links.boqItemIds.map(resolveBoq);
    r.links.boqItemIds=[...new Set(resolved.map(x=>x.itemId??x.reference))];
@@ -184,7 +225,9 @@ export function deliveryPopulationPosition(kind:DeliveryKind,scopeId:string|null
  const rows=scope.filter(deliveryCurrentRecord);
  const pending=scope.filter(r=>!deliveryCurrentRecord(r)&&!['superseded','scenario'].includes(r.state));
  const unread=documents.some(d=>d.kind===kind&&(d.readingComplete===false||['submitted_not_interpreted','mapping_required'].includes(d.state)));
- const established=!!decision&&!unread&&decision.fingerprint===deliveryPopulationFingerprint(rows)&&pending.length===0;
+ // R2: a completeness confirmation saved before record identity is matched in its own form.
+ const legacyForm=()=>deliveryPopulationFingerprint(rows.map(r=>{const l=legacyIdentity.get(r);return l?{...r,recordId:l.id,revision:l.revision}:r;}));
+ const established=!!decision&&!unread&&(decision.fingerprint===deliveryPopulationFingerprint(rows)||decision.fingerprint===legacyForm())&&pending.length===0;
  return {kind,scopeId,state:established?'established':'not_established',denominator:established?rows.length:null,knownRecordCount:rows.length,pendingRecordCount:pending.length,
   recordIds:rows.map(r=>r.recordId),basis:decision?.note??deliveryPopulationBasis(kind),confirmedAt:decision?.recordedAt??null};
 }

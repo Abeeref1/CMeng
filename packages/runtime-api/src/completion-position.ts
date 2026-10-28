@@ -1,9 +1,11 @@
 /** Reader-facing position over existing schedule authorities. No schedule is recalculated here. */
 export function completionPosition(data:any, forecast:any=data, names:Map<string,string>=new Map()) {
   const submitted=forecast.sourceForecastCompletionIso??data.forecast?.sourceCompletionIso??null;
-  // P0-B: the network finish CMeng calculated, with any assumed calendars stated below.
-  const calculated=forecast.calculatedCompletionIso??forecast.independentForecastCompletionIso??data.forecast?.independentCompletionIso??null;
   const complete=forecast.complete??data.forecast?.complete??false;
+  // P0-B: the network finish CMeng calculated, with any assumed calendars stated below.
+  // A result without that field keeps the older rule: no finish from an incomplete network.
+  const strict=forecast.independentForecastCompletionIso??data.forecast?.independentCompletionIso??null;
+  const calculated=forecast.calculatedCompletionIso!==undefined?forecast.calculatedCompletionIso:(complete?strict:null);
   const origin=forecast.origin??data.forecast?.origin??'unavailable';
   const contract=data.reportingContract?.completionAuthority?.governedContractualFinish??data.contractualCompletionIso??data.claims?.contractualCompletionIso??null;
   const review=data.calendarBasisReview??data.sourceInterpretation?.calendarReview;
