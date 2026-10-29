@@ -10,7 +10,8 @@ import {documentClassificationForReview,documentClassificationChoices} from './d
 import {sourceTables,controlIssueField} from '../../truth-kernel/src';
 import {riskReviewBasis,eotOverlapReview,contractValueReview,reportingTimeBasis} from './source-review-decisions';
 import {procurementDateBasis} from './procurement-date-basis';
-import {commercialCanonical} from './commercial-canonical';
+import {commercialCanonical,registerTaxBasisDefault} from './commercial-canonical';
+import type {CanonicalCommercialModel} from './commercial-canonical';
 import {noticeReviewBasis,contractFactDecisionItemsForState} from './notice-review';
 import {completionDecisionItem} from './contract-fact-decisions';
 import {operationalControlsAsOf} from './operational-reporting';
@@ -47,7 +48,7 @@ export interface ProjectAction {
     instruction:string;
     completionRule:string;
   };
-  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;noticeCandidates?:ReturnType<typeof noticeReviewBasis>['candidates'];noticeSourceKeys?:string[];reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewInputType?:'date';reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
+  target:{type:'schedule'|'document'|'delivery'|'module'|'upload'|'inline';label:string;documentId?:string;revisionId?:string;phaseId?:string;canConfirm?:boolean;moduleKey?:string;kind?:string;population?:boolean;reviewChoice?:string|null;noticeCandidates?:ReturnType<typeof noticeReviewBasis>['candidates'];noticeSourceKeys?:string[];reviewActivityIds?:string[];reviewLocationsText?:string;reviewMatrixText?:string;reviewDateIso?:string|null;reviewInputType?:'date'|'choice_only';reviewAdditionalDays?:number|null;reviewedRates?:{trir:number|null;ltifr:number|null;trirBasisHours:number|null;ltifrBasisHours:number|null};reviewReference?:string|null;reviewOptions?:Array<{value:string;label:string}>;uploadHint?:string;uploadMode?:'schedule'|'evidence';sourceHash?:string;scheduleRole?:string;needsPurpose?:boolean;approvalRequired?:boolean;suggestedDateIso?:string|null;relationshipOptions?:Array<{value:'new_record'|'replacement'|'amendment';label:string}>;relationshipTargets?:Array<{documentId:string;filename:string;familyKey:string;basisState:string}>};
   issue?:ControlIssue;requestCount?:number;findingIds?:string[];findings?:ControlIssue[];affectedPages?:string[];completionPosition?:unknown;
   correctionRecords?:Array<{source:string;locator:string;documentId?:string;sourceHash?:string}>;
   missingFields?:Array<{field:string;file:string;owner:string;fieldIdentity?:string;headings?:string[];supply?:MissingFieldSupply}>;
@@ -199,7 +200,7 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
   const items:ProjectAction[]=[];
   for(const [phaseId,scope]of [[null,state],...(state.phaseProgrammes??[]).map(p=>[p.phaseId,phaseProgrammeState(state,p.phaseId)])] as Array<[string|null,ProjectRuntimeState]>){
     const review=scheduleAuthorityReview(scope),prefix=phaseId?'Phase '+phaseId+': ':'';
-    const add=(revisionId:string,documentId:string,filename:string,canConfirm:boolean,reason:string,current=false)=>{
+    const add=(revisionId:string,documentId:string,filename:string,canConfirm:boolean,reason:string,current=false,inUse=false)=>{
       const stored=scope.schedules.find(r=>r.revision.revisionId===revisionId),model=stored?.revision.model;
       const source=scope.evidenceDocuments.find(d=>d.documentId===documentId);
       const missingDate=!model?.dataDateIso;
@@ -212,9 +213,10 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
         return;
       }
       const needsPurpose=!canConfirm;
-      items.push({id:'schedule:'+identity([phaseId,revisionId]),category:'confirmation',title:prefix+(current?'Confirm the schedule used for reporting':'Confirm the uploaded schedule'),reason:filename+'. '+reason+' '+(model?model.activities.length+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
+      // M13.1: confirming a schedule CMeng already uses changes no figure: it is information, still confirmable.
+      items.push({id:'schedule:'+identity([phaseId,revisionId]),category:inUse?'information':'confirmation',title:prefix+(current?'Confirm the schedule used for reporting':'Confirm the uploaded schedule'),reason:filename+'. '+reason+' '+(model?model.activities.length+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
         recordCount:1,
-        resolution:{kind:needsPurpose?'choose':'confirm',requiresUserAction:true,instruction:needsPurpose?'Choose the programme purpose here and provide an approval reference only if you select a baseline. Then CMeng will make the programme current in the same action.':'Confirm here that CMeng should use this programme for the current reporting position.',completionRule:'The action closes when the programme is explicitly selected as the reporting basis.'},
+        resolution:{kind:needsPurpose?'choose':'confirm',requiresUserAction:!inUse,instruction:needsPurpose?'Choose the programme purpose here and provide an approval reference only if you select a baseline. Then CMeng will make the programme current in the same action.':'Confirm here that CMeng should use this programme for the current reporting position.',completionRule:'The action closes when the programme is explicitly selected as the reporting basis.'},
         target:{type:'schedule',label:needsPurpose?'Confirm purpose and use programme':'Use this programme for reporting',revisionId,documentId,canConfirm,
           ...((source?.sourceHashSha256??stored?.sourceHashSha256)?{sourceHash:(source?.sourceHashSha256??stored?.sourceHashSha256)!}:{}),
           scheduleRole:stored?.role??'update',needsPurpose,
@@ -223,7 +225,9 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
     if(review.state==='pending_review'&&review.currentRevisionId&&review.documentId){
       const revision=scope.schedules.find(r=>r.revision.revisionId===review.currentRevisionId)!;
       const canConfirm=!!review.dataDateIso&&!(revision.roleConfirmed&&['baseline','revised_baseline'].includes(revision.role)&&!revision.approvalReference?.trim());
-      add(review.currentRevisionId,review.documentId,revision.sourceFilename??revision.revision.label??'Selected schedule',canConfirm,canConfirm?'CMeng is already using this schedule. Confirm that this is your reporting selection.':'Confirm its programme purpose and approval basis here before CMeng makes it current.',true);
+      const inUse=projectControlSchedule(scope)?.revision.revisionId===review.currentRevisionId;
+      add(review.currentRevisionId,review.documentId,revision.sourceFilename??revision.revision.label??'Selected schedule',canConfirm,
+        inUse?'CMeng is already using this schedule. Confirming it records your reporting selection; no figure changes.':canConfirm?'Confirm that CMeng should use this schedule for reporting. Until then it is not used.':'Confirm its programme purpose and approval basis here before CMeng makes it current.',true,inUse);
     }
     for(const p of review.pendingSchedules)add(p.revisionId,p.documentId,p.filename,p.canAdopt,p.adoptionBlocker??(review.currentRevisionId?'This upload has not replaced the current reporting schedule.':'Choose the schedule to use for project reporting.'));
     if(review.state==='missing'&&!review.pendingSchedules.length)items.push({id:'schedule-missing:'+identity(phaseId),category:'review',title:prefix+'Add a reporting schedule',reason:'A schedule is needed to establish the reporting date and programme results.',recordCount:0,
@@ -266,8 +270,9 @@ export function candidateDocumentReviewPages(state:ProjectRuntimeState):Map<stri
   return pages;
 }
 export function projectActions(state:ProjectRuntimeState,assessment:ControlIssueAssessment,context:{completionPosition?:unknown}={}){
-  const actions=programmeActions(state);
-  const classificationInformation:ProjectAction[]=[];
+  const programmeItems=programmeActions(state);
+  const actions=programmeItems.filter(a=>a.category!=='information');
+  const classificationInformation:ProjectAction[]=programmeItems.filter(a=>a.category==='information');
   const uncertainTables=new Map(sourceTables(state.evidenceDocuments.filter(d=>d.identification?.needsReview),[],{includeHistorical:true}).map(t=>[t.document.documentId,t]));
   for(const document of state.evidenceDocuments){
     if(document.category==='schedule'||['superseded','scenario'].includes(document.basisState))continue;
@@ -590,6 +595,21 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // calendar, the duration basis), gives exactly one item naming each cause
   // and what to do. Correcting it changes the published finish.
   {const item=forecastReviewItem(state);if(item)actions.push(item);}
+  // M10.2: register amounts that state no tax basis use the contract's stated
+  // basis (or the user's decision). One pre-filled question, asked once.
+  {const model=commercialCanonical(state),rule=model.taxBasisDefault,decision=registerTaxBasisDefault(state);
+   const rowsWithout=rule?.rowCount??0,unknownRows=countUnknownTaxRows(model);
+   if(rowsWithout>0||unknownRows>0){
+    const decided=decision.source==='user';
+    const prefill=decision.basis;
+    const item:ProjectAction={id:'matter:tax-basis',category:decided?'information':'confirmation',title:'Confirm the tax basis of register amounts',owner:'Commercial Manager',recordCount:rowsWithout+unknownRows,
+      reason:countText(rowsWithout+unknownRows,'register amount','register amounts')+' state no VAT basis. '+(decision.contract.basis?'The contract states its values '+decision.contract.basis+' of VAT, so CMeng uses that basis and names it with each total.':decision.contract.conflict?'The contract states both bases, so the amounts stay without a basis until you choose.':'The contract states no basis, so totals that need one stay unconfirmed until you choose.'),
+      reviewFingerprint:decision.fingerprint,reviewSourceRefs:decision.contract.sourceRefs,
+      resolution:{kind:'choose',requiresUserAction:!decided,instruction:'Choose the VAT basis for register amounts that state none.',completionRule:'Your choice applies to every register amount without a basis column; a row that states its own basis keeps it.'},
+      target:{type:'inline',kind:'review-commercial-record',label:'Confirm the tax basis',reviewChoice:prefill,reviewReference:null,reviewInputType:'choice_only',
+        reviewOptions:[{value:'exclusive',label:'Exclusive of VAT'+(decision.contract.basis==='exclusive'?' (as the contract states)':'')},{value:'inclusive',label:'Inclusive of VAT'+(decision.contract.basis==='inclusive'?' (as the contract states)':'')},...(decided?[{value:'undo',label:'Undo my decision'}]:[])]}};
+    actions.push(item);
+   }}
   const valueReview=contractValueReview(state);
   if(!state.controls.contractValue&&valueReview.candidates.length){
     const saved=valueReview.decision;
@@ -597,7 +617,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       reason:'Select the contract value to use for reporting from the retained source candidates.',reviewFingerprint:valueReview.sourceFingerprint,reviewSourceRefs:valueReview.candidates.flatMap(c=>c.sourceRefs),
       evidenceSummary:valueReview.candidates.map(c=>c.currency+' '+c.amount+' · '+c.sourceRefs.join('; ')),
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the value against the cited contract and amendment, then confirm the applicable value. Original source candidates are retained.',completionRule:'The selected amount and currency become the shared reporting value for these contract sources.'},
-      target:{type:'inline',kind:'review-contract-value',label:'Confirm contract value',reviewChoice:saved?.choice??null,reviewOptions:[...valueReview.candidates.map(c=>({value:'value:'+c.currency+':'+c.amount,label:c.currency+' '+c.amount.toLocaleString('en-US')})),
+      // M13.1: a single read value is pre-filled; the user confirms or changes it.
+      target:{type:'inline',kind:'review-contract-value',label:'Confirm contract value',reviewChoice:saved?.choice??(valueReview.candidates.length===1?'value:'+valueReview.candidates[0]!.currency+':'+valueReview.candidates[0]!.amount:null),reviewOptions:[...valueReview.candidates.map(c=>({value:'value:'+c.currency+':'+c.amount,label:c.currency+' '+c.amount.toLocaleString('en-US')})),
         {value:'enter_value',label:'Enter my own contract value and currency'},...(saved?[{value:'undo',label:'Undo my decision'}]:[])]}};
     if(saved?.choice==='enter_value')item.evidenceSummary=[...(item.evidenceSummary??[]),'Saved decision: your own value '+saved.enteredCurrency+' '+saved.enteredValue+'. Not formally adopted.'];
     (saved?information:actions).push(item);
@@ -653,13 +674,14 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const handoverComparison=handoverSourceComparison(state);
   if(handoverComparison?.reviewAvailable){
     const saved=handoverComparison.decision;
-    const item:ProjectAction={id:'matter:handover-source-basis',category:saved?'information':'confirmation',title:'Review asset and programme reporting bases',owner:'Construction Manager',recordCount:handoverComparison.assetRecordCount,
+    // M13.1: this choice only orders the presentation; no figure changes, so it is never a required action.
+    const item:ProjectAction={id:'matter:handover-source-basis',category:'information',title:'Review asset and programme reporting bases',owner:'Construction Manager',recordCount:handoverComparison.assetRecordCount,
       reason:handoverComparison.basis,reviewFingerprint:handoverComparison.sourceFingerprint,reviewSourceRefs:handoverComparison.sourceRefs,
       evidenceSummary:[...handoverComparison.rows.map(r=>r.label+': '+r.numerator+' / '+r.denominator+'; '+r.unknownCount+' unknown'),handoverComparison.dateQualification],
-      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Review both sets of source records on Testing & Commissioning, Handover Readiness or Asset & System Handover. Choose the source to lead the comparison or retain equal presentation. Both sources remain visible; this choice does not resolve date/scope gaps or confer acceptance.',completionRule:'The editable presentation choice is saved against these source versions; new programme or asset records require review again.'},
+      resolution:{kind:'choose',requiresUserAction:false,instruction:'Review both sets of source records on Testing & Commissioning, Handover Readiness or Asset & System Handover. Choose the source to lead the comparison or retain equal presentation. Both sources remain visible; this choice does not resolve date/scope gaps or confer acceptance.',completionRule:'The editable presentation choice is saved against these source versions; new programme or asset records require review again.'},
       target:{type:'inline',kind:'review-handover-sources',label:'Save source basis review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,
         reviewOptions:[{value:'keep_separate',label:'Keep both source positions side by side'},{value:'programme_focus',label:'Lead with programme task progress'},{value:'asset_focus',label:'Lead with reported asset status flags'}]}};
-    (saved?information:actions).push(item);
+    information.push(item);
   }
 
   // F34: the contract states a Time for Completion as a period counted from the
@@ -699,4 +721,10 @@ export function forecastReviewItem(state:ProjectRuntimeState):ProjectAction|null
     reason:'The finish is calculated and shown with '+countText(fixable.length,'qualification','qualifications')+' you can correct: '+fixable.map(q=>q.text.replace(/\.$/,'')).join('; ')+'.',
     resolution:{kind:'upload',requiresUserAction:true,instruction:fixable.map(q=>q.action).join(' '),completionRule:'Each qualification clears when the corrected programme or input removes its cause; the finish is recalculated at once.'},
     target:{type:'upload',label:'Upload the corrected programme',uploadHint:'Corrected programme (XER or XML)',uploadMode:'schedule'}};
+}
+
+/** Register amounts read with no tax basis at all (no row column, no contract or user basis). */
+function countUnknownTaxRows(model:CanonicalCommercialModel):number{
+  const amounts=[...model.payments.flatMap(p=>Object.values(p.amounts)),...model.variations.map(v=>v.approvedAmount)] as Array<{value:number|null;taxBasis:string}>;
+  return amounts.filter(a=>a&&a.value!==null&&a.taxBasis==='unknown').length;
 }

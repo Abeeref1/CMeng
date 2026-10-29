@@ -1189,7 +1189,10 @@ export function buildCommercialControlPosition(
         const total=(fields:Array<'grossWork'|'variations'|'grossCertifiedAmount'|'netCertifiedAmount'>)=>{
           const amounts=certified.flatMap(p=>fields.map(f=>p.amounts[f]));
           const known=compatible&&amounts.every(a=>a.value!==null&&a.currency===position.currency&&a.taxBasis!=='unknown'&&a.state==='official')&&new Set(amounts.map(a=>a.taxBasis)).size===1;
-          return known?moneyMetric(Number(amounts.reduce((n,a)=>n+a.value!,0).toFixed(8)),sourceBasisQualified?"candidate":"established",refs,sourceBasisDiagnostics):unestablished("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED");
+          // M10.2: a tax basis taken from the contract (or the user's decision) because the rows state none is named with the total.
+          const taxSources=new Set(amounts.map(a=>(a as {taxBasisSource?:string}).taxBasisSource).filter(Boolean));
+          const taxDiagnostics=[...(taxSources.has('contract')?["TAX_BASIS_FROM_CONTRACT_ROWS_STATE_NONE"]:[]),...(taxSources.has('user')?["TAX_BASIS_FROM_USER_DECISION_ROWS_STATE_NONE"]:[])];
+          return known?moneyMetric(Number(amounts.reduce((n,a)=>n+a.value!,0).toFixed(8)),sourceBasisQualified?"candidate":"established",refs,[...sourceBasisDiagnostics,...taxDiagnostics]):unestablished("DATED_INCREMENTAL_CERTIFICATES_WITH_COMPATIBLE_AMOUNTS_REQUIRED");
         };
         // F01: a certificate's own "Gross Certified" column is its gross figure; summing the net
         // column under the gross label is wrong. Gross work plus variations is the reading only

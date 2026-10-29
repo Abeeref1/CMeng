@@ -10,6 +10,8 @@ import {sourceAnalyticalDiagnostic} from './operational-reporting';
 export interface CommercialMoney {
   value: number | null; currency: string | null; taxBasis: 'exclusive' | 'inclusive' | 'unknown';
   amountBasis: string; state: FactState; asOf: string | null; receipts: SourceReceipt[];
+  /** M10.2: where the tax basis came from when the row states none. */
+  taxBasisSource?: 'row' | 'contract' | 'user';
 }
 export interface CostMetricRecord {
   metric: string;
@@ -141,6 +143,8 @@ export function commercialRegisterScope<T>(rows:readonly T[],dataDateIso:string|
 }
 export interface CanonicalCommercialModel {
   schemaVersion:'1.0'; producerVersion:'commercial-canonical-v1'; dataDateIso:string|null;
+  /** M10.2: the basis applied to rows that state none (rowCount rows), and its source. */
+  taxBasisDefault?:{basis:'exclusive'|'inclusive'|null;source:'contract'|'user'|null;rowCount:number};
   costMetrics:CostMetricRecord[];
   registerScopes?:{payments:CommercialRegisterScope<PaymentStageRecord>;variations:CommercialRegisterScope<CommercialVariation>;costMetrics:CommercialRegisterScope<CostMetricRecord>};
   payments:PaymentStageRecord[];
@@ -187,9 +191,43 @@ export function isoCurrencyIn(text:string):string|null{
   if(named&&(codeAt<0||named.at<=codeAt))return named.code;
   return codes[0]??null;
 }
+// M10.2: one tax basis rule for every register amount. The row's own basis
+// column first; when the row states none, the user's decision, else the basis
+// the contract states (named as such); else unknown. Set per model build.
+let taxDefault:{basis:'exclusive'|'inclusive';source:'contract'|'user'}|null=null;
+let taxDefaultRows=0;
+function rowTax(row:SourceRow):{taxBasis:CommercialMoney['taxBasis'];taxBasisSource?:NonNullable<CommercialMoney['taxBasisSource']>}{
+ const stated=cell(row,'vat basis','tax basis');
+ if(stated.trim())return {taxBasis:tax(stated),taxBasisSource:'row'};
+ if(taxDefault){taxDefaultRows++;return {taxBasis:taxDefault.basis,taxBasisSource:taxDefault.source};}
+ return {taxBasis:'unknown'};
+}
+/** The tax basis the contract states for its values: exclusive, inclusive, or null (none or both). */
+export function contractStatedTaxBasis(state:ProjectRuntimeState):{basis:'exclusive'|'inclusive'|null;sourceRefs:string[];conflict:boolean}{
+ const found=new Map<'exclusive'|'inclusive',string[]>();
+ for(const c of state.contractDocuments){
+  const texts=[...c.result.sections.map(sec=>({text:sec.text,at:sec.startPage?'page:'+sec.startPage:sec.sectionKey})),...(c.result.pdf?.pages??[]).map(pg=>({text:pg.text,at:'page:'+pg.pageNumber}))];
+  for(const {text,at} of texts)for(const line of text.split(/\n|(?<=\.)\s/)){
+   if(!/\b(?:contract (?:value|price|sum|amount)s?|accepted contract amount|(?:all )?(?:contract )?(?:values|amounts|prices|rates) (?:are|is|shall be) stated|values are stated)\b/i.test(line))continue;
+   const basis=/\b(?:exclusive of|excluding|excl\.?|exclusive of all)\s+(?:the\s+)?(?:VAT|value added tax)\b/i.test(line)?'exclusive':/\b(?:inclusive of|including|incl\.?)\s+(?:the\s+)?(?:VAT|value added tax)\b/i.test(line)?'inclusive':null;
+   if(!basis)continue;
+   const refs=found.get(basis)??[];refs.push('evidence-document:'+c.documentId+':'+at);found.set(basis,refs);
+  }
+ }
+ if(found.size!==1)return {basis:null,sourceRefs:[...found.values()].flat(),conflict:found.size>1};
+ const [basis,refs]=[...found.entries()][0]!;return {basis,sourceRefs:[...new Set(refs)],conflict:false};
+}
+/** The tax basis applied to register rows that state none, and why (user decision first). */
+export function registerTaxBasisDefault(state:ProjectRuntimeState):{basis:'exclusive'|'inclusive'|null;source:'contract'|'user'|null;contract:ReturnType<typeof contractStatedTaxBasis>;fingerprint:string}{
+ const contract=contractStatedTaxBasis(state);
+ const fingerprint='tax-basis-v1:'+[contract.basis??'none',contract.conflict?'conflict':'',...contract.sourceRefs].join('|');
+ const saved=state.controls?.reviewDecisions?.['tax-basis'] as {choice?:string;sourceFingerprint?:string}|undefined;
+ if(saved&&saved.sourceFingerprint===fingerprint&&(saved.choice==='exclusive'||saved.choice==='inclusive'))return {basis:saved.choice,source:'user',contract,fingerprint};
+ return {basis:contract.basis,source:contract.basis?'contract':null,contract,fingerprint};
+}
 function money(row:SourceRow,value:string,amountBasis:string,currency:string|null,asOf:string|null):CommercialMoney{
  currency=currency&&/^[A-Za-z]{3}$/.test(currency.trim())?currency.trim().toUpperCase():null;
- const v=numberValue(value);return {value:v,currency,taxBasis:tax(cell(row,'vat basis','tax basis')),amountBasis,
+ const v=numberValue(value);return {value:v,currency,...rowTax(row),amountBasis,
  state:v===null?'missing':currency===null?'partial':['active','additive'].includes(row.receipt.basisState)?'official':'candidate',asOf,receipts:[row.receipt]};
 }
 function splitList(value:string):string[]{
@@ -216,6 +254,8 @@ function moneyFromHeader(row:SourceRow,header:string|null,basis:string,fallbackC
 const cache=new WeakMap<ProjectRuntimeState,{version:number;value:CanonicalCommercialModel}>();
 export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommercialModel {
  const old=cache.get(state);if(old?.version===state.version)return old.value;
+ const taxRule=registerTaxBasisDefault(state);
+ taxDefault=taxRule.basis&&taxRule.source?{basis:taxRule.basis,source:taxRule.source}:null;taxDefaultRows=0;
  const diagnostics:string[]=[],tables=governedTables(state.evidenceDocuments,diagnostics),dataDateIso=projectDataDate(state);
  // A currency is inherited only from an explicit contract currency statement, never from project location or an unrelated ledger.
  const contractCurrencies=new Set<string>(); const currencyReceipts:SourceReceipt[]=[];
@@ -522,6 +562,9 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
    variations:commercialRegisterScope(variations,dataDateIso,r=>r.approvalDate,(rows,scope)=>({approvedByDataDateCount:scope==='as_of'?rows.filter(r=>/^approved$/i.test(r.status)).length:0})),
    costMetrics:commercialRegisterScope(costMetrics,dataDateIso,r=>r.amount.asOf),
  };
- const model:CanonicalCommercialModel={registerScopes,populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,advancePayments,variations,siteInstructions,insurances,bonds,obligations,retentions,costPosition,temporalPosition,diagnostics};
+ if(taxDefault&&taxDefaultRows)diagnostics.push((taxDefault.source==='user'?'TAX_BASIS_FROM_USER_DECISION:':'TAX_BASIS_FROM_CONTRACT:')+taxDefault.basis+':'+taxDefaultRows);
+ const taxBasisDefault={basis:taxDefault?.basis??null,source:taxDefault?.source??null,rowCount:taxDefaultRows};
+ taxDefault=null;
+ const model:CanonicalCommercialModel={registerScopes,populations,schemaVersion:'1.0',producerVersion:'commercial-canonical-v1',dataDateIso,costMetrics,payments,advancePayments,variations,siteInstructions,insurances,bonds,obligations,retentions,costPosition,temporalPosition,diagnostics,taxBasisDefault};
  cache.set(state,{version:state.version,value:model});return model;
 }
