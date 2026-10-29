@@ -2237,15 +2237,20 @@ export function documentClassificationForReview(document: StoredEvidenceDocument
   // content type is still used, but the difference is queued for the user to
   // confirm instead of being filed silently.
   const nameHint=document.category!=='schedule'&&document.identification&&!['metadata_fallback','unreadable'].includes(document.identification.method)?document.identification.filenameHintDocumentType:null;
-  const nameDiffers=(type:string)=>!!nameHint&&nameHint!=='supporting_document'&&nameHint!==type;
+  // K1: content that establishes the type (at the same confidence that lets
+  // content replace a stored type) is the type; the file name then raises no
+  // review. The name is weighed only while the content cannot establish it.
+  const CONTENT_ESTABLISHES=0.9;
+  const contentEstablished=(confidence:number|null|undefined)=>typeof confidence==='number'&&confidence>=CONTENT_ESTABLISHES;
+  const nameDiffers=(type:string,confidence:number|null|undefined=document.identification?.confidence)=>!contentEstablished(confidence)&&!!nameHint&&nameHint!=='supporting_document'&&nameHint!==type;
   const nameReason=(type:string)=>'The file name suggests '+nameHint!.replaceAll('_',' ')+' but the content shows '+type.replaceAll('_',' ')+'. The content type is used. Confirm it after checking the source.';
   const headerRoute=tableRows?inferTableSemanticRoute(tableRows,document.documentType):null;
   if(headerRoute)return {
     documentType:headerRoute.documentType,category:headerRoute.category,
     recordedDocumentType:document.documentType,confidence:headerRoute.confidence,
-    reviewRequired:nameDiffers(headerRoute.documentType),headerClassified:true,
+    reviewRequired:nameDiffers(headerRoute.documentType,Math.max(headerRoute.confidence,document.identification?.confidence??0)),headerClassified:true,
     usableRegister:!['superseded','scenario'].includes(document.basisState),
-    reason:(nameDiffers(headerRoute.documentType)?nameReason(headerRoute.documentType)+' ':'')+'Register type established by the retained header and rows. Row-level qualifications and completeness are assessed separately.',
+    reason:(nameDiffers(headerRoute.documentType,Math.max(headerRoute.confidence,document.identification?.confidence??0))?nameReason(headerRoute.documentType)+' ':'')+'Register type established by the retained header and rows. Row-level qualifications and completeness are assessed separately.',
   };
   if(document.boqTableRead&&document.sourceHashSha256&&document.boqTableRead.sourceHashSha256===document.sourceHashSha256&&document.boqTableRead.structuredTableFound)return {
     documentType:'boq',category:'boq_cost',recordedDocumentType:document.documentType,
@@ -2264,7 +2269,7 @@ export function documentClassificationForReview(document: StoredEvidenceDocument
     category: changed ? detected.category : document.category,
     recordedDocumentType: document.documentType,
     reviewRequired: Boolean(changed||document.identification?.needsReview||nameDiffers(changed?detected.documentType:document.documentType)),
-    reason: changed ? "Content classification differs from the stored type. Review the document mapping; evidence authority and active basis are unchanged." : document.identification?.needsReview?'The source reader is uncertain about this document type. Confirm or correct the type after checking the retained source.':nameDiffers(document.documentType)?nameReason(document.documentType):null };
+    reason: changed ? "Content classification differs from the stored type. Review the document mapping; evidence authority and active basis are unchanged." : document.identification?.needsReview?(document.identification.method==='metadata_fallback'?'The content could not establish the document type, so it was taken from the file name only. Confirm or correct the type after checking the retained source.':'The source reader is uncertain about this document type. Confirm or correct the type after checking the retained source.'):nameDiffers(document.documentType)?nameReason(document.documentType):null };
 }
 
 export function documentClassificationChoices(document:StoredEvidenceDocument){
