@@ -192,9 +192,17 @@ const sheetSemanticExcludedTypes=new Set([
   'boq','main_contract','contract_amendment','contract_appendix','contract_replacement','tender_contract_document',
 ]);
 
+/** M2.1: the canonical reader interpretation of a table being read (the shared
+ * readers run on a scratch copy of the project holding only this table). Loaded
+ * lazily: the readers depend on modules that depend on this file. */
+function readerInterpretation(project:ProjectRuntimeState|null,rows:readonly string[][],documentType:string,category:string,sheetName:string,meanings:ReadonlyArray<{columnIndex:number}>){
+  const {uploadReaderInterpretation}=require('./reader-consumption') as typeof import('./reader-consumption');
+  const base=project??({projectId:'UPLOAD-READING',version:0,schedules:[],evidenceDocuments:[],contractDocuments:[],controls:{},phaseProgrammes:[]} as unknown as ProjectRuntimeState);
+  return uploadReaderInterpretation(base,{rows,documentType,category,sheetName,meanings});
+}
 export async function enrichRegisterSheetSemantics(
   read:NonNullable<StoredEvidenceDocument['tabularRead']>,
-  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[];requested?:boolean;steps?:NonNullable<StoredEvidenceDocument['semanticAiSteps']>;priorSteps?:StoredEvidenceDocument['semanticAiSteps']}={},
+  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[];requested?:boolean;steps?:NonNullable<StoredEvidenceDocument['semanticAiSteps']>;priorSteps?:StoredEvidenceDocument['semanticAiSteps'];project?:ProjectRuntimeState|null}={},
 ){
   let aiCalls=0,stoppedAtCap=false;
   // Resume: a paid call already made for this exact source sheet is never repeated.
@@ -225,7 +233,9 @@ export async function enrichRegisterSheetSemantics(
       if(route&&!sheetSemanticExcludedTypes.has(route.documentType))sheet.semantic={documentType:route.documentType,category:route.category,
         confidence:route.confidence,method:'tabular_content',signals:['Generic table semantics',...route.basis]};
     }
-    const needsSemanticReading=!sheet.semantic||tableNeedsSemanticReading(sheet.rows,sheet.semantic.documentType,sheet.semantic.columnMeanings??[]);
+    // M2.1: the canonical reader interpretation decides what is unread (the same as the column report).
+    const interpretation=sheet.semantic?readerInterpretation(options.project??null,sheet.rows,sheet.semantic.documentType,sheet.semantic.category,sheet.name,sheet.semantic.columnMeanings??[]):null;
+    const needsSemanticReading=!sheet.semantic||tableNeedsSemanticReading(interpretation!);
     if(!needsSemanticReading){
       options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'not_required',attempted:false,note:'CMeng rule-based reading established the available column meanings.'});
     }else if(alreadyRead.has(sheet.name)){
@@ -238,7 +248,7 @@ export async function enrichRegisterSheetSemantics(
       aiCalls++;
       try{
         const resolved=await options.resolver.resolveTable({sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
-          hintedDocumentType:sheet.semantic?.documentType??null});
+          hintedDocumentType:sheet.semantic?.documentType??null,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})});
         const accepted=!!resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType);
         if(accepted)sheet.semantic=resolved!;
         else options.diagnostics?.push('Worksheet '+sheet.name+': AI reading could not establish the remaining column meanings. Source values are retained.');
@@ -2526,7 +2536,7 @@ export class RuntimeProjectStore {
             try{
               const copy=structuredClone(document.tabularRead);for(const sheet of copy.sheets)delete sheet.semantic;
               const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
-              await enrichRegisterSheetSemantics(copy,{cached:document.tabularRead,steps});
+              await enrichRegisterSheetSemantics(copy,{project:state,cached:document.tabularRead,steps});
               if(steps.length){document.semanticAiSteps=[...(document.semanticAiSteps??[]),...steps];aiStepsRecorded=true;}
             }catch(error){diagnostics.push('AI_READING_STEPS_UNRESOLVED:'+document.documentId+':'+String(error));}
           }
@@ -2545,7 +2555,7 @@ export class RuntimeProjectStore {
           }
           if(isWorkbook){
             const refreshSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
-            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{cached:document.tabularRead,diagnostics:next.identification.diagnostics,...(hasCurrentAiSteps?{}:{steps:refreshSteps})});
+            next.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,next.sourceHashSha256,next.documentType),{project:state,cached:document.tabularRead,diagnostics:next.identification.diagnostics,...(hasCurrentAiSteps?{}:{steps:refreshSteps})});
             // Steps already recorded for this source (including paid calls) are kept as they are.
             if(!hasCurrentAiSteps&&refreshSteps.length)next.semanticAiSteps=[...(document.semanticAiSteps??[]),...refreshSteps];
             const resolved=workbookSemanticIdentity(next.category,next.documentType,next.identification,next.tabularRead);
@@ -4686,7 +4696,7 @@ export class RuntimeProjectStore {
     const semanticResolver=input.allowSemanticAi?(this.semanticAiResolver??configuredTableSemanticAiResolver()):null;
     const semanticAiSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
     let tabularRead=/spreadsheetml|ms-excel/.test(media)
-      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{resolver:semanticResolver,requested:input.allowSemanticAi===true,steps:semanticAiSteps,cached:priorSameSource?.tabularRead,priorSteps:priorSameSource?.semanticAiSteps,diagnostics:identification.diagnostics})
+      ?await enrichRegisterSheetSemantics(await readRegisterWorkbook(input.bytes,sourceHashSha256,documentType),{project:existingState,resolver:semanticResolver,requested:input.allowSemanticAi===true,steps:semanticAiSteps,cached:priorSameSource?.tabularRead,priorSteps:priorSameSource?.semanticAiSteps,diagnostics:identification.diagnostics})
       :undefined;
     let csvSemantic=priorSameSource?.sourceHashSha256===sourceHashSha256?priorSameSource.csvSemantic:undefined;
     if(tabularRead){
@@ -4696,12 +4706,14 @@ export class RuntimeProjectStore {
       try{
         const rows=truthCsv(Buffer.from(input.bytes).toString('utf8').replace(/^\uFEFF/,''));
         const route=inferTableSemanticRoute(rows,documentType);
-        const needsSemanticReading=!route||tableNeedsSemanticReading(rows,route.documentType);
+        // M2.1: the canonical reader interpretation decides what is unread (the same as the column report).
+        const interpretation=route?readerInterpretation(existingState,rows,route.documentType,route.category,'CSV',[]):null;
+        const needsSemanticReading=!route||tableNeedsSemanticReading(interpretation!);
         let csvAiAttempted=false,csvAiFailed=false,csvAiError:ReturnType<typeof classifyAiCallError>|null=null;
         if(!csvSemantic&&semanticResolver&&needsSemanticReading){
           csvAiAttempted=true;
           try{
-            const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType});
+            const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})});
             if(proposed)csvSemantic=proposed;
             else identification.diagnostics.push('AI reading could not establish the remaining column meanings. Source values are retained.');
           }catch(error){

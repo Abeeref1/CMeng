@@ -3,7 +3,7 @@ import {
   analyzeEvidenceTable,
   canonicalHeader,
   inferTableSemanticRoute,
-  prepareEvidenceRows,
+
   tableSemanticSchemas,
   type EvidenceSemanticColumnMeaning,
   type EvidenceTableSemantic,
@@ -15,6 +15,9 @@ export interface TableSemanticAiInput {
   sheetName:string;
   rows:readonly string[][];
   hintedDocumentType?:string|null;
+  /** M2.1: the columns with values that no canonical reader consumed (the only
+   * columns the AI is asked about). Absent only for an unrecognised table. */
+  unconsumedColumns?:ReadonlyArray<{columnIndex:number;rawHeader:string}>;
 }
 export interface TableSemanticAiProposal {
   sourceHashSha256:string;
@@ -88,11 +91,12 @@ export function assessTableSemanticAiProposal(input:TableSemanticAiInput,proposa
     method:'ai_grounded',signals:['AI proposal validated against retained table structure',...routed.basis],columnMeanings:meanings};
 }
 
-/** A recognized table can still contain populated columns the reader missed. */
-export function tableNeedsSemanticReading(rows:readonly string[][],documentType:string,meanings:readonly EvidenceSemanticColumnMeaning[]=[]):boolean{
-  const prepared=prepareEvidenceRows(rows,documentType,[],meanings);
-  return !prepared.recognized||prepared.columnAudit.some((column,index)=>
-    column.mappingState==='unused'&&prepared.rows.some(row=>Boolean(row[index]?.trim())));
+/** A recognized table can still contain populated columns the readers missed.
+ * M2.1: "missed" is decided by the canonical reader interpretation (what the
+ * shared readers consume, the same as the column report), never by the
+ * recognition word list. */
+export function tableNeedsSemanticReading(interpretation:{recognized:boolean;unconsumed:ReadonlyArray<unknown>}):boolean{
+  return !interpretation.recognized||interpretation.unconsumed.length>0;
 }
 
 export class GroundedTableSemanticAiResolver implements TableSemanticAiResolver {
@@ -102,7 +106,9 @@ export class GroundedTableSemanticAiResolver implements TableSemanticAiResolver 
     const intelligence=analyzeEvidenceTable(input.rows);
     if(!intelligence.structurallyReadable)return null;
     const header=input.rows[intelligence.headerRowIndex]??[];
-    const profile=intelligence.columns.map(column=>({
+    // M2.1: only the columns no canonical reader consumed are asked about.
+    const asked=input.unconsumedColumns?.length?new Set(input.unconsumedColumns.map(column=>column.columnIndex)):null;
+    const profile=intelligence.columns.filter(column=>!asked||asked.has(column.columnIndex)).map(column=>({
       columnIndex:column.columnIndex,rawHeader:header[column.columnIndex]??'',headerContext:column.headerContext,
       dominantShape:column.dominantShape,nonEmptyCount:column.nonEmptyCount,uniqueRatio:column.uniqueRatio,
       dateRatio:column.dateRatio,numericRatio:column.numericRatio,currencyCodeRatio:column.currencyCodeRatio,

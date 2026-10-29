@@ -1,4 +1,4 @@
-import {runRegisterReaders} from './reader-consumption';
+import {runRegisterReaders,readerConsumedColumns} from './reader-consumption';
 import {scheduleAuthorityReview,programmeDocumentAuthority} from './schedule-authority';
 import {linkCandidatesRequest} from './link-candidates';
 import {projectControlSchedule} from './canonical-time-claims';
@@ -120,8 +120,6 @@ import {
   governedTables,
   sourceTables,
   sourceTitleSheet,
-  consumedColumnsFor,
-  registerReaderColumns,
   unusedColumnReason,
   TITLE_SHEET_COLUMN_REASON,
 } from "../../truth-kernel/src";
@@ -447,8 +445,9 @@ export function projectDocumentRegister(projectId:string){
             // recognition word list no longer decides it.
             columnUsage:(tablesByDocument.get(document.documentId)??[]).map((table,index)=>{
               const physical=table.intelligence.columns.map(column=>column.rawHeader);
-              const consumed=consumedColumnsFor(document.documentId),declared=registerReaderColumns(table.headers,document.documentType);
-              const read=(header:string,i:number)=>{const key=table.headers[i]??'';return !!key&&(consumed.has(key)||declared.has(key));};
+              // M2.1: the one reader interpretation (also used by the upload-time AI gate).
+              const consumed=readerConsumedColumns(state,document.documentId,table.headers,document.documentType);
+              const read=(header:string,i:number)=>{const key=table.headers[i]??'';return !!key&&consumed.has(key);};
               const unused=new Set(physical.filter((header,i)=>!read(header,i)));
               const titleSheet=sourceTitleSheet(table);
               return {

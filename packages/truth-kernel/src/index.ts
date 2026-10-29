@@ -354,6 +354,8 @@ function recordConsumed(row: SourceRow, key: string) {
 }
 /** M2.1: the canonical columns of one source document that a reader has read. */
 export function consumedColumnsFor(documentId: string): ReadonlySet<string> { return consumedColumns.get(documentId) ?? new Set(); }
+/** Drops what was recorded for a scratch reading (upload-time interpretation). */
+export function forgetConsumedColumns(documentId: string): void { consumedColumns.delete(documentId); }
 export const cell = (row: SourceRow, ...names: string[]): string => {
   for (const name of names) { const key = headerKey(name); const v = row.cells[key]; if (v !== undefined) { recordConsumed(row, key); if (v.trim() !== '') return v.trim(); } }
   return '';
