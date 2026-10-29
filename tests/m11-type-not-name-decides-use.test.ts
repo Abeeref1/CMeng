@@ -32,3 +32,9 @@ test('M1.1: productivity sources are used by type; IF01/IF02 names add nothing',
     }
   }
 });
+test('M1.1: a productivity model is recognised from its columns, under any name; a saved type decision stands',async()=>{
+  const {productivityContentKind}=await import('../packages/runtime-api/src/source-productivity-forecast');
+  const headers=['Work Package','Description','Remaining Quantity','Unit','Recent Achieved Rate / Day','Productive Days'];
+  assert.equal(productivityContentKind(headers),'work_packages','columns decide, not the IF01 prefix');
+  assert.equal(productivityContentKind(['Item','Description','Quantity','Rate','Amount']),null,'a BOQ is not a productivity model');
+});

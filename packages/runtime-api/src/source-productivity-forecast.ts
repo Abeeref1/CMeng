@@ -141,7 +141,7 @@ function basename(value: string): string {
 }
 
 export function productivityDocumentKind(
-  document: ProjectRuntimeState["evidenceDocuments"][number],
+  document: {documentType?: string | null | undefined},
 ): "work_packages" | "basis" | null {
   // M1.1: the type decides (content reading or the user's decision); the file name never does.
   if (document.documentType === "productivity_work_package_register") return "work_packages";
@@ -810,82 +810,36 @@ function productivityTables(
   state: ProjectRuntimeState,
   diagnostics: string[],
 ): SourceTable[] {
-  const byId =
-    new Map(
-      state.evidenceDocuments
-        .map(
-          (document) => [
-            document.documentId,
-            {
-              document,
-              kind:
-                productivityDocumentKind(
-                  document,
-                ),
-            },
-          ] as const,
-        )
-        .filter(
-          (
-            item,
-          ): item is readonly [
-            string,
-            {
-              document: ProjectRuntimeState["evidenceDocuments"][number];
-              kind: "work_packages" | "basis";
-            },
-          ] =>
-            item[1].kind !== null,
-        ),
-    );
+  // M1.1: a table is productivity evidence by its type (the content reading or
+  // the user's decision). Where the user has not decided the type, a table whose
+  // columns are a productivity model is read as one, whatever its file name or
+  // an older stored type says.
+  const kinds = new Map<string, "work_packages" | "basis">();
+  const all = sourceTables(state.evidenceDocuments, diagnostics).filter((table) => {
+    const kind = productivityDocumentKind(table.document) ??
+      ((table.document as {classificationDecision?: unknown}).classificationDecision ? null : productivityContentKind(table.headers));
+    if (kind) kinds.set(table.document.documentId, kind);
+    return kind !== null;
+  });
+  return all.filter((table) => {
+    const kind = kinds.get(table.document.documentId)!;
+    const sameKind = all.filter((candidate) => kinds.get(candidate.document.documentId) === kind);
+    const established = sameKind.some((candidate) => ["active", "additive"].includes(candidate.document.basisState));
+    if (established && table.document.basisState === "candidate") {
+      diagnostics.push("CANDIDATE_PRODUCTIVITY_REVISION_NOT_APPLIED:" + table.document.documentId);
+      return false;
+    }
+    return true;
+  });
+}
 
-  const all =
-    sourceTables(
-      state.evidenceDocuments,
-      diagnostics,
-    ).filter(
-      (table) =>
-        byId.has(
-          table.document.documentId,
-        ),
-    );
-
-  return all.filter(
-    (table) => {
-      const kind =
-        byId.get(
-          table.document.documentId,
-        )!.kind;
-      const sameKind =
-        all.filter(
-          (candidate) =>
-            byId.get(
-              candidate.document.documentId,
-            )!.kind ===
-            kind,
-        );
-      const established =
-        sameKind.some(
-          (candidate) =>
-            ["active", "additive"].includes(
-              candidate.document.basisState,
-            ),
-        );
-
-      if (
-        established &&
-        table.document.basisState ===
-          "candidate"
-      ) {
-        diagnostics.push(
-          "CANDIDATE_PRODUCTIVITY_REVISION_NOT_APPLIED:" +
-            table.document.documentId,
-        );
-        return false;
-      }
-      return true;
-    },
-  );
+/** M1.1: a productivity model recognised from its columns, never from its name. */
+export function productivityContentKind(headers: readonly string[]): "work_packages" | "basis" | null {
+  const h = headers.map((value) => String(value).toLowerCase());
+  const has = (pattern: RegExp) => h.some((value) => pattern.test(value));
+  if (has(/work package/) && (has(/rate\s*\/\s*day|rate per day|productive days/) || has(/remaining quantity/)) ) return "work_packages";
+  if (has(/forecast (?:method|basis)|productivity basis/) && has(/rate|allowance|factor/)) return "basis";
+  return null;
 }
 
 function calendarFromRows(
