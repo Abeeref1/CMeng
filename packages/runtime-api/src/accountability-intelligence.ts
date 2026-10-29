@@ -1,3 +1,4 @@
+import {pmcRoleFor} from './pmc-roles';
 import {projectScopeClassification} from './location-review';
 import {countText} from './count-text';
 import {floatHoursText,sourceCalendarWorkingDays} from './activity-float-reconciliation';
@@ -137,17 +138,8 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
   for(const detail of details){const key=actionRecordKey(detail.domain,detail.reference??detail.recordId),items=byRecord.get(key)??[];items.push(detail);byRecord.set(key,items);}
   // An unassigned person is never an unassigned responsibility. Keep the
   // original missing-person evidence and show the accountable PMC role.
-  const accountablePmcRole=(domain:string)=>{
-    const d=domain.toLowerCase();
-    return d==='procurement'?'Procurement Manager':
-      d==='rfi'||d==='design'?'Design Manager':
-      d==='ncr'||d==='quality'?'QA/QC Manager':
-      d==='schedule'||d==='activity'||d==='programme'?'Planning Manager':
-      d==='claim'||d==='notice'?'Contracts Manager':
-      d==='risk'?'Risk Manager':
-      d==='security'||d==='bond'||d==='insurance'?'Commercial Manager':
-      'Project Controls Manager';
-  };
+  // M12.1: the one role table.
+  const accountablePmcRole=(domain:string)=>pmcRoleFor(domain);
   // F54: an activity action names the RFI, NCR or package that concerns it, read
   // from the linked source record (its activity links), not from wording.
   const linkedRecordsByActivity=new Map<string,string[]>();

@@ -1,21 +1,13 @@
 import type {ManagementAction} from '../../truth-kernel/src';
+import {pmcRoleFor} from './pmc-roles';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 
 /** Preserve any named source owner; otherwise assign an accountable PMC discipline. */
 export function pmcRoleOwner(domain:string, sourceOwner:string|null|undefined=null):string {
  const owner=typeof sourceOwner==='string'?sourceOwner.trim():'';
  if(owner&&!/^(not assigned|not recorded|not in source|not established|unassigned|unknown|not supplied|null|undefined|tbd|n\/?a|n-a|n_a|—|-)$/i.test(owner))return owner;
- const scope=domain.toLowerCase();
- if(/risk/.test(scope))return 'PMC Risk Manager — individual not designated';
- if(/rfi|design|submittal/.test(scope))return 'PMC Design Manager — individual not designated';
- if(/ncr|quality|inspection/.test(scope))return 'PMC Quality Manager — individual not designated';
- if(/procurement|material|purchase|supplier/.test(scope))return 'PMC Procurement Manager — individual not designated';
- if(/claim|notice|eot|contract/.test(scope))return 'PMC Contracts Manager — individual not designated';
- if(/bond|insurance|commercial|payment|certificate|cost|variation/.test(scope))return 'PMC Commercial Manager — individual not designated';
- if(/hse|safety|permit/.test(scope))return 'PMC HSE Manager — individual not designated';
- if(/site|delivery|interface|resource|construction/.test(scope))return 'PMC Construction Manager — individual not designated';
- if(/schedule|programme|activity|cpm|float/.test(scope))return 'PMC Planning Engineer — individual not designated';
- return 'PMC Project Controls Manager — individual not designated';
+ // M12.1: the one role table.
+ return 'PMC '+pmcRoleFor(domain)+' — individual not designated';
 }
 
 /** Display state of an owner value. The stored owner (and every key built from it)

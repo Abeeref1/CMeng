@@ -39,7 +39,7 @@ test('A4: an owner assigned only as a PMC role is shown as missing, with its rol
 
 test('A4: the stored owner and keys built from it are unchanged; only the display state is added', ()=>{
   assert.equal(pmcRoleOwner('risk',null),'PMC Risk Manager — individual not designated');
-  assert.deepEqual(ownerDisplayState(pmcRoleOwner('schedule',null)),{named:false,role:'PMC Planning Engineer'});
+  assert.deepEqual(ownerDisplayState(pmcRoleOwner('schedule',null)),{named:false,role:'PMC Planning Manager'});
   assert.deepEqual(ownerDisplayState('Procurement Manager'),{named:true,role:null});
   assert.deepEqual(ownerDisplayState('Unassigned'),{named:false,role:null});
 });
@@ -130,7 +130,7 @@ test('A4 screens: an owner the API sends as missing shows "Owner not set" with i
   const sent=presentMissingOwners({actions:[{owner:risk,organisation:'Main Contractor'},{owner:schedule},{owner:'Jane Smith'},{owner:null}],
     decisions:[{accountableOwner:risk}],rows:[{dimension:'owner',value:risk}]}) as any;
   assert.equal(text(sent.actions[0]),'Owner not set · Accountable role: PMC Risk Manager','not blank and not the organisation');
-  assert.equal(text(sent.actions[1]),'Owner not set · Accountable role: PMC Planning Engineer');
+  assert.equal(text(sent.actions[1]),'Owner not set · Accountable role: PMC Planning Manager');
   assert.equal(text(sent.actions[2]),'Jane Smith','a named owner is unchanged');
   assert.equal(text(sent.actions[3]),null,'a value the API did not mark as missing is left to the existing fallback');
   assert.equal(text(sent.decisions[0],'accountableOwner'),'Owner not set · Accountable role: PMC Risk Manager');

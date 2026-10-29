@@ -4,8 +4,9 @@ export const systemReviewStyles=String.raw`
 
 .nav-review-totals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;font-size:10px}.nav-review-totals div{padding:9px;background:#f1f5fa;border-radius:7px}.nav-review-totals b{display:block;font-size:18px;color:#284967}.position-verdict{border:1px solid #cfdae7;border-left:5px solid #b57922;border-radius:8px;padding:12px 16px;margin:0 0 12px;background:#fff}.position-verdict.red{border-left-color:#b4483e}.position-verdict.green{border-left-color:#2c7a57}.position-verdict.unknown{border-left-color:#7c8998}.position-verdict h4{margin:0 0 8px;font-size:14px}.position-verdict p{margin:6px 0}.position-verdict small{color:#566c81}.position-verdict details{margin-top:9px;font-size:12px}.nav-counts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.nav-counts .nav-count{font-size:9px;padding:2px 4px}.source-scope-summary{font-size:12px;margin-bottom:18px;padding:8px 12px;background:#f7f9fc;border-radius:7px}.source-scope-summary summary{cursor:pointer;font-weight:650}.source-quality-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.source-quality-counts div{padding:16px;background:#f4f7fb;border:1px solid #dce5ef;border-radius:8px}.source-quality-counts b{display:block;font-size:25px}.decision-list{display:grid;gap:10px}.decision-list article{padding:15px;border:1px solid #dce5ef;border-radius:8px}.decision-list p{margin:5px 0}.decision-list small{display:block;margin-top:6px;color:#536c85}.future-register-note{margin:8px 0}.single-axis-caption{font-size:14px;font-weight:650;margin:18px 0 0}
 `;
+import {pmcRoleSource} from './pmc-roles';
 import {countTextSource} from './count-text';
-export const systemReviewScript=String.raw`${countTextSource()}
+export const systemReviewScript=String.raw`${countTextSource()}${pmcRoleSource()}
 function renderPositionVerdict(data,includeGeneral=false){
   const v=data?.positionVerdict;if(!v)return '';
   const issue=(data.issueAssessment?.issues||[]).find(i=>i.action===v.nextAction);
@@ -304,12 +305,7 @@ function readerIssue(i){
   if(!action&&i.action==='Supply or identify the specific missing input; an existing register does not establish every field or calculation. Do not substitute zero.')action='Provide '+(subject?subject.toLowerCase():'the missing information')+' with the applicable date and supporting record. Leave the value unconfirmed until it is available.';
   action=action||words(i.action);
   const moduleKeys=(i.moduleKeys??[]).map(value=>String(value).toLowerCase()).join(' ');
-  const accountableRole=/procure|long-lead|material/.test(moduleKeys)?'Procurement Manager':
-    /design|rfi|interface/.test(moduleKeys)?'Design Manager':
-    /quality|ncr|hse/.test(moduleKeys)?'QA/QC Manager':
-    /schedule|programme|planning|forecast|critical|delay/.test(moduleKeys)?'Planning Manager':
-    /commercial|payment|contract|claim|bond|cash|cost|retention|advance|certificate|security/.test(moduleKeys)?'Commercial Manager':
-    'Project Controls Manager';
+  const accountableRole=pmcRoleFor(moduleKeys);
   const recordedOwner=(typeof apiOwnerText==='function'?apiOwnerText(i):i.owner);
   const owner=String(recordedOwner&&recordedOwner!=='Project evidence owner'?recordedOwner:accountableRole).replace(/\s*\(assign a person\)/gi,'');
   return {title:readerText(title),action:readerText(action),owner,assignTo:owner};
