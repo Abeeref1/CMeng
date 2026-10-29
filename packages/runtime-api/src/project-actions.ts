@@ -27,6 +27,8 @@ import {projectReviewGroup} from './project-review-groups';
 import {boqNumericReview} from './boq-numeric-review';
 import {projectControlSchedule,canonicalTimeClaims,projectDataDate} from './canonical-time-claims';
 import {createHash} from 'node:crypto';
+import {cachedIndependentForecast} from './forecast-cache';
+import {buildForecastReconciliationGate} from './forecast-control';
 import type {ControlIssueAssessment,ControlIssue,ControlIssueMember} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {scheduleAuthorityReview} from './schedule-authority';
@@ -582,6 +584,12 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       reason:countText(ids.length,'determination','determinations')+' ('+ids.slice(0,8).join(', ')+') '+(ids.length===1?'has':'have')+' no determination date. '+(ids.length===1?'Its days are':'Their days are')+' counted in the awarded EOT, marked as not confirmed, until the date is supplied.',
       resolution:{kind:'upload',requiresUserAction:true,instruction:'Add the determination date to the register and upload it again.',completionRule:'The item closes when every counted determination has a date.'},
       target:{type:'upload',label:'Upload the corrected determination register',uploadHint:'Determination register with dates',uploadMode:'evidence'}});}}
+  // M13.2 + M6.4: the forecast position decides its own Project Review item. A
+  // finish CMeng cannot calculate, or one qualified by something the user can
+  // correct (a loop, a repeated ID, a missing or external link, an assumed
+  // calendar, the duration basis), gives exactly one item naming each cause
+  // and what to do. Correcting it changes the published finish.
+  {const item=forecastReviewItem(state);if(item)actions.push(item);}
   const valueReview=contractValueReview(state);
   if(!state.controls.contractValue&&valueReview.candidates.length){
     const saved=valueReview.decision;
@@ -672,4 +680,23 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,information:dataGaps,dataGaps,heldEvidence:{advanceBondCount:heldAdvanceBonds.length,datedCertificateCount:heldCertificates.length},
     analysis:{state:model?'analysed':state.schedules.length?'programme_selection_needed':'no_programme',activityCount:model?.activities.length??null,dataDateIso:model?.dataDateIso??null,sourceFilename:programme?.sourceFilename??null},
     systemCheckCount:systemItems.length,scope:'One matter per underlying information or decision group. Affected pages and all original findings are retained inside each matter. Missing optional domains are shown separately as coverage information. Decisions refresh from the current project records.'};
+}
+
+const FORECAST_ACTIONABLE=new Set(['network_repaired','network_references','external_links','assumed_calendar','elapsed_day_pattern','constraints_not_applied','partial_coverage']);
+/** M13.2/M6.4: one Project Review item from the forecast position itself. */
+export function forecastReviewItem(state:ProjectRuntimeState):ProjectAction|null{
+  const model=projectControlSchedule(state)?.revision.model;
+  if(!model||!model.activities.length)return null;
+  const forecast=cachedIndependentForecast(model,'project-version:'+state.version);
+  const managed=buildForecastReconciliationGate({forecast,model,requiredFinishIso:null}).managementForecast;
+  if(managed.state==='not_calculable')return {id:'matter:forecast-not-calculable',category:'follow_up',title:'CMeng cannot calculate the finish from this programme yet',owner:'Planning Manager',recordCount:1,
+    reason:String(managed.notCalculableReason??'The programme network cannot be calculated.'),
+    resolution:{kind:'upload',requiresUserAction:true,instruction:'Correct the cause named here in the programme and upload it again.',completionRule:'The item closes when CMeng can calculate the finish.'},
+    target:{type:'upload',label:'Upload the corrected programme',uploadHint:'Corrected programme (XER or XML)',uploadMode:'schedule'}};
+  const fixable=managed.qualifications.filter(q=>FORECAST_ACTIONABLE.has(q.code));
+  if(!fixable.length)return null;
+  return {id:'matter:forecast-qualifications',category:'follow_up',title:'Firm up the CMeng finish ('+(managed.completionIso??'').slice(0,10)+')',owner:'Planning Manager',recordCount:fixable.length,
+    reason:'The finish is calculated and shown with '+countText(fixable.length,'qualification','qualifications')+' you can correct: '+fixable.map(q=>q.text.replace(/\.$/,'')).join('; ')+'.',
+    resolution:{kind:'upload',requiresUserAction:true,instruction:fixable.map(q=>q.action).join(' '),completionRule:'Each qualification clears when the corrected programme or input removes its cause; the finish is recalculated at once.'},
+    target:{type:'upload',label:'Upload the corrected programme',uploadHint:'Corrected programme (XER or XML)',uploadMode:'schedule'}};
 }

@@ -30,7 +30,9 @@ test('uncertain document classification reaches Project Review and stays editabl
  assert.equal((await request({choice:'invented_type'})).status,409);assert.equal((await request({reference:''})).status,409);
  assert.equal((await request({})).status,200);
  let document=(await get('/evidence/documents')).documents[0];assert.equal(document.documentType,'cost_evm_report');assert.equal(document.classificationReview.reviewRequired,false);
- assert.equal(document.sourceHashSha256,original.sourceHashSha256);assert.deepEqual(document.identification,original.identification);assert.equal(document.basisState,original.basisState);
+ assert.equal(document.sourceHashSha256,original.sourceHashSha256);assert.deepEqual(document.identification,original.identification);
+ // M1.2: the confirmed type re-applies the basis: the only cost report in its family is in use.
+ assert.equal(original.basisState,'historical');assert.equal(document.basisState,'active');
  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
  workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-document-classification');assert.ok(action);assert.equal(action.target.reviewChoice,'cost_evm_report');assert.equal(action.target.reviewReference,'TYPE-CHECK-1');
  const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String,project:()=> 'TYPE-REVIEW'});assert.match(html,/Download retained source/);assert.match(html,/Source review reference/);assert.match(html,/cost_evm_report" selected/);

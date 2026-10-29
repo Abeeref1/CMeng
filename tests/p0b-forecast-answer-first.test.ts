@@ -170,3 +170,30 @@ for(const [name,row,code] of [
   assert.ok(q&&/\S/.test(q.text)&&/\S/.test(q.action),'named with an action: '+JSON.stringify(gate.managementForecast.qualifications));
   assert.match(String(gate.reason),/\S/);
 });
+
+// M13.2 + M6.4 invariant: the forecast position decides its Project Review item.
+// A loop, a repeated ID or an external link gives exactly one item that names
+// each cause and the finish; a clean programme gives none.
+test('M13.2: a loop, a repeated ID or an external link gives exactly one forecast item naming the cause; a clean programme gives none',async()=>{
+  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
+  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const base=(id:string)=>programme(id,Object.fromEntries(NAMES.map(n=>[n,false])) as Triggers).toString('utf8');
+  const cases:Array<[string,(id:string)=>string,RegExp|null]>=[
+    ['M132-CLEAN',id=>base(id),null],
+    ['M132-LOOP',id=>base(id).replace('%E',['%R','7999','1','2000','1','2001','PR_FS','0'].join('\t')+'\n%E'),/loop/i],
+    ['M132-EXT',id=>base(id).replace('%E',['%R','7998','1','2005','2','88888','PR_FS','0'].join('\t')+'\n%E'),/another project/],
+  ];
+  for(const [id,xer,cause] of cases){
+    const state=runtimeProjects.getOrCreate(id);
+    await runtimeProjects.ingestEvidenceFile({projectId:id,sourceFilename:id+'.xer',bytes:Buffer.from(xer(id)),mediaType:'text/plain',uploadedAt:'2033-03-16T09:00:00Z',uploadIntent:'add_update'});
+    const review=projectActions(runtimeProjects.getOrCreate(id),summarizeControlIssues([],0));
+    const items=[...review.actions,...review.information].filter(a=>a.id.startsWith('matter:forecast-'));
+    if(!cause){assert.equal(items.length,0,id+': nothing to correct, no item');continue;}
+    assert.equal(items.length,1,id+': exactly one forecast item: '+JSON.stringify(items.map(i=>i.id)));
+    assert.match(items[0]!.reason,cause,id+': the cause is named: '+items[0]!.reason);
+    const finish=(moduleForProject(id,'independent-forecast').data as any).forecastReconciliationGate.managementForecast.completionIso;
+    assert.ok(items[0]!.title.includes(String(finish).slice(0,10)),'the item names the finish it qualifies');
+    assert.equal(items[0]!.resolution?.requiresUserAction,true);
+    void state;
+  }
+});
