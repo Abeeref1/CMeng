@@ -491,6 +491,12 @@ test('Delivery Risks uses the existing risk population, not unrelated procuremen
  const f=await fixture(t);await f.upload('Procurement.csv','Package ID,Description\nP1,Unrelated package\nP2,Another package');
  let report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'blocked');assert.match(report.reason!,/No confirmed Project Risk Register is available/);assert.equal((report.data as any).reviewRecords.length,0);
  await f.upload('Risks.csv','Risk ID,Description,Status,Identified Date,Probability,Impact,Rating\nR1,Current risk,Open,2031-08-01,0.4,3,Medium\nR2,Future risk,Open,2031-09-10,0.2,2,Low');
+ // M4.3: the readable risk register gives its available counts at once, qualified;
+ // it is a confirmed denominator (and the page ready) only after it is confirmed complete.
+ report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'partial');
+ assert.equal((report.data as any).population.denominator,null);assert.equal((report.data as any).summary.openCount,1);assert.equal((report.data as any).summary.completenessState,'not_established');
+ const {riskPopulationFingerprint}=await import('../packages/runtime-api/src/register-completeness');
+ f.state.controls.reviewDecisions={...(f.state.controls.reviewDecisions??{}),'risk-register-complete':{choice:'confirm_complete',sourceFingerprint:riskPopulationFingerprint(f.state),confirmedAt:'2031-09-01',sourceRefs:[]} as any};f.state.version++;
  report=deliveryModule(f.state,'delivery-risks');assert.equal(report.status,'ready');assert.match(report.reason!,/2 risk records are supplied: 1 current, 1 after/);
  assert.equal((report.data as any).population.kind,'risk');assert.equal((report.data as any).population.denominator,1);assert.equal((report.data as any).metrics.find((m:any)=>m.label==='Open at reporting date').value,1);assert.equal((report.data as any).reviewRecords.length,0);
  const linked=f.create('workfront','WF1',{}, {riskIds:['R1']});report=deliveryModule(f.state,'delivery-risks');assert.deepEqual((report.data as any).reviewRecords.map((r:any)=>r.recordId),[linked.recordId]);

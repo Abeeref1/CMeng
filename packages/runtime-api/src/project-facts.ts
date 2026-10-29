@@ -1,4 +1,4 @@
-import {registerCompleteness,type RegisterCompleteness} from './register-completeness';
+import {registerCompleteness,riskRegisterCompleteness,type RegisterCompleteness} from './register-completeness';
 import {projectDecisionFacts,decisionAnalysisForModule,measuredProgressByArea} from './project-decision-facts';
 import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,quantityInputStatus,installedQuantityInputStatus,cpmCoverageInputStatus,disciplineInputStatus,bindSharedInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus,type QuantityInputStatus,type InstalledQuantityInputStatus,type CpmCoverageInputStatus,type DisciplineInputStatus} from './project-input-status';
 import {boqSourceReporting} from './reporting-state';
@@ -601,6 +601,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         operations.risk.complete,
         'Current risk register open records.',
         registerScopeReason(operations.risk,'a risk register'),
+        riskRegisterCompleteness(state),
       ),
     },
     claims:{

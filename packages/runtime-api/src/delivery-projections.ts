@@ -1,4 +1,5 @@
 import {ownersForActivity,withActivityOwners} from './activity-owners';
+import {riskRegisterCompleteness} from './register-completeness';
 import {handoverSourceComparison} from './handover-source-review';
 import {currentReadinessEvidence} from './current-readiness';
 import {countText,countUnit} from './count-text';
@@ -807,9 +808,11 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  // BOQ wording is never a risk and is listed only as labelled candidates.
  const riskSourceDocumentCount=riskPage?managementSourceInventory(state).domains.find(domain=>domain.domain==='risk')?.documentCount??0:0;
  const riskUnknownReason=!riskPage||risk.sourceRecordCount>0?null:riskSourceDocumentCount>0?'Risk register uploaded but not read':'No risk register read';
- const riskKnown=riskPage&&!riskUnknownReason,riskComplete=riskKnown&&risk.complete;
+ // M4.3: readable risk records give the available counts at once, qualified;
+ // the register is a confirmed denominator only after it is confirmed complete.
+ const riskKnown=riskPage&&!riskUnknownReason,riskReadable=riskKnown&&risk.complete,riskConfirmation=riskPage?riskRegisterCompleteness(state):null,riskComplete=riskReadable&&riskConfirmation?.state==='established';
  const population=riskPage?{kind:'risk',scopeId:null,state:riskComplete?'established':'not_established',denominator:riskComplete?risk.currentRecordCount:null,knownRecordCount:riskKnown?risk.currentRecordCount:null,pendingRecordCount:riskKnown?risk.undatedRecordCount+ risk.unknownStatusCount:null,recordIds:risk.current.map(r=>r.riskId),basis:riskUnknownReason?riskUnknownReason+'. The full set of risks is unknown.':'Existing project risk register, using its dated status and source completeness checks. Delivery record review does not approve the risk register.',confirmedAt:null}:p.populations[kind]!;
- const summary=riskPage?{currentCount:riskComplete?risk.currentRecordCount:null,knownCurrentCount:riskKnown?risk.currentRecordCount:null,openCount:riskComplete?risk.current.filter(r=>r.status==='open').length:null,knownOpenCount:riskKnown?risk.current.filter(r=>r.status==='open').length:null,overdueCount:null,knownOverdueCount:null,passRatePercent:null,unknownOutcomeCount:riskKnown?risk.unknownStatusCount:null,basis:population.basis}:p.summaries[kind]!;
+ const summary=riskPage?{currentCount:riskComplete?risk.currentRecordCount:null,knownCurrentCount:riskKnown?risk.currentRecordCount:null,openCount:riskReadable?risk.current.filter(r=>r.status==='open').length:null,completenessState:riskReadable?riskConfirmation!.state:null,completenessNote:riskReadable?riskConfirmation!.note:null,knownOpenCount:riskKnown?risk.current.filter(r=>r.status==='open').length:null,overdueCount:null,knownOverdueCount:null,passRatePercent:null,unknownOutcomeCount:riskKnown?risk.unknownStatusCount:null,basis:population.basis}:p.summaries[kind]!;
  const populationAuthority=deliveryPopulationAuthority(population,records.length,summary.currentCount);
  const confirmedInterfaceIssues=interfaces.rows.filter(r=>r.authority==='confirmed'&&r.state!=='closed');
  const interfaceRiskRows=confirmedInterfaceIssues.map(r=>({recordId:'interface-risk:'+r.interfaceId,riskId:'IF-'+r.interfaceId,reference:r.interfaceId,description:r.consequence||('Open interface '+r.interfaceId),status:'Candidate',rating:null,score:null,categories:['interface'],owner:r.responsibleParty??r.givingParty??r.receivingParty,authority:'candidate',candidateGroup:'Candidates from interface records, not risks',basis:'Professional delivery-risk candidate from confirmed Interface records; not a formal Project Risk Register entry.',linkedActivity:r.linkedActivity,relatedPackages:r.packageIds}));

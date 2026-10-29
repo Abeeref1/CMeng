@@ -15,6 +15,7 @@ import type {CanonicalCommercialModel} from './commercial-canonical';
 import {noticeReviewBasis,contractFactDecisionItemsForState} from './notice-review';
 import {completionDecisionItem} from './contract-fact-decisions';
 import {operationalControlsAsOf} from './operational-reporting';
+import {riskPopulationFingerprint,riskRegisterCompleteness,RISK_COMPLETE_DECISION_KEY} from './register-completeness';
 import {commercialSourceReadConflicts} from './evidence-control-adapters';
 import {sourceAnalyticalCandidateIds} from './operational-reporting';
 import {deliveryCurrentRecord} from './delivery-records';
@@ -574,6 +575,20 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       target:{type:'inline',kind:'review-risk-snapshot',label:'Confirm register status date',reviewChoice:saved?.choice??null,reviewDateIso:saved?.asOfIso??null,reviewOptions:[{value:'confirm_snapshot',label:'Use the supplied statuses at the date I enter'}]}};
     (saved?information:actions).push(item);
   }
+  // M4.3 for the risk register: readable risk records are counted at once (qualified);
+  // confirming the register complete makes them the confirmed totals. Asked only
+  // when the records are readable, so confirming changes the published figures.
+  {const risk=ops.risk as {complete:boolean;sourceRecordCount:number;currentRecordCount:number};
+   if(risk.sourceRecordCount>0&&risk.complete){
+    const fingerprint=riskPopulationFingerprint(state),decided=riskRegisterCompleteness(state).state==='established';
+    const item:ProjectAction={id:'matter:'+RISK_COMPLETE_DECISION_KEY,category:decided?'information':'confirmation',title:'Confirm the complete risk register',owner:'Risk Manager',recordCount:risk.currentRecordCount,
+      reason:countText(risk.currentRecordCount,'current risk is','current risks are')+' read at the Data Date. Their counts are shown now, marked "not confirmed complete". Confirm only if these are all the project risks; the counts then become the confirmed totals.',
+      reviewFingerprint:fingerprint,reviewSourceRefs:state.evidenceDocuments.filter(d=>d.documentType==='risk_register').map(d=>'evidence-document:'+d.documentId),
+      resolution:{kind:'choose',requiresUserAction:!decided,instruction:'Confirm here that the risk register is complete.',completionRule:'The confirmation holds while the risk records stay the same; a changed risk set is asked again.'},
+      target:{type:'inline',kind:'review-commercial-record',label:'Confirm complete register',reviewChoice:decided?'confirm_complete':null,reviewReference:null,reviewInputType:'choice_only',
+        reviewOptions:[{value:'confirm_complete',label:'The risk register is complete'},...(decided?[{value:'undo',label:'Undo my decision'}]:[])]}};
+    (decided?information:actions).push(item);
+   }}
   const time=canonicalTimeClaims(state),basis=reportingTimeBasis(state,time.contractTimeBasis);
   // C9: asked whenever an amendment and awarded determinations overlap, with CMeng's best answer filled in;
   // until the user decides, that answer gives the governing date (qualified).
