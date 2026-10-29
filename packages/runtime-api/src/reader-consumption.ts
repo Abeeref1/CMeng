@@ -9,12 +9,23 @@ import {operationalControlsAsOf} from './operational-reporting';
 import {deliveryRecords} from './delivery-records';
 import {consumedColumnsFor,forgetConsumedColumns,registerReaderColumns,sourceTables} from '../../truth-kernel/src';
 import {registerCsv} from './register-workbook';
+import {deliveryDocumentKinds} from '../../delivery-core/src/reader-columns';
 
 /** M2.1: run the shared register readers for the current project version, so
  * the column report reflects what each reader consumed. Each reader is cached
  * per project version; this only reads what has not been read yet. */
-export function runRegisterReaders(state:ProjectRuntimeState):void{
-  for(const read of [()=>canonicalTimeClaims(state),()=>commercialCanonical(state),()=>operationalControlsAsOf(state,projectDataDate(state)),()=>deliveryRecords(state)]){
+export function runRegisterReaders(state:ProjectRuntimeState,documentTypes?:readonly string[]):void{
+  // The readers that read these document types (all of them when the types are not given or not known).
+  const types=(documentTypes??[]).join(' ').toLowerCase();
+  const wanted={time:/delay|eot|claim|determination|notice|letter|correspond|contract/.test(types),
+    commercial:/payment|certificate|variation|cost|evm|bond|insurance|retention|security|invoice|cash|budget|commit|boq|commercial/.test(types),
+    operational:/ncr|rfi|risk|hse|incident|quality|design|submittal|procurement|testing|commissioning/.test(types),
+    delivery:(documentTypes??[]).some(type=>Boolean((deliveryDocumentKinds as Record<string,unknown>)[type]))};
+  const any=!documentTypes||!Object.values(wanted).some(Boolean);
+  const readers:Array<[boolean,()=>unknown]>=[[wanted.time,()=>canonicalTimeClaims(state)],[wanted.commercial,()=>commercialCanonical(state)],
+    [wanted.operational,()=>operationalControlsAsOf(state,projectDataDate(state))],[wanted.delivery,()=>deliveryRecords(state)]];
+  for(const [use,read] of readers){
+    if(!any&&!use)continue;
     try{read();}catch{/* a reader that cannot run reads nothing; its columns stay not used */}
   }
 }
@@ -44,9 +55,11 @@ export function uploadReaderInterpretation(base:ProjectRuntimeState,input:{rows:
       mediaType:'text/csv',sizeBytes:Buffer.byteLength(text),basisState:'active',linkedArtifactId:null,category:input.category,documentType:input.documentType,
       familyKey:documentId,logicalDocumentKey:documentId,uploadedAt:new Date(0).toISOString(),diagnostics:[],assertions:[],authority:'candidate_only',parserState:'parsed',
       scheduleRole:null,mapping:null,uploadIntent:'add_update',supersedesDocumentIds:[],supersededByDocumentId:null,identification:{},lineage:{}} as unknown as StoredEvidenceDocument;
-    const scratch={...base,projectId:base.projectId+'::upload-reading',evidenceDocuments:[doc],controls:structuredClone(base.controls),version:base.version+1} as ProjectRuntimeState;
+    // The readers see a copy of the project's controls without the large derived
+    // readiness map (no register reader reads it), so the project is never changed.
+    const scratch={...base,projectId:base.projectId+'::upload-reading',evidenceDocuments:[doc],controls:structuredClone({...base.controls,readinessEvidence:{}}),version:base.version+1} as ProjectRuntimeState;
     forgetConsumedColumns(documentId);
-    runRegisterReaders(scratch);
+    runRegisterReaders(scratch,[input.documentType]);
     // The same table reading the column report uses (sourceTables), never a second parse.
     const table=sourceTables([doc],[])[0];
     if(!table)return {headers:[],consumed:new Set(),unconsumed:[],recognized:false};
