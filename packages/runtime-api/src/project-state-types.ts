@@ -526,6 +526,8 @@ export interface ProjectRuntimeState {
   lastRerunReceipt:
     EvidenceRerunReceipt | null;
   controls: ProjectControlState;
+  /** M3.1: the evidence-family rules this project's document states were last decided under. */
+  evidenceRulesVersion?: number;
 }
 
 export interface ScheduleUploadSummary {

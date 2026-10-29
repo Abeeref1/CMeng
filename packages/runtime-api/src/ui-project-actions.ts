@@ -156,7 +156,7 @@ function actionResolutionHtml(a){
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Confirm this programme for reporting.')+'</p><button class="btn primary" data-resolve-schedule="'+escapeHtml(a.id)+'">'+escapeHtml(t.label||'Use this programme')+'</button><p class="action-inline-message" role="status"></p></div>';
  }
  if(t.type==='document'){
-  const options=(t.relationshipOptions||[]).map(o=>'<option value="'+escapeHtml(o.value)+'">'+escapeHtml(o.label)+'</option>').join('');
+  const options=(t.relationshipOptions||[]).map(o=>'<option value="'+escapeHtml(o.value)+'"'+(t.reviewChoice===o.value?' selected':'')+'>'+escapeHtml(o.label)+'</option>').join('');
   const targets=(t.relationshipTargets||[]).map(x=>'<option value="'+escapeHtml(x.documentId)+'">'+escapeHtml(x.filename)+'</option>').join('');
   return '<div class="action-resolution"><p>'+escapeHtml(r.instruction||'Choose how this document updates the Project.')+'</p><div class="action-resolution-grid"><label>Document relationship<select class="action-document-kind">'+options+'</select></label><label class="action-document-target-label" hidden>Related current document<select class="action-document-target"><option value="">Choose document</option>'+targets+'</select></label></div><button class="btn primary" data-resolve-document="'+escapeHtml(a.id)+'">Confirm relationship</button><p class="action-inline-message" role="status"></p></div>';
  }

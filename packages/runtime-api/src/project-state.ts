@@ -1364,11 +1364,24 @@ function hydrateProject(
     );
   }
 
+  // M3.1: when the evidence-family rules have changed since this project was last
+  // decided, every non-programme family is decided again under the current rules,
+  // in upload order (the same result a fresh project gets). Saved relationship
+  // decisions are replayed by the same rules. Programme adoption is not changed.
+  if((legacy as any).evidenceRulesVersion!==EVIDENCE_RULES_VERSION){
+    const families=new Set(hydrated.evidenceDocuments.filter(d=>d.category!=='schedule'&&!affectedFamilies.has(d.familyKey)).map(d=>d.familyKey));
+    for(const familyKey of families)rebuildEvidenceFamily(hydrated,familyKey);
+  }
+  hydrated.evidenceRulesVersion=EVIDENCE_RULES_VERSION;
+
   if(hydrated.boq)hydrated.boq=quarantineUnconfirmedBoqNumerics(hydrated.boq);
   hydrated.boqRevisions=hydrated.boqRevisions.map(quarantineUnconfirmedBoqNumerics);
   hydrated.quantities=quarantineBoqQuantityModel(hydrated.quantities,hydrated.boq);
   return hydrated;
 }
+
+/** M3.1: raise when the rules that decide which file of a family is current change. */
+export const EVIDENCE_RULES_VERSION=2;
 
 
 function safeSegment(
@@ -1994,6 +2007,7 @@ export class RuntimeProjectStore {
         derivedControlsByDocument: {},
         derivedReadinessByDocument: {},
         lastRerunReceipt: null,
+        evidenceRulesVersion: EVIDENCE_RULES_VERSION,
         controls:
           emptyControls(),
       };
@@ -4728,6 +4742,7 @@ export class RuntimeProjectStore {
         existingDocuments:
           existingState
             .evidenceDocuments,
+        sourceHashSha256,
       });
     const activityIds =
       this.activityIds(
@@ -5697,7 +5712,12 @@ export class RuntimeProjectStore {
     document.classificationDecision=decision;document.classificationHistory=[...(document.classificationHistory??[]),decision];
     document.category=choice.category;document.documentType=choice.documentType;
     const family=evidenceFamily({category:choice.category,documentType:choice.documentType,scheduleRole:null,textSample:document.identification.detectedTitle??'',sourceFilename:document.sourceFilename});
+    const previousFamily=document.familyKey;
     document.familyKey=family.familyKey;document.logicalDocumentKey=family.logicalDocumentKey;
+    // M1.2: a type decision moves the file to another family, so both families are
+    // decided again (the file's basis in its new family; the old family without it).
+    if(previousFamily&&previousFamily!==family.familyKey)rebuildEvidenceFamily(state,previousFamily);
+    rebuildEvidenceFamily(state,family.familyKey);
     delete document.derivedRegisterRead;
     delete state.derivedControlsByDocument[document.documentId];delete state.derivedReadinessByDocument[document.documentId];
     rebuildReadinessEvidence(state);rebuildDerivedControls(state);

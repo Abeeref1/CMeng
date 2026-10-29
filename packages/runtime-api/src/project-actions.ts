@@ -241,7 +241,9 @@ function documentDecisionAsked(state:ProjectRuntimeState,d:ProjectRuntimeState['
   // candidate that is already used in analysis (labelled not formally
   // adopted) asks nothing unless it disagrees with a record (real conflict).
   const clearFact=d.basisState==='candidate'&&usedInAnalysis.has(d.documentId)&&!saved&&!hasRecordConflict();
-  return !decided&&!clearFact&&(d.basisState==='candidate'||Boolean(d.lineage?.needsReview&&!explicitReplacement)||Boolean(saved));
+  // M3.3: once CMeng has placed a file (active or additive), a "needs review" flag from upload time asks nothing more.
+  void explicitReplacement;
+  return !decided&&!clearFact&&(d.basisState==='candidate'||Boolean(saved));
 }
 /** A1: the page where each uploaded candidate document is reviewed and approved.
  * A schedule is confirmed (or replaced) and any other document's relationship is
@@ -375,7 +377,9 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
             ...recordConflicts,
             ...(proposed.length?['Reader-proposed predecessor: '+proposed.join('; ')]:[])],
           resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose how this uploaded document relates to the current project evidence.',completionRule:'The action closes immediately after the relationship is saved.'},
+          // M3.3: pre-filled with CMeng's reading (a later file of the same family replaces it; an amendment amends).
           target:{type:'document',documentId:d.documentId,label:'Confirm relationship',sourceHash:d.sourceHashSha256,relationshipOptions:options,
+            reviewChoice:options.some(o=>o.value==='amendment')?'amendment':options.some(o=>o.value==='replacement')&&['revision_snapshot','full_replacement'].includes(String(d.lineage?.effect))?'replacement':'new_record',
             relationshipTargets:targets.filter(t=>t.familyKey===d.familyKey||d.documentType==='contract_amendment'&&t.familyKey==='contract:base').map(t=>({documentId:t.documentId,filename:t.sourceFilename,familyKey:t.familyKey,basisState:t.basisState}))}});
       }
     }

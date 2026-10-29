@@ -28,7 +28,9 @@ test('lineage compares source families rather than grouping distinct RFIs, submi
  assert.deepEqual(amendment.predecessorDocumentIds,['BASE']);assert.equal(amendment.effect,'delta_amendment');
 });
 
-test('active legacy relationship flags reach Project Review while explicit existing decisions remain respected',async t=>{
+// M3.3: a stale upload-time flag on a file CMeng already uses (active) asks nothing in
+// Project Review; the relationship can still be decided from the document, and that decision stands.
+test('an active file with a legacy relationship flag asks nothing; an explicit decision is still validated and kept',async t=>{
  const {root,store,state,upload}=fixture(t);
  await upload('rfi_register','RFI ID,Subject,Status\nR1,Question,Open');
  await upload('submittal_register','Submittal ID,Title,Status\nS1,Drawing,Approved');
@@ -36,9 +38,7 @@ test('active legacy relationship flags reach Project Review while explicit exist
  assert.equal(sub.lineage.needsReview,false);assert.equal(rfi.basisState,'active');assert.equal(sub.basisState,'active');
  sub.lineage={effect:'revision_snapshot',predecessorDocumentIds:[rfi.documentId],replacesEntireBasis:false,appliesAsDelta:false,inferred:true,confidence:.62,needsReview:true,diagnostics:['CHANGE_EFFECT_REQUIRES_REVIEW_BEFORE_REPLACING_CURRENT_BASIS']};
  const inferred=structuredClone(sub.lineage),source=readFileSync(sub.storedPath),rfiBefore=JSON.stringify(rfi);store.touch(state);
- let action=projectActions(state,summarizeControlIssues([])).actions.find(a=>a.id==='document:'+sub.documentId)!;
- assert.ok(action);assert.match(action.evidenceSummary!.join(' '),/Reader-proposed predecessor: rfi_register.csv/);
- assert.deepEqual(action.target.relationshipOptions?.map(x=>x.value),['new_record']);assert.equal(action.target.relationshipTargets?.length,0);
+ assert.ok(!projectActions(state,summarizeControlIssues([])).actions.some(a=>a.id==='document:'+sub.documentId),'an active file with a stale flag is not asked about');
  const input={documentId:sub.documentId,sourceHash:sub.sourceHashSha256,expectedVersion:state.version,kind:'new_record' as const,note:'Separate submittal population'};
  assert.throws(()=>store.reviewEvidenceRelationship(state.projectId,{...input,kind:'replacement',targetDocumentId:rfi.documentId}),/FAMILY/);
  assert.throws(()=>store.reviewEvidenceRelationship(state.projectId,{...input,targetDocumentId:rfi.documentId}),/NEW_RECORD/);
@@ -62,14 +62,14 @@ test('an explicit Replace current basis upload does not create another inferred 
  assert.ok(!projectActions(state,summarizeControlIssues([])).actions.some(a=>a.id==='document:'+revised.documentId));
 });
 
-test('legacy active source relationship confirmation works through the gateway and survives restart',async t=>{
+test('a relationship decision on an active file works through the gateway and survives restart (it is not asked first)',async t=>{
  let cleanup=()=>{};const {root,store,state,upload}=fixture({after:(fn:()=>void)=>{cleanup=fn;}});let gateway:Awaited<ReturnType<typeof createProjectGateway>>|undefined;
  t.after(async()=>{await gateway?.close();cleanup();});
  await upload('rfi_register','RFI ID,Subject,Status\nR1,Question,Open');await upload('submittal_register','Submittal ID,Title,Status\nS1,Drawing,Approved');
  const sub=state.evidenceDocuments[1]!;sub.lineage.needsReview=true;sub.lineage.predecessorDocumentIds=[state.evidenceDocuments[0]!.documentId];store.touch(state);
  let base='';const start=async()=>{gateway=await createProjectGateway(root,{maxWorkers:1});await new Promise<void>(r=>gateway!.server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+(gateway!.server.address() as any).port;};await start();
  const get=async(path:string)=>{const response=await fetch(base+'/api/projects/LINEAGE'+path);assert.equal(response.status,200);return await response.json() as any;};
- let workflow=await get('/actions'),action=workflow.actions.find((a:any)=>a.id==='document:'+sub.documentId);assert.ok(action);
+ let workflow=await get('/actions');assert.ok(!workflow.actions.some((a:any)=>a.id==='document:'+sub.documentId),'M3.3: not asked');
  const request=(extra:any)=>fetch(base+'/api/projects/LINEAGE/evidence/documents/'+sub.documentId+'/relationship',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:workflow.projectVersion,sourceHash:sub.sourceHashSha256,kind:'new_record',note:'Source register is separate',...extra})});
  for(const bad of [{expectedVersion:workflow.projectVersion-1},{sourceHash:'stale'}])assert.equal((await request(bad)).status,409);
  assert.equal((await request({})).status,200);

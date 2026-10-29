@@ -351,6 +351,8 @@ export function inferEvidenceLineage(
     textSample: string;
     existingDocuments:
       readonly StoredEvidenceDocument[];
+    /** M3.2: the new file's own hash, so a re-upload is never its own predecessor. */
+    sourceHashSha256?: string;
   },
 ): EvidenceLineage {
   const text =
@@ -372,8 +374,11 @@ export function inferEvidenceLineage(
           input.documentType==='contract_replacement'&&document.documentType==='contract_amendment'||
           input.documentType==='variation_order'&&document.documentType==='boq'),
     );
+  // M3.2: the predecessor is the latest current file of the family (active or
+  // additive), never a held or superseded one and never the same file again.
   const predecessor =
     sameDomain
+      .filter(document=>(!document.basisState||['active','additive'].includes(document.basisState))&&(!input.sourceHashSha256||document.sourceHashSha256!==input.sourceHashSha256))
       .at(-1)
       ?.documentId;
 
