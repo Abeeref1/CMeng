@@ -14,6 +14,8 @@ export const PMC_ROLE_RULES:ReadonlyArray<readonly [string,string]>=[
   ['schedule|programme|planning|activity|cpm|float|forecast|critical|delay','Planning Manager'],
 ];
 export const PMC_DEFAULT_ROLE='Project Controls Manager';
+/** Owner values that do not name a person. */
+export const UNASSIGNED_OWNER=/^(not assigned|not recorded|not in source|not established|unassigned|unknown|not supplied|null|undefined|tbd|n\/?a|n-a|n_a|—|-)$/i;
 const compiled=PMC_ROLE_RULES.map(([pattern,role])=>[new RegExp(pattern),role] as const);
 /** The accountable PMC role for a domain, page key or scope text. */
 export function pmcRoleFor(scope:string):string{
@@ -23,4 +25,9 @@ export function pmcRoleFor(scope:string):string{
 /** Browser source for the same table (inlined into page scripts). */
 export function pmcRoleSource():string{
   return 'var PMC_ROLE_RULES='+JSON.stringify(PMC_ROLE_RULES)+';function pmcRoleFor(scope){var t=String(scope||"").toLowerCase();for(var i=0;i<PMC_ROLE_RULES.length;i++){if(new RegExp(PMC_ROLE_RULES[i][0]).test(t))return PMC_ROLE_RULES[i][1];}return '+JSON.stringify(PMC_DEFAULT_ROLE)+';}\n';
+}
+/** Browser source of pmcRoleOwner, built from the same table and the same
+ * unassigned rule (the page cannot load server modules). */
+export function pmcRoleOwnerSource():string{
+  return 'function pmcRoleOwner(domain,sourceOwner){var owner=typeof sourceOwner==="string"?sourceOwner.trim():"";if(owner&&!'+UNASSIGNED_OWNER.toString()+'.test(owner))return owner;return "PMC "+pmcRoleFor(domain)+" \u2014 individual not designated";}\n';
 }

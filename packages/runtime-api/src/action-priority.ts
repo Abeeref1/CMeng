@@ -1,12 +1,12 @@
 import type {ManagementAction} from '../../truth-kernel/src';
-import {pmcRoleFor} from './pmc-roles';
+import {pmcRoleFor,UNASSIGNED_OWNER} from './pmc-roles';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 
 /** Preserve any named source owner; otherwise assign an accountable PMC discipline. */
 export function pmcRoleOwner(domain:string, sourceOwner:string|null|undefined=null):string {
  const owner=typeof sourceOwner==='string'?sourceOwner.trim():'';
- if(owner&&!/^(not assigned|not recorded|not in source|not established|unassigned|unknown|not supplied|null|undefined|tbd|n\/?a|n-a|n_a|—|-)$/i.test(owner))return owner;
- // M12.1: the one role table.
+ if(owner&&!UNASSIGNED_OWNER.test(owner))return owner;
+ // M12.1: the one role table (the page uses pmcRoleOwnerSource, built from the same table).
  return 'PMC '+pmcRoleFor(domain)+' — individual not designated';
 }
 

@@ -5,7 +5,8 @@ import {decisionFactsScript} from './ui-decision-facts';
 import {quantityCurvesScript} from './ui-quantity-curves';
 import {managementValueState,managementNumber,managementDate,managementValue,managementText,statedAmountText} from './management-values';
 import {conditionalNotice} from './conditional-notice';
-import {pmcRoleOwner,apiOwnerText,apiDueIso,apiDueOverdue} from './action-priority';
+import {apiOwnerText,apiDueIso,apiDueOverdue} from './action-priority';
+import {pmcRoleOwnerSource} from './pmc-roles';
 import {boqPageReviewScript,boqPageReviewStyles} from './ui-boq-page-review';
 import {projectDiagnosisScript,projectDiagnosisStyles} from './ui-project-diagnosis';
 import {answerFirstScript,answerFirstStyles} from './ui-answer-first';
@@ -646,7 +647,7 @@ ${countTextSource()}${unknownReasonSource()}${managementDate.toString()}
 ${readinessReviewState.toString()}
 ${managementValue.toString()}
 ${managementText.toString()}
-${pmcRoleOwner.toString()}
+${pmcRoleOwnerSource()}
 const fmt=v=>{
  // M15.2: a missing value is "Not established" (it may be withheld or not yet calculated), never "Not in source".
  if(v===null||v===undefined)return "Not established";

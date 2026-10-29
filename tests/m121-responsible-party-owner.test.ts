@@ -34,3 +34,19 @@ test('M12.1: every owner fallback reads the one PMC role table, server and brows
   assert.equal(pmcRoleFor('hse'),'HSE Manager','HSE is not the quality manager');
   assert.equal(pmcRoleFor('ncr'),'Quality Manager');
 });
+
+// Mechanism guard: the page script never references a server module (an
+// injected function that imports would throw in the browser and blank a page),
+// and the page's owner fallback equals the server's for every domain.
+test('M12.1: the page script holds no server module reference; the browser owner fallback equals the server one',async()=>{
+  const {cmengUatHtml}=await import('../packages/runtime-api/src/ui') as any;
+  const html=typeof cmengUatHtml==='function'?cmengUatHtml():cmengUatHtml;
+  assert.deepEqual([...new Set([...String(html).matchAll(/\(0, ([a-z_0-9]+_1)\.[A-Za-z]+\)/g)].map(m=>m[1]))],[],'no CommonJS module reference in the page');
+  const {pmcRoleSource,pmcRoleOwnerSource}=await import('../packages/runtime-api/src/pmc-roles');
+  const {pmcRoleOwner}=await import('../packages/runtime-api/src/action-priority');
+  const {runInNewContext}=await import('node:vm');
+  const browser=runInNewContext(pmcRoleSource()+pmcRoleOwnerSource()+';pmcRoleOwner',{});
+  for(const domain of ['risk','ncr','hse','payment','schedule','other'])for(const owner of [null,'','TBD','Ahmed (QA)']){
+    assert.equal(browser(domain,owner),pmcRoleOwner(domain,owner),domain+' / '+owner);
+  }
+});
