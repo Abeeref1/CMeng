@@ -147,7 +147,11 @@ test('three independent registers with alternative raised headers read dates, to
  csv('Incident ID,Date Raised,Status\nI1,01/04/2031,Open','incident_register');
  const good=reviewRegisterDates(sourceTables(state.evidenceDocuments,[]));assert.equal(good.rows.length,3);assert.ok(good.rows.every(r=>r.missingPercent===0));assert.equal(good.likelyMappingFault,false);
  for(const doc of state.evidenceDocuments){const s='Ref,Description,Status\n'+doc.documentId+',missing raised field,Open';writeFileSync(doc.storedPath,s);doc.sourceHashSha256=hash(s);}
- const missing=reviewRegisterDates(sourceTables(state.evidenceDocuments,[]));assert.equal(missing.likelyMappingFault,true);assert.equal(missing.affectedRegisterCount,3);assert.ok(missing.rows.every(r=>r.state==='column_not_found'));
+ // M14.2: registers with no date column are source gaps, never a CMeng reader fault, however many there are.
+ const missing=reviewRegisterDates(sourceTables(state.evidenceDocuments,[]));assert.equal(missing.likelyMappingFault,false);assert.equal(missing.affectedRegisterCount,3);assert.ok(missing.rows.every(r=>r.state==='column_not_found'));
+ // A date held under a heading no reader knows is the reader's fault, even in one register.
+ const doc=state.evidenceDocuments[0]!;const s='Ref,Opened On,Status\n'+doc.documentId+',01/04/2031,Open';writeFileSync(doc.storedPath,s);doc.sourceHashSha256=hash(s);
+ const unmatched=reviewRegisterDates(sourceTables(state.evidenceDocuments,[]));assert.equal(unmatched.likelyMappingFault,true);assert.ok(unmatched.rows.some(r=>r.state==='column_not_matched'));
 });
 
 test('HSE monthly tables resolve the latest reporting period and rates require counts plus a read source table',async t=>{

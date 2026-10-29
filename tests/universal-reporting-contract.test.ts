@@ -666,8 +666,14 @@ test('date headers and populated dates work across registers; empty and absent c
  assert.match(gaps.find((r:any)=>r.documentType==='quality_ncr_register').message,/Column not found/);
  second.csv('Certificate No,Net Certified,Status\nC1,12,Certified','payment_certificate_register');
  const four=moduleForProject(second.state.projectId,'source-quality') as any;
- assert.equal(four.data.registerDateReview.likelyMappingFault,true);
- assert.ok(four.issueAssessment.issues.some((r:any)=>r.code==='REGISTER_DATE_READING_REVIEW'));
+ // M14.2: registers that hold no date column are a source gap, not a reading fault.
+ assert.equal(four.data.registerDateReview.likelyMappingFault,false,'no date column anywhere: nothing for CMeng to read differently');
+ assert.ok(!four.issueAssessment.issues.some((r:any)=>r.code==='REGISTER_DATE_READING_REVIEW'));
+ // A register whose dates sit under a column CMeng does not read is the reading fault.
+ second.csv('Incident No,Logged On,Status\nI1,2031-04-01,Open','hse_incident_register');
+ const five=moduleForProject(second.state.projectId,'source-quality') as any;
+ assert.equal(five.data.registerDateReview.likelyMappingFault,true,'dates held under an unread column');
+ assert.ok(five.issueAssessment.issues.some((r:any)=>r.code==='REGISTER_DATE_READING_REVIEW'));
 });
 
 test('dated incremental gross and net certificates stay established across money pages, with advances excluded',t=>{

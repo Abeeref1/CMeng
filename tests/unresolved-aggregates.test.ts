@@ -209,7 +209,7 @@ test('commercial adjusted completion requires the supported day basis', () => {
 });
 
 test('comparison applicability and register-date dependencies agree with module readiness', () => {
-  const review:any={likelyMappingFault:true,rows:['rfi_register','risk_register','quality_ncr_register'].map(documentType=>({documentType,total:1,valid:0,state:'column_not_found'})),message:'Date reader review'};
+  const review:any={likelyMappingFault:true,rows:['rfi_register','risk_register','quality_ncr_register'].map(documentType=>({documentType,total:1,valid:0,state:'column_not_matched'})),message:'Date reader review'};
   const base:any={key:'payments',status:'ready',engineState:'ready',evidenceState:'established',professionalState:'defensible',reason:null,dependencies:[],data:{registerDateReview:review,challenge:{items:[{metric:'module_position'}],reconciliationState:'not_checked'},systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[{metric:'payment_control',passed:true}]}}};
   const result=enforceModuleReadiness(base,{state:'pass',failedCheckIds:[],checkCount:0,checks:[]});
   assert.equal(result.status,'ready');
