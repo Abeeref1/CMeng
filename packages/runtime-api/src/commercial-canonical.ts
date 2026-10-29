@@ -175,6 +175,18 @@ function paymentSeriesBasis(value:string):PaymentSeriesBasis{
  if(/^(cumulative|certificate total|cumulative allocated to certificate|certificate cumulative)$/.test(v))return 'certificate_cumulative';
  return 'unknown';
 }
+// M10.1: a currency is an ISO code (written in capitals) or a named currency; "the"
+// is never a currency. The first one stated after the cue is used.
+const CURRENCY_NAMES:Array<[RegExp,string]>=[[/saudi\s+riyals?|\bSR\b/i,'SAR'],[/u\.?a\.?e\.?\s+dirhams?|emirati\s+dirhams?/i,'AED'],[/qatari?\s+riyals?/i,'QAR'],[/kuwaiti\s+dinars?/i,'KWD'],
+  [/omani\s+riyals?|omani\s+rials?/i,'OMR'],[/bahraini\s+dinars?/i,'BHD'],[/jordanian\s+dinars?/i,'JOD'],[/egyptian\s+pounds?/i,'EGP'],[/u\.?s\.?\s+dollars?|united states dollars?/i,'USD'],[/\beuros?\b/i,'EUR'],[/pounds?\s+sterling|british\s+pounds?/i,'GBP']];
+const NOT_CURRENCY=new Set(['THE','AND','VAT','FOR','ALL','ARE','NOT','ANY','PER','TAX','EXC','INC','LTD','LLC','PMC','EPC','BOQ','IPC','UAE','KSA','USA']);
+export function isoCurrencyIn(text:string):string|null{
+  const codes=[...text.matchAll(/\b([A-Z]{3})\b/g)].map(m=>m[1]!).filter(code=>!NOT_CURRENCY.has(code));
+  const named=CURRENCY_NAMES.map(([pattern,code])=>{const at=text.search(pattern);return at>=0?{at,code}:null;}).filter((x):x is {at:number;code:string}=>!!x).sort((a,b)=>a.at-b.at)[0];
+  const codeAt=codes.length?text.indexOf(codes[0]!):-1;
+  if(named&&(codeAt<0||named.at<=codeAt))return named.code;
+  return codes[0]??null;
+}
 function money(row:SourceRow,value:string,amountBasis:string,currency:string|null,asOf:string|null):CommercialMoney{
  currency=currency&&/^[A-Za-z]{3}$/.test(currency.trim())?currency.trim().toUpperCase():null;
  const v=numberValue(value);return {value:v,currency,taxBasis:tax(cell(row,'vat basis','tax basis')),amountBasis,
@@ -216,7 +228,7 @@ export function commercialCanonical(state:ProjectRuntimeState):CanonicalCommerci
  const contractSources=contractSourceAnalysis(state);const unadoptedCurrencies:Array<{currency:string;receipt:SourceReceipt}>=[];
  for(const c of state.contractDocuments){if(c.role==='amendment'&&!approvedAmendments.has(c.documentId)&&!(contractSources.unadopted(c.documentId)&&effectiveUnadoptedAmendments.has(c.documentId)))continue;const d=state.evidenceDocuments.find(d=>d.documentId===c.documentId);if(!d||!contractSources.eligible(d.documentId))continue;const unadopted=contractSources.unadopted(d.documentId);
  const textSources=[...c.result.sections.filter(s=>s.sourceMode==='deterministic').map(s=>({text:s.text,startPage:s.startPage})),...(c.result.pdf?.pages??[]).filter(p=>p.method==='native').map(p=>({text:p.text,startPage:p.pageNumber}))];
- for(const section of textSources)for(const m of section.text.matchAll(/(?:all contract[^\n.]{0,160}?values are stated in|contract currency(?:\s+is)?|currency of (?:the )?contract(?:\s+is)?)\s*[:\n]?\s*([A-Z]{3})\b/gi)){ const receipt:SourceReceipt={documentId:d.documentId,sourceHash:d.sourceHashSha256,revision:d.linkedArtifactId??d.sourceHashSha256,locator:'page:'+(section.startPage??1),basisState:d.basisState,authority:'source_record'};
+ for(const section of textSources)for(const m0 of section.text.matchAll(/(?:all contract[^\n.]{0,160}?values are stated in|contract currency(?:\s+is)?|currency of (?:the )?contract(?:\s+is)?)\s*[:\n]?\s*([^\n;]{0,80})/gi)){const code=isoCurrencyIn(m0[1]??'');if(!code)continue;const m=[m0[0],code] as const; const receipt:SourceReceipt={documentId:d.documentId,sourceHash:d.sourceHashSha256,revision:d.linkedArtifactId??d.sourceHashSha256,locator:'page:'+(section.startPage??1),basisState:d.basisState,authority:'source_record'};
    if(unadopted){unadoptedCurrencies.push({currency:m[1]!.toUpperCase(),receipt});continue;}
    contractCurrencies.add(m[1]!.toUpperCase());currencyReceipts.push(receipt); }}
  if(!contractCurrencies.size&&unadoptedCurrencies.length){

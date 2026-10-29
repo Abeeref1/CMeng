@@ -65,7 +65,7 @@ const groups:Record<string,string[]>={
   'status':['state','الحالة'], 'description':['details','الوصف'], 'currency':['العملة'],
   'awareness date':['date of awareness','became aware date','date became aware','awareness','تاريخ العلم'],
   'responsibility':['responsibility claimed','claimed responsibility','responsibility category','المسؤولية المدعاة'],
-  'owner':['responsible','responsible person','assigned to','action owner','مسؤول','المسؤول'],
+  'owner':['responsible','responsible person','assigned to','assignee','action owner','action by','مسؤول','المسؤول'],
   'impact':['impact 1 5','impact score','consequence impact','impact rating'],
   'score':['risk score','risk score value'],
   'last reviewed':['last review','last review date','reviewed date'],
@@ -184,6 +184,9 @@ export function canonicalHeader(value:string,documentType=''):string {
   if(!key)key=signatureField(normalized);
   if(!key){const currency=/\b([A-Z]{3})\b/.exec(value)?.[1];if(currency){const base=aliases.get(normalizeHeader(value.replace(currency,'')));if(base)return base+' '+currency.toLowerCase();}}
   key=key??normalized;
+  // M12.1: in NCR, RFI, risk, submittal and design registers the responsible party is the
+  // record's owner (in claim and obligation registers it keeps its own meaning).
+  if(key==='responsible party'&&/ncr|rfi|risk|submittal|design|quality/.test(documentType))return memo(canonicalHeaderMemo,memoKey,'owner');
   if(key==='reference'){
     const identity=/claim/.test(documentType)?'claim id':/variation/.test(documentType)?'variation id':/payment/.test(documentType)?'certificate no':/rfi/.test(documentType)?'rfi id':/ncr/.test(documentType)?'ncr id':/risk/.test(documentType)?'risk id':/procurement/.test(documentType)?'package id':/bond/.test(documentType)?'bond id':/determination/.test(documentType)?'determination id':null;
     if(identity)return memo(canonicalHeaderMemo,memoKey,identity);

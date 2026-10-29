@@ -599,7 +599,7 @@ export function deriveControlsFromCsv(
         retentionIndex < 0 &&
         advanceBalanceIndex < 0
       ) ||
-      !sourceCurrency
+      (!sourceCurrency&&!rowCurrencies.length) /* M10.1: rows with their own currency are kept */
     ) {
       return {};
     }
@@ -640,7 +640,7 @@ export function deriveControlsFromCsv(
       invoices.push({
         invoiceId,
         currency:
-          sourceCurrency,
+          (/^[A-Z]{3}$/.test(value(row,currencyIndex).toUpperCase())?value(row,currencyIndex).toUpperCase():sourceCurrency)!, /* M10.1: each row keeps its own currency */
         certifiedAmount:
           numeric(
             value(
@@ -700,7 +700,7 @@ export function deriveControlsFromCsv(
           amount:
             retentionAmount,
           currency:
-            sourceCurrency,
+            (/^[A-Z]{3}$/.test(value(row,currencyIndex).toUpperCase())?value(row,currencyIndex).toUpperCase():sourceCurrency)!,
           state: "held",
           sourceRefs: [
             sourceRef,
