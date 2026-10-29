@@ -147,3 +147,22 @@ test('P0-B: only a network that cannot be calculated gives no finish, and the ca
   assert.equal(gate.managementForecast.state,'not_calculable');
   assert.match(String(gate.managementForecast.notCalculableReason),/\S/,'the cause must be named');
 });
+
+// M5.2 invariant: a link to another project, or a link whose activity is not in
+// the file, never erases the finish and never leaves the graph check "passed"
+// with an empty reason. Each is named as a qualification with what would fix it.
+for(const [name,row,code] of [
+  ['a link to another project',['%R','7998','1','2005','2','88888','PR_FS','0'],'external_links'],
+  ['a link to an activity that is not in the file',['%R','7997','1','77777','1','2004','PR_FS','0'],'network_references'],
+] as const)test('M5.2: '+name+' keeps the finish, fails the graph check and is named',async()=>{
+  const id='M52-'+(code==='external_links'?'EXT':'REF');runtimeProjects.getOrCreate(id);
+  const xer=programme(id,Object.fromEntries(NAMES.map(n=>[n,false])) as Triggers).toString('utf8').replace('%E',row.join('\t')+'\n%E');
+  await runtimeProjects.ingestEvidenceFile({projectId:id,sourceFilename:'Links.xer',bytes:Buffer.from(xer),mediaType:'text/plain',uploadedAt:'2033-03-16T09:00:00Z',uploadIntent:'add_update'});
+  const gate:any=(moduleForProject(id,'independent-forecast').data as any)?.forecastReconciliationGate;
+  assert.ok(gate?.managementForecast?.completionIso,'the link qualifies the finish; it does not erase it: '+JSON.stringify(gate?.managementForecast));
+  const graph=gate.checks.find((c:any)=>c.key==='graph_validity'||c.label==='Graph validity');
+  assert.notEqual(graph.state,'passed','the graph check names the link problem');
+  const q=gate.managementForecast.qualifications.find((x:any)=>x.code===code);
+  assert.ok(q&&/\S/.test(q.text)&&/\S/.test(q.action),'named with an action: '+JSON.stringify(gate.managementForecast.qualifications));
+  assert.match(String(gate.reason),/\S/);
+});

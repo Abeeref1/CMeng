@@ -29,7 +29,8 @@ export interface ForecastQualification {
     | "constraints_not_applied"
     | "network_references"
     | "network_repaired"
-    | "partial_coverage";
+    | "partial_coverage"
+    | "external_links";
   text: string;
   action: string;
   count: number | null;
@@ -83,12 +84,16 @@ export function buildForecastReconciliationGate(input: {
     "SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:",
     "SCHEDULE_GRAPH_SELF_LOOPS:",
     "SCHEDULE_GRAPH_BROKEN_PREDECESSORS:",
+    "SCHEDULE_GRAPH_BROKEN_SUCCESSORS:",
     "CPM_RELATIONSHIP_ENDPOINT_UNRESOLVED:",
     "CPM_NETWORK_NOT_CALCULABLE",
   ];
   const graphDiagnostics = forecast.diagnostics.filter(code =>
     graphPrefixes.some(prefix => code.startsWith(prefix)),
   );
+  // M5.2: a link to another project is not calculated (its dates are not in this
+  // file). It qualifies the finish and fails the graph check; it never erases it.
+  const externalLinks = [...new Set(forecast.diagnostics.filter(code => code.startsWith("CPM_EXTERNAL_RELATIONSHIP_UNRESOLVED:")))];
   // C5: completed activities are fixed at their actual dates; their calendar changes nothing.
   const completedActivityIds = new Set(model.activities.filter(activity => activity.status === "completed").map(activity => activity.activityId));
   const unresolvedCalendarActivities = forecast.activities.filter(row =>
@@ -128,11 +133,12 @@ export function buildForecastReconciliationGate(input: {
     {
       key: "graph_validity",
       label: "Graph validity",
-      state: graphDiagnostics.length === 0 ? "passed" : "review_required",
-      detail: graphDiagnostics.length === 0
+      state: graphDiagnostics.length + externalLinks.length === 0 ? "passed" : "review_required",
+      detail: graphDiagnostics.length + externalLinks.length === 0
         ? "No checked cycle, duplicate-ID, self-loop, broken-predecessor or unresolved-network defect blocks the CPM result."
-        : String(graphDiagnostics.length) + " graph/network diagnostic(s) require correction before management publication.",
-      count: graphDiagnostics.length,
+        : [graphDiagnostics.length ? String(graphDiagnostics.length) + " logic reference " + plural(graphDiagnostics.length, "problem needs", "problems need") + " correcting in the programme." : "",
+            externalLinks.length ? String(externalLinks.length) + " " + plural(externalLinks.length, "link goes", "links go") + " to another project; " + plural(externalLinks.length, "it is", "they are") + " not calculated." : ""].filter(Boolean).join(" "),
+      count: graphDiagnostics.length + externalLinks.length,
     },
     {
       key: "source_constraints",
@@ -187,7 +193,7 @@ export function buildForecastReconciliationGate(input: {
     ? forecast.calculatedCompletionIso
     : forecast.complete === false ? null : forecast.independentForecastCompletionIso;
   const qualifications = forecastQualifications({forecast, model, materialActivityScreeningDays, materialDivergences: materialDivergences.length,
-    unappliedConstraints: unappliedConstraints ? sourceConstraintActivities.length : 0, graphDiagnostics: graphDiagnostics.length});
+    unappliedConstraints: unappliedConstraints ? sourceConstraintActivities.length : 0, graphDiagnostics: graphDiagnostics.length, externalLinks: externalLinks.length});
   const usable = calculatedFinish !== null;
   // "Publishable" now means fully reconciled: every calculation check passed and nothing
   // qualifies the finish. A missing contract or required finish is not a fault in the
@@ -238,6 +244,7 @@ export function forecastQualifications(input: {
   materialDivergences: number;
   unappliedConstraints: number;
   graphDiagnostics: number;
+  externalLinks?: number;
 }): ForecastQualification[] {
   const {forecast} = input;
   const out: ForecastQualification[] = [];
@@ -279,6 +286,11 @@ export function forecastQualifications(input: {
     out.push({code: "network_references", count: input.graphDiagnostics,
       text: "The programme has " + input.graphDiagnostics + " logic reference " + plural(input.graphDiagnostics, "problem", "problems") + " (for example a missing predecessor).",
       action: "Correct the listed logic references in the programme."});
+  const external = input.externalLinks ?? 0;
+  if (external > 0)
+    out.push({code: "external_links", count: external,
+      text: external + " " + plural(external, "link goes", "links go") + " to an activity in another project. CMeng calculated without " + plural(external, "it", "them") + ", because the linked dates are not in this programme.",
+      action: "Upload the linked project's programme, or confirm that " + plural(external, "this link does", "these links do") + " not drive the dates."});
   const other = Math.max(0, (forecast.unresolvedActivityCount ?? 0) - assumed.length);
   if (other > 0)
     out.push({code: "partial_coverage", count: other,
