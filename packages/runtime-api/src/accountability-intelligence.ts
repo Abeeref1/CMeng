@@ -1,3 +1,4 @@
+import {ownersForActivity,activityOwnerText} from './activity-owners';
 import {pmcRoleFor} from './pmc-roles';
 import {projectScopeClassification} from './location-review';
 import {countText} from './count-text';
@@ -112,6 +113,7 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
   }
   const programme=projectControlSchedule(state)?.revision.model??null;
   const programmeActivities=new Map(programme?.activities.map(a=>[a.activityId,a])??[]);
+  const activityOwners=ownersForActivity(state);
   if(programme){
     const classification=projectScopeClassification(state,programme),byId=new Map(classification.rows.map(r=>[r.activityId,r]));
     for(const a of programme.activities){
@@ -122,7 +124,11 @@ function buildCrossDomainAccountability(state:ProjectRuntimeState){
       const missedFinish=!!a.currentFinishIso&&!!dataDateIso&&a.currentFinishIso.slice(0,10)<dataDateIso;
       const dueDate=(missedStart&&!missedFinish?a.currentStartIso:a.currentFinishIso)?.slice(0,10)??null;
       const base={domain:'schedule',recordId:a.activityId,reference:a.activityId,issue:(a.name?a.name+' · ':'')+(typeof a.totalFloatHours==='number'&&a.totalFloatHours<0?'Activity has '+floatHoursText(a.totalFloatHours,sourceCalendarWorkingDays(programme).workingDayHours(a.calendarId))+' total float':missedStart&&!missedFinish?'Activity has not started after its planned start':'Unfinished activity is past its current finish'),dueDate,overdueDays:daysOver(dueDate,dataDateIso),activityIds:[a.activityId],sourceRefs:[],authority:'programme_scope' as const};
-      retain(base);add('owner',pmcRoleOwner('schedule',null),base);if(!c)continue;
+      // M12.1: an activity's owner is the owner its linked records name (stated or
+      // confirmed links, one reader), all listed with their sources; else the role.
+      const linkedOwners=activityOwners.get(a.activityId)??[],ownerText=activityOwnerText(linkedOwners);
+      const owned=ownerText?{...base,sourceRefs:[...new Set([...base.sourceRefs,...linkedOwners.flatMap(o=>o.sourceRefs)])]}:base;
+      retain(owned);add('owner',pmcRoleOwner('schedule',ownerText),owned);if(ownerText)add('organisation',ownerText,owned);if(!c)continue;
       add('contractor',c.contractor,base);add('subcontractor',c.subcontractor,base);add('discipline',c.discipline,base);add('package',c.package,base);add('workfront',c.workFront,base);
     }
   }

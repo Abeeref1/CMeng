@@ -1,3 +1,4 @@
+import {ownersForActivity,withActivityOwners} from './activity-owners';
 import {governedQuantityModel} from './boq-programme-links';
 import {registerScopeReason} from './unknown-reason';
 import {currentReadinessEvidence} from './current-readiness';
@@ -7747,7 +7748,9 @@ function resolveProjectModuleCandidate(
     output.resourceHoursBasis='Per trade (sourceResourceTrades): planned hours are the register planned demand for weeks starting in the look-ahead window; latest recorded hours are the latest register week on or before the Data Date with recorded hours, both from the shared weekly resource reader. Per activity (resourceHours): its own remaining hours from its programme labour assignments.';
     output.resourceHoursNoAssignmentReason='The programme assigns no labour resource to this activity.';
   }
-  if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p,state);}
+  if(key==='lookahead-schedule'&&result.data){const p=result.data as any;const target=p.result?.projectionKey==='lookahead_schedule'?p.result:p;attachLookaheadResourceLinks(target,state);
+    // M12.1: the owners linked records name, on each Look-Ahead row (the same reader as Construction Readiness).
+    const owners=ownersForActivity(state);if(owners.size)for(const list of ['rows','forwardWindowRows','overdueBacklogRows','backlogRows','missedStartRows'])if(Array.isArray(target[list]))target[list]=target[list].map((row:any)=>withActivityOwners(row,owners));}
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
     // An unavailable Director interpretation is not permission to rebuild
     // every specialist projection. Use the canonical source interpretation

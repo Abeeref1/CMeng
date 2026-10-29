@@ -1,3 +1,4 @@
+import {ownersForActivity,withActivityOwners} from './activity-owners';
 import {handoverSourceComparison} from './handover-source-review';
 import {currentReadinessEvidence} from './current-readiness';
 import {countText,countUnit} from './count-text';
@@ -881,7 +882,8 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const readinessClassifications=readinessModel?new Map(projectScopeClassification(state,readinessModel).rows.map(row=>[row.activityId,row])):new Map();
  // M9.1: the same resource links as Look-Ahead, applied by the same rule.
  const resourceIdentity=programmeReadiness?resourceIdentityFor(state):new Map<string,any[]>();
- if(programmeReadiness)rows=programmeReadiness.rows.map(source=>(resourceIdentity.has(source.activityId)?withResourceIdentity(source,resourceIdentity.get(source.activityId)!):source) as typeof source).map(row=>({...row,reference:row.activityId,description:row.name,
+ const activityOwners=programmeReadiness?ownersForActivity(state):new Map();
+ if(programmeReadiness)rows=programmeReadiness.rows.map(source=>withActivityOwners((resourceIdentity.has(source.activityId)?withResourceIdentity(source,resourceIdentity.get(source.activityId)!):source) as typeof source,activityOwners)).map(row=>({...row,reference:row.activityId,description:row.name,
   discipline:readinessClassifications.get(row.activityId)?.discipline??null,readinessPercent:pct(row.readiness.readyCount,row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length),
   // ABB G2_PLANNING-55: the same readiness state as the Look-Ahead tab for the same activity.
   state:readinessReviewState(row.readiness),unknownCount:row.readiness.unknownCount,
