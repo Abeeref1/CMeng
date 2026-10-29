@@ -94,9 +94,10 @@ test('NCR and RFI lifecycles reconstruct the Data Date across director, dashboar
   assert.equal(p.operationalReporting.counts.openCriticalMajorNcrCount,2);assert.equal(p.reportingContract.populations.ncrs.populationId,r.quality.population.populationId);
  }
  const answer=answerProjectQuestion(state.projectId,'What are the current NCR, RFI and risk register counts?')!;
- assert.match(answer.answer,/Open major\/critical NCRs: 2 \(confirmed\)/);
- assert.match(answer.answer,/Open RFIs: 1 \(confirmed\)/);
- assert.match(answer.answer,/Overdue RFIs: 1 \(confirmed\)/);
+ // M4.3: available counts are given at once, qualified until the register is confirmed complete.
+ assert.match(answer.answer,/Open major\/critical NCRs: 2 \(from register not confirmed\)/);
+ assert.match(answer.answer,/Open RFIs: 1 \(from register not confirmed\)/);
+ assert.match(answer.answer,/Overdue RFIs: 1 \(from register not confirmed\)/);
  assert.match(answer.answer,/Open risks: Not established/);
  assert.ok(answer.managementActions.some(action=>action.includes('NCR N1')));
  assert.ok(answer.managementActions.some(action=>action.includes('RFI R1')&&action.includes('Apr 10, 2031')));

@@ -1,3 +1,4 @@
+import {registerCompleteness,type RegisterCompleteness} from './register-completeness';
 import {projectDecisionFacts,decisionAnalysisForModule,measuredProgressByArea} from './project-decision-facts';
 import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,quantityInputStatus,installedQuantityInputStatus,cpmCoverageInputStatus,disciplineInputStatus,bindSharedInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus,type QuantityInputStatus,type InstalledQuantityInputStatus,type CpmCoverageInputStatus,type DisciplineInputStatus} from './project-input-status';
 import {boqSourceReporting} from './reporting-state';
@@ -248,7 +249,11 @@ function sourceCount(
   complete:boolean,
   basis:string,
   reason='',
+  completeness:RegisterCompleteness|null=null,
 ):ProjectFact<number>{
+  // M4.3: an available count from readable records is published, qualified, until
+  // the register is confirmed complete; only then is it a confirmed figure.
+  if(official!==null&&completeness?.state==='not_established')return fact(official,basis+' '+completeness.note,'from_register_not_confirmed',false);
   if(official!==null)return fact(official,basis,'confirmed',true);
   const why=reason?{reason}:{};
   // A zero known subset cannot establish that nothing is open when dates,
@@ -556,6 +561,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         operations.rfi.complete,
         'Current RFI register as of the project Data Date.',
         registerScopeReason(operations.rfi,'an RFI register'),
+        registerCompleteness(state,'design'),
       ),
       overdueRfiCount:sourceCount(
         operations.counts.overdueRfiCount,
@@ -563,6 +569,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         operations.rfi.complete,
         'Open RFIs whose required response date is before the project Data Date.',
         registerScopeReason(operations.rfi,'an RFI register'),
+        registerCompleteness(state,'design'),
       ),
       openNcrCount:sourceCount(
         operations.counts.openNcrCount,
@@ -570,6 +577,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         operations.quality.complete,
         'Current NCR register open records through the project Data Date, all severities.',
         registerScopeReason(operations.quality,'an NCR register'),
+        registerCompleteness(state,'quality'),
       ),
       overdueNcrCount:sourceCount(
         operations.counts.overdueNcrCount,
@@ -577,6 +585,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         operations.quality.complete,
         'Open NCRs whose required closure date precedes the project Data Date.',
         registerScopeReason(operations.quality,'an NCR register'),
+        registerCompleteness(state,'quality'),
       ),
       openCriticalMajorNcrCount:sourceCount(
         operations.counts.openCriticalMajorNcrCount,
@@ -584,6 +593,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         operations.quality.complete,
         'Current NCR register, open Major/Critical records only.',
         registerScopeReason(operations.quality,'an NCR register'),
+        registerCompleteness(state,'quality'),
       ),
       openRiskCount:sourceCount(
         operations.counts.openRiskCount,

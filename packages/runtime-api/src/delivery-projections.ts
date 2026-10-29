@@ -28,6 +28,7 @@ import {projectScheduleControlBasis} from './schedule-control-basis';
 import {registerProgrammeContext} from './register-programme-context';
 import {buildLookAheadProjection,readinessReviewState} from '../../lookahead-schedule/src';
 import {resourceIdentityFor,withResourceIdentity} from './lookahead-resource-linkage';
+import {REGISTER_NOT_CONFIRMED_NOTE} from './register-completeness';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {interfaceIntelligence,interfaceModule} from './interface-intelligence';
@@ -610,15 +611,21 @@ function buildDelivery(state:ProjectRuntimeState){
  const supplierRows=[...registeredSuppliers,...sourceSuppliers];
  // Unknown outcomes remain an explicitly counted exclusion; they do not enter a pass denominator.
  const summaries=Object.fromEntries(deliveryKinds.map(kind=>{
-  const rows=registerRows.filter(r=>r.kind===kind),currentRows=rows.filter(r=>r.scope==='current'),complete=populations[kind]!.state==='established'&&!!dataDateIso&&rows.every(r=>r.scope==='future'||r.scope==='current'&&r.currentStatus!=='not_established'&&!r.verificationRequired);
-  const count=(condition:(r:typeof rows[number])=>boolean)=>complete?currentRows.filter(condition).length:null;
+  // M4.3: one completeness rule. Readable current records (Data Date, dated rows,
+  // known statuses) give the available counts now, qualified; the register is a
+  // confirmed denominator (currentCount, percentages, rates) only once confirmed.
+  const confirmed=populations[kind]!.state==='established';
+  const rows=registerRows.filter(r=>r.kind===kind),currentRows=rows.filter(r=>r.scope==='current'),readable=!!dataDateIso&&rows.every(r=>r.scope==='future'||r.scope==='current'&&r.currentStatus!=='not_established'&&!r.verificationRequired);
+  const complete=readable&&confirmed;
+  const count=(condition:(r:typeof rows[number])=>boolean)=>readable?currentRows.filter(condition).length:null;
   // Dated source approval closes a submittal review. It is not a test outcome
   // or general acceptance/closure of other kinds of delivery record.
   const closeCount=count(r=>['closed','accepted'].includes(r.currentStatus)||kind==='submittal'&&r.currentStatus==='source_approved');
    const knownOpenCount=currentRows.filter(r=>!['closed','accepted','source_approved','passed','not_established','verification_required'].includes(r.currentStatus)).length;
    const knownOverdueCount=currentRows.length&&currentRows.every(r=>r.overdue!==null)?currentRows.filter(r=>r.overdue===true).length:null;
   const reviewPeriods=currentRows.flatMap(row=>{const r=byId.get(row.recordId)!,submitted=date(r,'actual submission date','submitted date','actual issue'),response=date(r,'response date','approval date');if(!isOnDate(submitted,dataDateIso)||!isOnDate(response,dataDateIso))return [];const period=days(response,submitted);if(period!==null&&period<0){add('REVIEW_DATE_ORDER_INVALID',r,'The response date precedes the submission date.','Reconcile the dated source; this interval is excluded from completed review statistics.');return [];}return period===null?[]:[period];});
-  return [kind,{totalRequired:populations[kind]!.denominator,currentCount:complete?currentRows.length:null,knownCurrentCount:currentRows.length,knownOpenCount,unknownStatusCount:currentRows.filter(r=>['not_established','verification_required'].includes(r.currentStatus)).length,knownOverdueCount,futureCount:rows.filter(r=>r.scope==='future').length,undatedCount:rows.filter(r=>r.scope==='undated').length,
+  return [kind,{completenessState:confirmed?'established':'not_established',completenessNote:readable&&!confirmed&&currentRows.length?REGISTER_NOT_CONFIRMED_NOTE:null,
+   totalRequired:populations[kind]!.denominator,currentCount:complete?currentRows.length:null,knownCurrentCount:currentRows.length,knownOpenCount,unknownStatusCount:currentRows.filter(r=>['not_established','verification_required'].includes(r.currentStatus)).length,knownOverdueCount,futureCount:rows.filter(r=>r.scope==='future').length,undatedCount:rows.filter(r=>r.scope==='undated').length,
    openCount:count(r=>!['closed','accepted','source_approved','passed','not_established','verification_required'].includes(r.currentStatus)),overdueCount:rows.every(r=>r.scope==='future'||r.overdue!==null)?count(r=>r.overdue===true):null,
    closedCount:closeCount,closurePercent:complete?pct(closeCount,currentRows.length):null,retestCount:count(r=>r.currentStatus==='retest required'),
    ...rates(currentRows,complete),reviewPeriodCalendarDays:reviewPeriods.length?round(reviewPeriods.reduce((a,b)=>a+b,0)/reviewPeriods.length):null,reviewPeriodKnownCount:reviewPeriods.length}];
