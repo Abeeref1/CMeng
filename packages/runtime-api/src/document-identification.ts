@@ -1976,6 +1976,11 @@ function classifyText(
   }
 
   if (/csv|text\/plain/.test(mediaType)) {
+    // M1.1: a Metric/Value table is typed by what its metrics measure, not by the
+    // shared Metric/Value/Source heading (which the resource reader also uses).
+    const metrics = metricValueTableKind(text);
+    if (metrics === "schedule_metric_register") return { category: "schedule_control", documentType: "schedule_metric_register", confidence: 0.97,
+      signals: ["Metric/value table of programme measures (dates, float, activity counts)"] };
     for (const type of ["resource_register", "delay_eot_claims_register"]) {
       const role = typedEvidenceRoleFromText(type, text);
       if (role) return {
@@ -2635,4 +2640,17 @@ export async function identifyEvidenceDocument(
         SAMPLE_LIMIT,
       ),
   };
+}
+
+/** M1.1: what a Metric/Value table measures, read from its metric names. */
+export function metricValueTableKind(text: string): "schedule_metric_register" | "resource_register" | null {
+  const lines = String(text ?? "").replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
+  const header = (lines[0] ?? "").toLowerCase().split(",").map((cell) => cell.trim().replace(/^"|"$/g, ""));
+  if (header[0] !== "metric" || !header.includes("value")) return null;
+  const names = lines.slice(1, 61).map((line) => line.split(",")[0]!.trim().replace(/^"|"$/g, "").toLowerCase());
+  const schedule = names.filter((n) => /data date|baseline|forecast|completion|float|critical|watchlist|activities|milestone|longest path|cpli|\bbei\b|\bspi\b|in progress|not started|completed|\bloe\b|finish|start/.test(n)).length;
+  const resource = names.filter((n) => /utili[sz]ation|headcount|manpower|capacity|demand|labou?r|crew|resource|man-?(?:days|hours)|manhours/.test(n)).length;
+  if ((schedule >= 3 && schedule > resource) || (schedule >= 1 && resource === 0)) return "schedule_metric_register";
+  if (resource >= 1 && resource >= schedule) return "resource_register";
+  return null;
 }

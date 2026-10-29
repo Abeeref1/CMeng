@@ -1,3 +1,4 @@
+import {scheduleMetricContentDocumentIds} from './schedule-control-basis';
 import {
   cell,
   governedTables,
@@ -29,7 +30,8 @@ export function isProjectControlDocument(state: ProjectRuntimeState, documentId:
     ["active", "additive", "candidate"].includes(document.basisState) &&
     (
       document.category === "schedule_control" ||
-      ["schedule_metric_register", "project_data_book", "schedule_control_basis"].includes(document.documentType)
+      ["schedule_metric_register", "project_data_book", "schedule_control_basis"].includes(document.documentType) ||
+      scheduleMetricContentDocumentIds(state).has(documentId)
     )
   );
 }

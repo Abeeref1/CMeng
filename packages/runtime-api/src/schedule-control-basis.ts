@@ -1,3 +1,4 @@
+import {metricValueTableKind} from './document-identification';
 import {
   cell,
   dateValue,
@@ -279,18 +280,14 @@ export function projectScheduleControlBasis(
     "schedule_metric_register",
     "project_data_book",
   ]);
+  // M1.1: included by its type (the content reading or the user's decision),
+  // never by its file name. A document whose stored type came from older rules
+  // (no user decision) is included when its content is a programme metric table.
+  const byContent = scheduleMetricContentDocumentIds(state);
   const documents = state.evidenceDocuments.filter(
-    (document) => {
-      // M1.1: included by its type (content or the user's decision), never by its file name.
-      return (
-        basisDocumentTypes.has(
-          document.documentType,
-        ) &&
-        ["active", "additive", "candidate"].includes(
-          document.basisState,
-        )
-      );
-    },
+    (document) =>
+      (basisDocumentTypes.has(document.documentType) || byContent.has(document.documentId)) &&
+      ["active", "additive", "candidate"].includes(document.basisState),
   );
   const ids = new Set(
     documents.map(
@@ -759,4 +756,23 @@ export function projectScheduleControlBasis(
 
   cache.set(state, { version: state.version, value });
   return value;
+}
+
+const contentCache = new WeakMap<ProjectRuntimeState, {version: number; ids: Set<string>}>();
+/** M1.1: documents with no user type decision whose table is a programme Metric/Value register. */
+export function scheduleMetricContentDocumentIds(state: ProjectRuntimeState): Set<string> {
+  const hit = contentCache.get(state);
+  if (hit && hit.version === state.version) return hit.ids;
+  const candidates = state.evidenceDocuments.filter((d) => !(d as {classificationDecision?: unknown}).classificationDecision &&
+    ["active", "additive", "candidate"].includes(d.basisState) && /csv|text|sheet|excel/i.test(String(d.mediaType ?? "") + " " + d.sourceFilename));
+  const ids = new Set<string>();
+  if (candidates.length) {
+    for (const table of governedTables(candidates, [])) {
+      const first = table.headers[0] ?? "";
+      const text = [table.headers.join(","), ...table.rows.slice(0, 60).map((row) => String(row.cells[first] ?? ""))].join("\n");
+      if (metricValueTableKind(text) === "schedule_metric_register") ids.add(table.document.documentId);
+    }
+  }
+  contentCache.set(state, {version: state.version, ids});
+  return ids;
 }

@@ -38,3 +38,12 @@ test('M1.1: a productivity model is recognised from its columns, under any name;
   assert.equal(productivityContentKind(headers),'work_packages','columns decide, not the IF01 prefix');
   assert.equal(productivityContentKind(['Item','Description','Quantity','Rate','Amount']),null,'a BOQ is not a productivity model');
 });
+test('M1.1: a Metric/Value table is typed by what it measures, under any file name',async()=>{
+  const {identifyEvidenceDocument}=await import('../packages/runtime-api/src/document-identification');
+  const schedule='Metric,Value,Unit,Source\nData Date,2026-08-31,date,S03\nBaseline Completion,2029-03-31,date,S01\nCurrent Forecast,2029-08-20,date,S03\nNegative Float,120,activities,S03\nCPLI,0.94,ratio,S03';
+  const resource='Metric,Value,Unit,Source\nPeak Manpower,1450,persons,R01\nAverage Utilization,82,%,R01\nPlanned Labour Hours,120000,h,R01';
+  for(const name of ['SCH02_Current_Schedule_Metrics.csv','Weekly_Figures.csv']){
+    assert.equal((await identifyEvidenceDocument({bytes:Buffer.from(schedule),sourceFilename:name,sourceRelativePath:null})).identification.detectedDocumentType,'schedule_metric_register',name);
+    assert.equal((await identifyEvidenceDocument({bytes:Buffer.from(resource),sourceFilename:name,sourceRelativePath:null})).identification.detectedDocumentType,'resource_register',name);
+  }
+});
