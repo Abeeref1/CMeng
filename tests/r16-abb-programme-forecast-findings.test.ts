@@ -189,11 +189,17 @@ test('ABB G2_PLANNING-06: BEI counts activities whose type the source does not s
 
 test('ABB G3_CHANGES_FORECAST-44: the activity divergence check is "not established", never "passed", when nothing was compared',async()=>{
   const id=await abbShapedProject(),data=page(id,'independent-forecast');
-  assert.equal(data.calculatedActivityCount,0,'no readable calendar, so no CMeng CPM activity result');
+  // P0-B (M5.1): the repeated activity ID A07 no longer stops the network, so the
+  // other activities are calculated (on an assumed calendar, qualified). The check
+  // must match its own population: "not established" only when nothing was compared.
   const divergence=data.forecastReconciliationGate.checks.find((c:any)=>c.key==='material_activity_divergence');
-  assert.equal(divergence.state,'not_established');
-  assert.equal(divergence.count,null);
-  assert.match(divergence.detail,/^Not tested: no activity has both a calculated finish and a submitted finish to compare\./);
+  const compared=(data.activities??[]).filter((a:any)=>a.status==='calculated'&&typeof a.finishVarianceDays==='number').length;
+  if(compared===0){
+    assert.equal(divergence.state,'not_established');
+    assert.equal(divergence.count,null);
+    assert.match(divergence.detail,/^Not tested: no activity has both a calculated finish and a submitted finish to compare\./);
+  }else assert.notEqual(divergence.state,'not_established','activities were compared, so the check has a result');
+  assert.ok(data.forecastReconciliationGate.managementForecast.qualifications.some((q:any)=>q.code==='network_repaired'),'the left-out repeated ID is named');
   // A real comparison still passes or fails on its own population.
   const model:any={activities:[{activityId:'A1',sourceConstraints:[]},{activityId:'A2',sourceConstraints:[]}]};
   const calculated:any={independentForecastCompletionIso:'2030-12-31',activityCoveragePercent:100,calculatedActivityCount:2,unresolvedActivityCount:0,diagnostics:[],
