@@ -56,7 +56,7 @@ test('decision tables format money consistently and do not label a small complet
  const ctx:any={readerText:String,managementNumber:(v:number)=>v.toLocaleString('en'),escapeHtml:String,planningShortDate:String,currentModuleResult:null};
  const display=runInNewContext(decisionFactsScript+';decisionDisplay',ctx);
  assert.equal(display(417143373.8,'contractValue'),'417,143,373.80');assert.equal(display(0,'installedValue'),'0.00');
- assert.equal(display(null,'contractValue'),'Not in source');assert.equal(display('1.0001','itemNumber'),'1.0001');
+ assert.equal(display(null,'contractValue'),'Not established','M15.2: a missing value is not established, never "Not in source"');assert.equal(display('1.0001','itemNumber'),'1.0001');
  const table=runInNewContext('decisionTable',ctx);
  const small=table('areas',[{area:'Area A',currency:'QAR',contractValue:10,installedValue:null,missingInputs:['Dated installed measurements']}],'/data/decisionAnalysis/areas',1);
  assert.match(small,/10\.00/);assert.match(small,/Showing 1–1 of 1/);assert.doesNotMatch(small,/Previous records|Next records|not in shown rows/);

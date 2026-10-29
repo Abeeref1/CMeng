@@ -17,6 +17,8 @@ export interface DelayClaimEventAssessmentRow {
   responsibility: DelayResponsibility;
   responsibilityState: GovernanceState;
   noticeTimeliness: NoticeTimeliness;
+  /** M7.3: the governance state of the notice rule the timeliness was judged against. */
+  noticeRequirementState?: string | null;
   linkedClaimIds: string[];
   relatedActivityIds: string[];
   activityCorrespondence: DelayActivityCorrespondence | null;

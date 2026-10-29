@@ -91,6 +91,8 @@ export interface ScheduleWindowResult {
 
   enteredCriticalActivityIds: string[];
   exitedCriticalActivityIds: string[];
+  /** M15.2: false when either end's critical set was not calculated, so an empty list is "not calculated", never "none". */
+  criticalSetsCalculated?: boolean;
   fromDrivingActivityIds?:string[];
   toDrivingActivityIds?:string[];
 

@@ -12,7 +12,7 @@ const decisionColumns={
  registerReviews:[['Register','register'],['Currency','currency'],['Source total','registerTotal'],['Contract sum','currentContractValue'],['Difference vs contract','comparisonDifference'],['Check result','state'],['Contract authority','contractAuthorityState'],['Follow-up','action']]
 };
 function decisionDisplay(value,key){
- if(value===null||value===undefined)return 'Not in source';
+ if(value===null||value===undefined)return 'Not established';
  if(Array.isArray(value))return value.length?value.map(v=>readerText(v)).join('; '):'None identified';
  if(value&&typeof value==='object'&&Object.hasOwn(value,'value'))return managementValue(value);
  if(typeof value==='number')return /^(?:contractValue|installedValue|certifiedValue|installedAgainstCertified|registerTotal|currentContractValue|excess|comparisonDifference|periodInstalledValue|remainingValue|requiredValuePerCalendarDay|certifiedGrossWork|difference)$/.test(key)&&Number.isFinite(value)?value.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2}):managementNumber(value);

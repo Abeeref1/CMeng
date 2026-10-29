@@ -47,7 +47,7 @@ function eventRowsForWindow(
   );
 }
 
-function noticeBlocksEvent(
+export function noticeBlocksEvent(
   event: DelayClaimEventAssessmentRow,
   policy: EotScenarioPolicy,
 ): boolean {
@@ -58,22 +58,11 @@ function noticeBlocksEvent(
     return false;
   }
 
-  if (
-    event.noticeTimeliness ===
-      "requirement_missing" ||
-    event.noticeTimeliness ===
-      "event_date_missing" ||
-    event.noticeTimeliness ===
-      "notice_date_missing"
-  ) {
-    return true;
-  }
-
-  return (
-    event.noticeTimeliness === "late" ||
-    event.noticeTimeliness ===
-      "not_issued"
-  );
+  // M7.3: only a confirmed (official) notice rule can time-bar an event. With no
+  // rule, conflicting rules, a missing date or only a candidate rule, the event
+  // is not barred; the assessment states what needs review instead.
+  const late = event.noticeTimeliness === "late" || event.noticeTimeliness === "not_issued";
+  return late && (event.noticeRequirementState === undefined || event.noticeRequirementState === "official");
 }
 
 function assessWindow(
@@ -183,6 +172,12 @@ function assessWindow(
       );
     }
 
+    if ((event.noticeTimeliness === "late" || event.noticeTimeliness === "not_issued") && event.noticeRequirementState !== undefined && event.noticeRequirementState !== "official") {
+      assumptions.push("EVENT_" + event.eventId + "_NOTICE_LATE_UNDER_UNCONFIRMED_RULE_NOT_TIME_BARRED");
+    }
+    if ((event.noticeTimeliness as string) === "requirement_conflicted") {
+      assumptions.push("EVENT_" + event.eventId + "_NOTICE_RULES_CONFLICT_REVIEW_REQUIRED");
+    }
     if (
       event.noticeTimeliness ===
       "requirement_missing"

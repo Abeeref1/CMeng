@@ -347,3 +347,26 @@ test('window association counts retain the complete events when HTTP paging trim
  const page=pageProjectResponse({key:'windows-analysis',data:projection},'/api/projects/WINDOWS/schedule/modules/windows-analysis') as any;
  assert.equal(page.data.windows[0].delayEvents.length,25);assert.equal(page.data.windows[0].delayEventCount,240);assert.equal(page.data.associatedEventCount,projection.associatedEventCount);
 });
+
+// M7.4 invariant: an event with no end date is still open. It is linked to the
+// window it starts in and to every later window, never treated as a single day.
+test("an open-ended delay event is linked to every window from its start on", () => {
+  const event=(eventId:string,startIso:string,endIso:string|null)=>({eventId,title:eventId,category:'access',startIso,endIso,responsibility:'employer',responsibilityState:'source_immutable',
+    describedImpactDays:null,describedImpactState:'missing',relatedActivityIds:[],identitySource:'event_register',evidenceRefs:[],diagnostics:[]});
+  const projection=buildWindowsAnalysisProjection(revisions,{projectId:'WINDOWS',evidenceRevisionId:'test',
+    events:[event('OPEN','2026-02-01',null),event('CLOSED','2026-02-01','2026-02-10')],claims:[],notices:[],noticeRequirements:[],diagnostics:[]} as any,
+    {generatedAt:'2026-09-21T00:00:00.000Z',producerVersion:'window-open-event-test',
+     forecastResolver:(item)=>({sourceForecastCompletionIso:sourceForecasts.get(item.revisionId)??null,independentForecastCompletionIso:independentForecasts.get(item.revisionId)??null,criticalActivityIds:[],assumptions:[],complete:false}) as any});
+  const ids=(w:any)=>[...(w.employerEventIds??[])];
+  assert.deepEqual(ids(projection.windows[0]),['CLOSED','OPEN'],'both events start in window 1');
+  assert.deepEqual(ids(projection.windows[1]),['OPEN'],'the open event runs on into window 2; the closed one does not');
+});
+
+// M15.2 invariant: when either end's critical set was not calculated, the window
+// says so; an empty list is never presented as "none entered critical".
+test("a window whose critical sets were not calculated says so", () => {
+  const projection=buildWindowsAnalysisProjection(revisions,{projectId:'WINDOWS',evidenceRevisionId:'test',events:[],claims:[],notices:[],noticeRequirements:[],diagnostics:[]} as any,
+    {generatedAt:'2026-09-21T00:00:00.000Z',producerVersion:'window-critical-sets-test',
+     forecastResolver:(item)=>({sourceForecastCompletionIso:sourceForecasts.get(item.revisionId)??null,independentForecastCompletionIso:null,criticalActivityIds:[],assumptions:[],complete:false}) as any});
+  assert.equal((projection.windows[0] as any).criticalSetsCalculated,false);
+});

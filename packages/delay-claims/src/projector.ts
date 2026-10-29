@@ -281,6 +281,7 @@ export function buildDelayClaimsProjection(
         noticeTimeliness:
           notice?.timeliness ??
           "requirement_missing",
+        noticeRequirementState: notice?.requirementState ?? null,
         linkedClaimIds,
         relatedActivityIds,
         activityCorrespondence:

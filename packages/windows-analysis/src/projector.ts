@@ -270,8 +270,10 @@ function eventOverlapsWindow(
   const start = ms(startIso);
   const end = ms(endIso);
   const eventStart = ms(event.startIso);
+  // M7.4: an event with no end date is still open, so it runs on into every
+  // later window; it is never a single point at its start.
   const eventEnd =
-    ms(event.endIso) ?? eventStart;
+    eventStart === null ? null : ms(event.endIso) ?? Number.POSITIVE_INFINITY;
 
   if (
     start === null ||
@@ -783,6 +785,7 @@ export function buildWindowsAnalysisProjection(
       removedRelationshipCount:
         comparison.removedRelationships.length,
 
+      criticalSetsCalculated: fromForecast.complete === true && toForecast.complete === true,
       enteredCriticalActivityIds:
         enteredCritical,
       exitedCriticalActivityIds:
