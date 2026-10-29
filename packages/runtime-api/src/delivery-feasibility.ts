@@ -9,6 +9,8 @@ import {cell,numberValue,dateValue,governedTables} from '../../truth-kernel/src'
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
 import type {ProjectRuntimeState} from './project-state-types';
 import {projectControlSchedule} from './canonical-time-claims';
+import {governedQuantityModel} from './boq-programme-links';
+import {boqLaborRateRows} from './boq-rate-links';
 
 export function programmePcMilestone(model:CanonicalScheduleModel|null) {
   const candidates=(model?.activities??[]).filter(a=>['milestone','finish_milestone'].includes(a.activityType)&&/\b(programme\s+p\.?c\.?|practical completion|project completion|contractual completion)\b/i.test(a.name??''));
@@ -19,20 +21,10 @@ export function programmePcMilestone(model:CanonicalScheduleModel|null) {
 }
 function computeDeliveryFeasibility(state:ProjectRuntimeState) {
   const current=projectControlSchedule(state);if(!current)return null;
-  const model=current.revision.model,cutoff=dateValue(model.dataDateIso??''),quantities=withInstalledMeasurements(state,state.quantities,cutoff);
+  // M8.3 + M11.2: feasibility reads the one governed allocation truth.
+  const model=current.revision.model,cutoff=dateValue(model.dataDateIso??''),quantities=withInstalledMeasurements(state,governedQuantityModel(state,model).quantities??state.quantities,cutoff);
   const items=new Map((quantities?.items??[]).map(i=>[i.quantityItemId,i]));
-  const itemNumbers=new Map<string,string[]>();for(const item of items.values())if(item.itemNumber){const ids=itemNumbers.get(item.itemNumber)??[];ids.push(item.quantityItemId);itemNumbers.set(item.itemNumber,ids);}
-  const rates:LaborProductivityBasis[]=[];
-  for(const table of governedTables(state.evidenceDocuments,[]).filter(t=>t.headers.some(h=>['labor hours per unit','labour hours per unit','man hours per unit','labor h unit'].includes(h))))for(const row of table.rows){
-    const raw=cell(row,'Labor Hours Per Unit','Labour Hours Per Unit','Man Hours Per Unit','Labor h/unit'),rate=numberValue(raw);
-    if(rate===null||rate<=0)continue;
-    const dateRaw=cell(row,'As Of','Data Date','Effective Date'),date=dateValue(dateRaw);
-    if(dateRaw&&(!date||!cutoff||date>cutoff))continue;
-    const suppliedId=cell(row,'Quantity Item ID','BOQ Item ID','BOQ Item','BOQ Item No','Item Number','Item No'),activityId=cell(row,'Activity ID','Activity Code'),unit=cell(row,'Unit','UOM');
-    const ids=items.has(suppliedId)?[suppliedId]:itemNumbers.get(suppliedId)??[];
-    if(ids.length!==1||!activityId||!unit)continue;
-    rates.push({quantityItemId:ids[0]!,activityId,unit,laborHoursPerUnit:rate,sourceRefs:['evidence-document:'+row.receipt.documentId+':'+row.receipt.locator]});
-  }
+  const rates:LaborProductivityBasis[]=boqLaborRateRows(state,[...items.values()],cutoff);
   const analysis=buildBoqFeasibility({schedule:model,quantities,resources:state.resourcesByRevision.get(current.revision.revisionId)??null,rates});
   const baselineId=state.activeEvidenceBasis['schedule:baseline']?.activeArtifactId;
   const baseline=baselineId?state.schedules.find(s=>s.revision.revisionId===baselineId&&['baseline','revised_baseline'].includes(s.role)):undefined;

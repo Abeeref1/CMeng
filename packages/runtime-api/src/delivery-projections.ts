@@ -5,7 +5,7 @@ import {riskOwner,riskRowInputStatus} from './project-input-status';
 import {programmeTaskReviewBasis,programmeTaskScope,type ProgrammeTaskKind} from './programme-task-review';
 import {projectScopeClassification,locationReviewSummary} from './location-review';
 import {procurementDateBasis} from './procurement-date-basis';
-import {boqProgrammeLinks} from './boq-programme-links';
+import {boqProgrammeLinks,governedQuantityModel} from './boq-programme-links';
 import {boqItemSourceRows,reconcileScope,type ScopeAssignment} from './boq-scope-mapping';
 import {governedTables,cell as sourceCell} from '../../truth-kernel/src';
 import {cachedIndependentForecast} from './forecast-cache';
@@ -389,7 +389,9 @@ function buildDelivery(state:ProjectRuntimeState){
   return candidates.length?{group:null,state:'ambiguous',basis:'Package reference does not resolve to one package and one BOQ item',candidates}:{group:null,state:'unmapped',basis:'No package register or BOQ package reference',candidates:[]};
  };
  const mapped=new Set(itemPackages.keys());
- const activityByItem=new Map<string,string[]>();for(const a of quantities?.allocations??[]){const list=activityByItem.get(a.quantityItemId)??[];list.push(a.activityId);activityByItem.set(a.quantityItemId,list);}
+ // M8.3: the one governed allocation truth, then the shared scope links below.
+ const governedAllocations=model?governedQuantityModel(state,model).quantities?.allocations??quantities?.allocations??[]:quantities?.allocations??[];
+ const activityByItem=new Map<string,string[]>();for(const a of governedAllocations){const list=activityByItem.get(a.quantityItemId)??[];list.push(a.activityId);activityByItem.set(a.quantityItemId,list);}
  mark('material_and_scope');
  // A candidate-only BOQ has no adopted value or mapping authority in Delivery's
   // displayed BOQ rows. Preserve its retained quantities and source evidence,

@@ -1,3 +1,4 @@
+import {governedQuantityModel} from './boq-programme-links';
 import {registerScopeReason} from './unknown-reason';
 import {currentReadinessEvidence} from './current-readiness';
 import {projectDocumentReading,readingSetup} from './document-read-review';
@@ -3654,7 +3655,8 @@ const quantityModuleCache = new WeakMap<ProjectRuntimeState, { version: number; 
 function canonicalQuantityModule(state: ProjectRuntimeState, model: ProjectRuntimeState["schedules"][number]["revision"]["model"], generatedAt: string): ModuleRuntimeResult {
   const cached = quantityModuleCache.get(state);
   if (cached?.version === state.version) return cached.result;
-  const quantities = resolveBoqSource(state,model.sourceRevisionId).quantities;
+  // M8.3: the one governed allocation truth (recorded, confirmed link, rate-table link).
+  const quantities = governedQuantityModel(state, model).quantities;
   if (!quantities) return available("quantity-scurve", {
     schemaVersion: "1.0", projectionKey: "quantity_scurve", projectId: state.projectId,
     scheduleRevisionId: model.sourceRevisionId, dataDateIso: model.dataDateIso,
