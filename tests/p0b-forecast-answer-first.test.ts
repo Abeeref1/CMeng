@@ -175,8 +175,7 @@ for(const [name,row,code] of [
 // A loop, a repeated ID or an external link gives exactly one item that names
 // each cause and the finish; a clean programme gives none.
 test('M13.2: a loop, a repeated ID or an external link gives exactly one forecast item naming the cause; a clean programme gives none',async()=>{
-  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
-  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
+  const {projectActionRegisterForState}=await import('../packages/runtime-api/src/project-projections');
   const base=(id:string)=>programme(id,Object.fromEntries(NAMES.map(n=>[n,false])) as Triggers).toString('utf8');
   const cases:Array<[string,(id:string)=>string,RegExp|null]>=[
     ['M132-CLEAN',id=>base(id),null],
@@ -186,8 +185,10 @@ test('M13.2: a loop, a repeated ID or an external link gives exactly one forecas
   for(const [id,xer,cause] of cases){
     const state=runtimeProjects.getOrCreate(id);
     await runtimeProjects.ingestEvidenceFile({projectId:id,sourceFilename:id+'.xer',bytes:Buffer.from(xer(id)),mediaType:'text/plain',uploadedAt:'2033-03-16T09:00:00Z',uploadIntent:'add_update'});
-    const review=projectActions(runtimeProjects.getOrCreate(id),summarizeControlIssues([],0));
+    // The published Project Review (user decisions), not only the raw register.
+    const review=projectActionRegisterForState(runtimeProjects.getOrCreate(id)).workflow;
     const items=[...review.actions,...review.information].filter(a=>a.id.startsWith('matter:forecast-'));
+    if(cause)assert.ok(review.actions.some(a=>a.id==='matter:forecast-qualifications'),id+': published as a Project Review action');
     if(!cause){assert.equal(items.length,0,id+': nothing to correct, no item');continue;}
     assert.equal(items.length,1,id+': exactly one forecast item: '+JSON.stringify(items.map(i=>i.id)));
     assert.match(items[0]!.reason,cause,id+': the cause is named: '+items[0]!.reason);

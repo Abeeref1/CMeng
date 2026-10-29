@@ -398,7 +398,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     else if(delivery.populations[kind]?.state!=='established'&&populationBlockers(state,delivery,kind)){
       // M4.1: confirming completeness alone would not give a percentage; the real blocker is named instead.
       const blocker=populationBlockers(state,delivery,kind)!;
-      actions.push({id:'delivery-population:'+kind,category:'follow_up',title:'Add the missing dates and statuses in the '+deliveryLabels[kind]+' register',owner:'Project Controls',recordCount:blocker.count,
+      actions.push({id:'delivery-population:'+kind,category:'review',title:'Add the missing dates and statuses in the '+deliveryLabels[kind]+' register',owner:'Project Controls',recordCount:blocker.count,
         reason:'Percentages for this register need '+blocker.text+'. Confirming the register complete would not change that.',
         resolution:{kind:'upload',requiresUserAction:true,instruction:'Add the missing dates or statuses in the register and upload it again.',completionRule:'The item closes when every current record has a date and a status at the Data Date.'},
         target:{type:'upload',label:'Upload the corrected register',uploadHint:deliveryLabels[kind]+' register with dates and statuses',uploadMode:'evidence'}});
@@ -593,11 +593,12 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // M7.1b: undated determined awards are counted (not confirmed) and named here, once.
   {const undated=(time.diagnostics??[]).find((d:string)=>d.startsWith('UNDATED_DETERMINATIONS_COUNTED_NOT_CONFIRMED:'));
    if(undated){const ids=undated.split(':')[1]!.split(',');
-    actions.push({id:'matter:undated-determinations',category:'follow_up',title:'Add the dates of '+countText(ids.length,'determination','determinations')+' in the register',owner:'Contracts Manager',recordCount:ids.length,
+    actions.push({id:'matter:undated-determinations',category:'review',title:'Add the dates of '+countText(ids.length,'determination','determinations')+' in the register',owner:'Contracts Manager',recordCount:ids.length,
       reason:countText(ids.length,'determination','determinations')+' ('+ids.slice(0,8).join(', ')+') '+(ids.length===1?'has':'have')+' no determination date. '+(ids.length===1?'Its days are':'Their days are')+' counted in the awarded EOT, marked as not confirmed, until the date is supplied.',
       resolution:{kind:'upload',requiresUserAction:true,instruction:'Add the determination date to the register and upload it again.',completionRule:'The item closes when every counted determination has a date.'},
       target:{type:'upload',label:'Upload the corrected determination register',uploadHint:'Determination register with dates',uploadMode:'evidence'}});}}
-  // M13.2 + M6.4: the forecast position decides its own Project Review item. A
+  // M13.2 + M6.4: the forecast position decides its own Project Review item
+  // (category review: Project Review publishes review and confirmation items). A
   // finish CMeng cannot calculate, or one qualified by something the user can
   // correct (a loop, a repeated ID, a missing or external link, an assumed
   // calendar, the duration basis), gives exactly one item naming each cause
@@ -719,13 +720,13 @@ export function forecastReviewItem(state:ProjectRuntimeState):ProjectAction|null
   if(!model||!model.activities.length)return null;
   const forecast=cachedIndependentForecast(model,'project-version:'+state.version);
   const managed=buildForecastReconciliationGate({forecast,model,requiredFinishIso:null}).managementForecast;
-  if(managed.state==='not_calculable')return {id:'matter:forecast-not-calculable',category:'follow_up',title:'CMeng cannot calculate the finish from this programme yet',owner:'Planning Manager',recordCount:1,
+  if(managed.state==='not_calculable')return {id:'matter:forecast-not-calculable',category:'review',title:'CMeng cannot calculate the finish from this programme yet',owner:'Planning Manager',recordCount:1,
     reason:String(managed.notCalculableReason??'The programme network cannot be calculated.'),
     resolution:{kind:'upload',requiresUserAction:true,instruction:'Correct the cause named here in the programme and upload it again.',completionRule:'The item closes when CMeng can calculate the finish.'},
     target:{type:'upload',label:'Upload the corrected programme',uploadHint:'Corrected programme (XER or XML)',uploadMode:'schedule'}};
   const fixable=managed.qualifications.filter(q=>FORECAST_ACTIONABLE.has(q.code));
   if(!fixable.length)return null;
-  return {id:'matter:forecast-qualifications',category:'follow_up',title:'Firm up the CMeng finish ('+(managed.completionIso??'').slice(0,10)+')',owner:'Planning Manager',recordCount:fixable.length,
+  return {id:'matter:forecast-qualifications',category:'review',title:'Firm up the CMeng finish ('+(managed.completionIso??'').slice(0,10)+')',owner:'Planning Manager',recordCount:fixable.length,
     reason:'The finish is calculated and shown with '+countText(fixable.length,'qualification','qualifications')+' you can correct: '+fixable.map(q=>q.text.replace(/\.$/,'')).join('; ')+'.',
     resolution:{kind:'upload',requiresUserAction:true,instruction:fixable.map(q=>q.action).join(' '),completionRule:'Each qualification clears when the corrected programme or input removes its cause; the finish is recalculated at once.'},
     target:{type:'upload',label:'Upload the corrected programme',uploadHint:'Corrected programme (XER or XML)',uploadMode:'schedule'}};

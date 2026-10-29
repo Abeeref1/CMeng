@@ -44,12 +44,12 @@ test('M4.2: without a Data Date, dated rows wait for the Data Date and say so',t
 // M4.1 invariant: the completeness question is asked only when confirming would
 // give the percentages. Otherwise the item names the real blocker.
 test('M4.1: an undated register gets an item naming the missing dates, not a completeness question; a dated register gets the question',async t=>{
-  const {projectActions}=await import('../packages/runtime-api/src/project-actions');
-  const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
-  const item=(state:ProjectRuntimeState)=>{const r=projectActions(state,summarizeControlIssues([],0));return [...r.actions,...r.information].find(a=>a.id==='delivery-population:submittal');};
+  const {projectActionRegisterForState}=await import('../packages/runtime-api/src/project-projections');
+  // The published Project Review (user decisions).
+  const item=(state:ProjectRuntimeState)=>projectActionRegisterForState(state).workflow.actions.find(a=>a.id==='delivery-population:submittal');
   const undated=project(t,'2031-04-15','Submittal No,Title,Status\nS1,Shop drawings,Open\nS2,Method statement,Open');
   const blocked=item(undated);
-  assert.ok(blocked,'an item exists');assert.equal(blocked!.category,'follow_up');assert.match(blocked!.reason,/no date/);
+  assert.ok(blocked,'an item is published in Project Review');assert.equal(blocked!.category,'review');assert.match(blocked!.reason,/no date/);
   assert.doesNotMatch(blocked!.reason,/so percentages can be reported/);
   const dated=project(t,'2031-04-15','Submittal No,Title,Submitted Date,Status\nS1,Shop drawings,2031-03-01,Open\nS2,Method statement,2031-05-01,Open');
   const ask=item(dated);
