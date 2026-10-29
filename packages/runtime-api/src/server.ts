@@ -1,3 +1,4 @@
+import {runRegisterReaders} from './reader-consumption';
 import {scheduleAuthorityReview,programmeDocumentAuthority} from './schedule-authority';
 import {linkCandidatesRequest} from './link-candidates';
 import {projectControlSchedule} from './canonical-time-claims';
@@ -119,6 +120,8 @@ import {
   governedTables,
   sourceTables,
   sourceTitleSheet,
+  consumedColumnsFor,
+  registerReaderColumns,
   unusedColumnReason,
   TITLE_SHEET_COLUMN_REASON,
 } from "../../truth-kernel/src";
@@ -378,6 +381,7 @@ export function portfolioProjectRow(projectId:string){
 
 export function projectDocumentRegister(projectId:string){
   const state=runtimeProjects.get(projectId);if(!state)return null;
+  runRegisterReaders(state);
     const schemaDiagnostics: string[] = [];
     const parsedTables = sourceTables(
           state.evidenceDocuments,
@@ -437,9 +441,15 @@ export function projectDocumentRegister(projectId:string){
             // R1: every source column is read (by the shared register schema or
             // the shared reader that owns the table) or listed as not used,
             // with the plain reason shown on the document's reading record.
+            // M2.1: a column is "read" only when a CMeng reader consumed it for this
+            // document (recorded by the shared cell reader, or declared by the
+            // Delivery and commercial readers that read whole records). The
+            // recognition word list no longer decides it.
             columnUsage:(tablesByDocument.get(document.documentId)??[]).map((table,index)=>{
-              const unused=new Set(table.recognition?.unknown??[]);
               const physical=table.intelligence.columns.map(column=>column.rawHeader);
+              const consumed=consumedColumnsFor(document.documentId),declared=registerReaderColumns(table.headers,document.documentType);
+              const read=(header:string,i:number)=>{const key=table.headers[i]??'';return !!key&&(consumed.has(key)||declared.has(key));};
+              const unused=new Set(physical.filter((header,i)=>!read(header,i)));
               const titleSheet=sourceTitleSheet(table);
               return {
                 table:index+1,

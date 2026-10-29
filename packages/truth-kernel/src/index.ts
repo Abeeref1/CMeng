@@ -344,8 +344,18 @@ const headerKey = (name:string) => {
   const cached=headerNames.get(name);if(cached!==undefined)return cached;
   const key=canonicalHeader(name);if(headerNames.size>=4096)headerNames.clear();headerNames.set(name,key);return key;
 };
+// M2.1: every column a reader looks up through cell() is recorded per source
+// document, so the column report states what the readers actually consumed.
+const consumedColumns = new Map<string, Set<string>>();
+function recordConsumed(row: SourceRow, key: string) {
+  const id = row.receipt?.documentId; if (!id) return;
+  let set = consumedColumns.get(id); if (!set) { set = new Set(); consumedColumns.set(id, set); }
+  set.add(key);
+}
+/** M2.1: the canonical columns of one source document that a reader has read. */
+export function consumedColumnsFor(documentId: string): ReadonlySet<string> { return consumedColumns.get(documentId) ?? new Set(); }
 export const cell = (row: SourceRow, ...names: string[]): string => {
-  for (const name of names) { const v = row.cells[headerKey(name)]; if (v !== undefined && v.trim() !== '') return v.trim(); }
+  for (const name of names) { const key = headerKey(name); const v = row.cells[key]; if (v !== undefined) { recordConsumed(row, key); if (v.trim() !== '') return v.trim(); } }
   return '';
 };
 export function numberValue(value: string): number | null {
