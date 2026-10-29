@@ -557,7 +557,13 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
     "concepts": [
       "lookahead",
       "look-ahead",
-      "next week"
+      "next week",
+      "ready to start",
+      "ready",
+      "readiness",
+      "can start",
+      "clear to start",
+      "constraints"
     ],
     "fields": [
       "recordId",
@@ -1548,6 +1554,10 @@ export const externalAuthorityMetadata:AuthorityDescriptor[]=[
       "ev",
       "pv",
       "ac",
+      "eac",
+      "estimate at completion",
+      "cost at completion",
+      "final cost",
       "مؤشر التكلفه"
     ],
     "fields": [
