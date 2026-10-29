@@ -299,6 +299,8 @@ export function deriveReadinessFromCsv(
      * (stated, reviewed or proposed by CMeng), else the stated cell split on
      * ";", "|" or ",", else CMeng's linker. Without it, the stated cell only. */
     links?: ReadinessLinkReader;
+    /** Called for each row that names a check but is linked to no activity. */
+    onUnlinked?: (dimension: ReadinessDimensionKey, documentId: string) => void;
   },
 ): ReadinessByActivity {
   const dimension =
@@ -418,6 +420,7 @@ export function deriveReadinessFromCsv(
     }
 
     if (!activityIds.length) {
+      input.onUnlinked?.(dimension,input.document.documentId);
       continue;
     }
 
@@ -661,7 +664,7 @@ export function rebuildReadinessEvidence(
 
 /** Rebuild a read-only Data-Date view from verified retained source bytes.
  * Persisted import-time statuses cannot survive as a separate authority. */
-export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null,options:{links?:ReadinessLinkReader}={}):ReadinessByActivity {
+export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null,options:{links?:ReadinessLinkReader;onUnlinked?:(dimension:ReadinessDimensionKey,documentId:string)=>void}={}):ReadinessByActivity {
   const derived:ProjectRuntimeState['derivedReadinessByDocument']={};
   for(const document of analyticalOperationalDocuments(state.evidenceDocuments)){
     try {
@@ -679,14 +682,14 @@ export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso
           const type=sheet.semantic?.documentType??document.documentType;
           if(!dimensionFor(type))continue;
           const semanticDocument=sheet.semantic?{...document,documentType:type,category:sheet.semantic.category as any}:document;
-          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso,...(options.links?{links:options.links}:{})}));
+          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso,...(options.links?{links:options.links}:{}),...(options.onUnlinked?{onUnlinked:options.onUnlinked}:{})}));
         }
         continue;
       }
       if(!dimensionFor(document.documentType)||document.mediaType!=='text/csv')continue;
       const bytes=readFileSync(document.storedPath);
       if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)continue;
-      merge(deriveReadinessFromCsv({state,document,bytes,dataDateIso,...(options.links?{links:options.links}:{})}));
+      merge(deriveReadinessFromCsv({state,document,bytes,dataDateIso,...(options.links?{links:options.links}:{}),...(options.onUnlinked?{onUnlinked:options.onUnlinked}:{})}));
     }catch { /* No verified source means no derived ready assertion. */ }
   }
   const view={...state,derivedReadinessByDocument:derived,controls:{...state.controls,readinessEvidence:{...state.controls.readinessEvidence}}};

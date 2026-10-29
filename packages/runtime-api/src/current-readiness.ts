@@ -63,7 +63,8 @@ export function currentReadinessEvidence(state:ProjectRuntimeState,dataDateIso?:
   // Nothing to read from documents: the retained evidence is the answer, unchanged.
   const readable=new Set(Object.values(READINESS_DIMENSION_DOCUMENT_TYPES).flat());
   const held=analyticalOperationalDocuments(state.evidenceDocuments).some(d=>readable.has(d.documentType)||(d.tabularRead?.sheets??[]).some(sheet=>readable.has(sheet.semantic?.documentType??'')));
-  const value=held?withNoListedChecks(state,reportingReadinessEvidence(state,date,{links:readinessLinkReader(state)})):state.controls.readinessEvidence;
+  const unlinked=new Map<ReadinessDimensionKey,number>();
+  const value=held?withNoListedChecks(state,reportingReadinessEvidence(state,date,{links:readinessLinkReader(state),onUnlinked:dimension=>unlinked.set(dimension,(unlinked.get(dimension)??0)+1)}),unlinked):state.controls.readinessEvidence;
   byDate.set(key,{version:state.version,delivery,controls:state.controls.readinessEvidence,value});
   return value;
 }
@@ -73,7 +74,7 @@ export function currentReadinessEvidence(state:ProjectRuntimeState,dataDateIso?:
  * That is "no listed check" (not applicable, with its basis), not "unknown".
  * Unknown stays unknown when no such register is held. Whether the register is
  * confirmed complete is stated with the result. */
-function withNoListedChecks(state:ProjectRuntimeState,evidence:ReadinessByActivity):ReadinessByActivity{
+function withNoListedChecks(state:ProjectRuntimeState,evidence:ReadinessByActivity,unlinked:ReadonlyMap<ReadinessDimensionKey,number>):ReadinessByActivity{
   const model=projectControlSchedule(state)?.revision.model;
   if(!model)return evidence;
   const held=new Map<string,string[]>();
@@ -94,6 +95,12 @@ function withNoListedChecks(state:ProjectRuntimeState,evidence:ReadinessByActivi
     const kinds=present.map(type=>deliveryDocumentKinds[type]).filter((k):k is DeliveryKind=>!!k);
     const confirmed=kinds.length>0&&kinds.every(complete);
     const documentIds=[...new Set(present.flatMap(type=>held.get(type)!))];
+    // A register whose rows are not all linked to activities may list a check for
+    // any activity: that is not known, and linking the rows is the action.
+    const notLinked=unlinked.get(dimension)??0;
+    if(notLinked>0){fills.push([dimension,Object.freeze({state:'unknown',sourceRefs:[],
+      note:notLinked+' '+(notLinked===1?'record':'records')+' in the held '+present.map(type=>type.replaceAll('_',' ')).join(' or ')+(notLinked===1?' is':' are')+' not linked to programme activities, so a check for this activity may be among them. Link them in Project Review.',
+      diagnostics:['READINESS_REGISTER_RECORDS_NOT_LINKED:'+notLinked]}) as ReadinessEvidence]);continue;}
     fills.push([dimension,Object.freeze({state:'not_applicable',sourceRefs:documentIds.map(id=>'evidence-document:'+id),
       note:'No listed check: the held '+present.map(type=>type.replaceAll('_',' ')).join(' or ')+' lists nothing for this activity'+(confirmed?' (confirmed complete).':'; the register is not confirmed complete.'),
       diagnostics:confirmed?[]:['READINESS_NO_LISTED_CHECK_REGISTER_NOT_CONFIRMED_COMPLETE']}) as ReadinessEvidence]);

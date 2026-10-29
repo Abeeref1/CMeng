@@ -34,8 +34,8 @@ function programme(){
 }
 // No register carries a plain Activity ID column: the links come from a cited
 // ID, a WBS code, a comma list, or a clear name match.
-const registers=(permitStatus='Issued'):Record<string,string>=>({
-  'Procurement.csv':'Package ID,Description,Vendor,Status,Required On Site,Actual Delivery,Status Date\nP1,Raft slab rebar,Acme,Delivered,2031-09-05,2031-08-28,'+DATA_DATE+'\n',
+const registers=(permitStatus='Issued',extraPackage=''):Record<string,string>=>({
+  'Procurement.csv':'Package ID,Description,Vendor,Status,Required On Site,Actual Delivery,Status Date\nP1,Raft slab rebar,Acme,Delivered,2031-09-05,2031-08-28,'+DATA_DATE+'\n'+extraPackage,
   'Submittals.csv':'Submittal ID,Description,Remarks,Status,Status Date\nS1,Shop drawing for slab reinforcement,For ACT-100,Approved,'+DATA_DATE+'\n',
   'RFI.csv':'RFI ID,Subject,Discipline,Status,Raised Date,Status Date\nR1,Raft slab construction joint,STR,Closed,2031-08-20,'+DATA_DATE+'\n',
   'NCR.csv':'NCR ID,Description,WBS,Status,Date Raised,Close Date\nN1,Honeycombing found,STR,Closed,2031-08-25,2031-08-30\n',
@@ -47,13 +47,13 @@ const registers=(permitStatus='Issued'):Record<string,string>=>({
 });
 const DIMENSIONS=['procurement_material','design_submittal','quality','permit','access','risk','resource','commercial'] as const;
 
-async function project(t:any,id:string,order:'programme_first'|'registers_first'='programme_first',permitStatus='Issued',shared=false){
+async function project(t:any,id:string,order:'programme_first'|'registers_first'='programme_first',permitStatus='Issued',shared=false,extraPackage=''){
   const dir=mkdtempSync(join(tmpdir(),'cmeng-c10-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
   // Pages are read through the shared runtime store; the restart case uses its own store.
   const store=shared?runtimeProjects:new RuntimeProjectStore({dataDir:dir,durable:false}),state=store.getOrCreate(id);
   const xer=()=>store.ingestEvidenceFile({projectId:id,bytes:Buffer.from(programme()),mediaType:'text/plain',sourceFilename:'Current.xer',uploadedAt:DATA_DATE,uploadIntent:'replace_current_basis'});
   if(order==='programme_first')await xer();
-  for(const [name,body] of Object.entries(registers(permitStatus)))await store.ingestEvidenceFile({projectId:id,bytes:Buffer.from(body),mediaType:'text/csv',sourceFilename:name,uploadedAt:DATA_DATE});
+  for(const [name,body] of Object.entries(registers(permitStatus,extraPackage)))await store.ingestEvidenceFile({projectId:id,bytes:Buffer.from(body),mediaType:'text/csv',sourceFilename:name,uploadedAt:DATA_DATE});
   if(order==='registers_first')await xer();
   return {dir,store,state};
 }
@@ -95,4 +95,13 @@ test('C10: a blocking status blocks the activity on both pages',async t=>{
   assert.equal((currentReadinessEvidence(state)['ACT-100'] as any)?.permit?.state,'blocked');
   assert.equal(lookAheadRow(state,'ACT-100')?.readiness?.state,'blocked');
   const cr=readinessRow(state,'ACT-100');assert.equal(cr?.readiness?.state??cr?.state,'blocked');
+});
+
+test('C10: a held register with a record linked to no activity keeps that dimension unknown (never "no listed check")',async t=>{
+  const {state}=await project(t,'C10-UNLINKED','programme_first','Issued',false,'P9,Office furniture,Delta,Ordered,2031-09-20,,'+DATA_DATE+'\n');
+  const evidence=currentReadinessEvidence(state) as any;
+  assert.equal(evidence['ACT-100']?.procurement_material?.state,'ready','the linked package still counts');
+  assert.equal(evidence['ACT-103']?.procurement_material?.state,'unknown','an unlinked package may belong to any activity');
+  assert.ok((evidence['ACT-103']?.procurement_material?.diagnostics??[]).includes('READINESS_REGISTER_RECORDS_NOT_LINKED:1'));
+  assert.equal(evidence['ACT-103']?.permit?.state,'not_applicable','other fully linked registers are unaffected');
 });
