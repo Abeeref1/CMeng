@@ -65,8 +65,9 @@ test('W4: delivery register actions keep the real register name and count their 
  const store=new RuntimeProjectStore({dataDir:root,durable:false}),state=store.getOrCreate('REGISTER');
  await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from('RFI ID,Subject,Status\nR1,Question,Open'),mediaType:'text/csv',sourceFilename:'RFI.csv',sourceRelativePath:'shared-folder/RFI.csv',documentType:'rfi_register',category:'engineering',uploadedAt:'2031-08-31',uploadIntent:'add_update'});
  const action=projectActions(state,summarizeControlIssues([])).actions.find(a=>a.id==='delivery-population:design');
- assert.ok(action,'the RFI & design register asks to be confirmed complete');
- assert.equal(action!.title,'Confirm the complete RFI & design register','before: "Confirm the complete rfi & design register"');
- assert.match(action!.reason,/^1 usable source record is available\. /,'before: "1 usable source record(s) are available."');
+ // M4.1: this register has no dates and no Data Date, so the item names that blocker instead of asking for completeness.
+ assert.ok(action,'the RFI & design register has its one item');
+ assert.equal(action!.title,'Add the missing dates and statuses in the RFI & design register','the register name is kept as written');
+ assert.equal(action!.recordCount,1,'its one record is counted');
  assert.doesNotMatch(deliveryScript(),/p\.title\.toLowerCase\(\)/,'the empty register page keeps the register name as written');
 });
