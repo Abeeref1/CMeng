@@ -498,7 +498,9 @@ test("unknown relationship type can be calculated as a flagged FS scenario", () 
   );
 });
 
-test("cyclic network is never force-calculated", () => {
+// P0-B (M5.1): a loop no longer stops the whole network. It is opened at the
+// link that closes it; that link is named; the run is not "complete".
+test("a loop is opened at the link that closes it and the rest is calculated", () => {
   const model = chainModel();
   model.relationships.push({
     relationshipId: "R2",
@@ -514,11 +516,10 @@ test("cyclic network is never force-calculated", () => {
   const result = calculateCpm(model);
 
   assert.equal(result.complete, false);
-  assert.equal(result.projectFinishIso, null);
-  assert.deepEqual(
-    result.unresolvedActivityIds,
-    ["A100", "A200"],
-  );
+  assert.ok(result.projectFinishIso, "the network is calculated with the loop opened");
+  assert.deepEqual(result.unresolvedActivityIds, []);
+  assert.ok(result.diagnostics.includes("CPM_LOOP_LINK_LEFT_OUT:R2"), "the opened link is named: "+result.diagnostics.join(","));
+  assert.ok(result.assumptions.some(a => a.startsWith("CPM_NETWORK_REPAIRED:")));
   assert.ok(
     result.diagnostics.some(
       (diagnostic) =>

@@ -323,8 +323,9 @@ export function buildIndependentForecastProjection(
   // P0-B: the finish CMeng can calculate from the network, even where some open
   // activities run on an assumed calendar. It is the management answer; the
   // assumption is stated beside it. Null only when the network itself cannot be
-  // calculated.
-  const calculatedFinish=cpm.complete?cpm.projectFinishIso:null;
+  // calculated. Broken, external or left-out logic references qualify it
+  // (network_references, partial_coverage); they do not erase it.
+  const calculatedFinish=cpm.projectFinishIso??null;
   const calculatedActivityCount =
     activities.filter(
       (activity) =>

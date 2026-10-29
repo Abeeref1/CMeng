@@ -357,7 +357,77 @@ function fixedCompletedDates(
   };
 }
 
+/** P0-B (with M5.1): one defect in the logic must not stop the whole network.
+ * A repeated activity ID (both copies) is left out with its links, and each loop
+ * is opened at the link that closes it (the link back to an activity already on
+ * the path, in a fixed order). Everything else is calculated, and every
+ * left-out activity and link is stated so the result is qualified, not erased. */
+function repairedNetwork(model:CanonicalScheduleModel,graph:{duplicateActivityIds:readonly string[];cyclicActivityIds:readonly string[]}){
+  const duplicates=new Set(graph.duplicateActivityIds);
+  let activities=model.activities,relationships=model.relationships;
+  if(duplicates.size){
+    activities=activities.filter(a=>!duplicates.has(a.activityId));
+    relationships=relationships.filter(r=>!duplicates.has(r.predecessorActivityId)&&!duplicates.has(r.successorActivityId));
+  }
+  const openedLinks:string[]=[];
+  const cyclic=new Set(graph.cyclicActivityIds.filter(id=>!duplicates.has(id)));
+  if(cyclic.size){
+    const out=new Map<string,Array<{to:string;id:string}>>();
+    for(const r of relationships){
+      if(r.external||!cyclic.has(r.predecessorActivityId)||!cyclic.has(r.successorActivityId))continue;
+      const list=out.get(r.predecessorActivityId)??[];list.push({to:r.successorActivityId,id:r.relationshipId});out.set(r.predecessorActivityId,list);
+    }
+    for(const list of out.values())list.sort((x,y)=>x.to.localeCompare(y.to)||x.id.localeCompare(y.id));
+    const state=new Map<string,1|2>(),back=new Set<string>();
+    for(const start of [...cyclic].sort()){
+      if(state.has(start))continue;
+      const stack:Array<{id:string;next:number}>=[{id:start,next:0}];state.set(start,1);
+      while(stack.length){
+        const top=stack[stack.length-1]!,edges=out.get(top.id)??[];
+        if(top.next>=edges.length){state.set(top.id,2);stack.pop();continue;}
+        const edge=edges[top.next++]!;const seen=state.get(edge.to);
+        if(seen===1)back.add(edge.id);
+        else if(seen===undefined){state.set(edge.to,1);stack.push({id:edge.to,next:0});}
+      }
+    }
+    for(const r of relationships)if(r.predecessorActivityId===r.successorActivityId&&cyclic.has(r.predecessorActivityId))back.add(r.relationshipId);
+    relationships=relationships.filter(r=>!back.has(r.relationshipId));
+    openedLinks.push(...[...back].sort());
+  }
+  return {model:{...model,activities,relationships},leftOutActivityIds:[...duplicates].sort(),openedLinks};
+}
+
 export function calculateCpm(
+  sourceModel: CanonicalScheduleModel,
+  input?: Partial<CpmConfig>,
+): CpmResult {
+  // P0-B (M5.1): repair the logic first, so the rest of the network is calculated.
+  const population0=activityPopulation(sourceModel,'execution_control');
+  const excluded0=new Set(population0.excluded.map(a=>a.activityId));
+  const execution0:CanonicalScheduleModel=excluded0.size===0?sourceModel:{...sourceModel,activities:population0.activities,
+    relationships:sourceModel.relationships.filter(r=>!excluded0.has(r.predecessorActivityId)&&!excluded0.has(r.successorActivityId))};
+  const graph0=analyzeScheduleGraph(execution0);
+  if(graph0.duplicateActivityIds.length||graph0.cyclicActivityIds.length){
+    let repaired=repairedNetwork(execution0,graph0),pass=0;
+    const leftOut=new Set(repaired.leftOutActivityIds),opened=new Set(repaired.openedLinks);
+    // A loop can sit inside another; repeat until the logic is open (bounded).
+    while(pass++<5){const g=analyzeScheduleGraph(repaired.model);if(!g.cyclicActivityIds.length&&!g.duplicateActivityIds.length)break;
+      repaired=repairedNetwork(repaired.model,g);for(const id of repaired.leftOutActivityIds)leftOut.add(id);for(const id of repaired.openedLinks)opened.add(id);}
+    const result=calculateCpmOnce(repaired.model,input);
+    const repairCodes=[...[...leftOut].map(id=>'CPM_DUPLICATE_ACTIVITY_ID_LEFT_OUT:'+id),...[...opened].map(id=>'CPM_LOOP_LINK_LEFT_OUT:'+id)];
+    const leftOutRows=execution0.activities.filter(a=>leftOut.has(a.activityId)).map(a=>({activityId:a.activityId,calendarId:a.calendarId,calendarMode:'elapsed_fallback' as const,
+      durationHours:null,durationMethod:null,earlyStartIso:null,earlyFinishIso:null,lateStartIso:null,lateFinishIso:null,totalFloatHours:null,critical:null,status:'unresolved' as const,
+      diagnostics:['CPM_DUPLICATE_ACTIVITY_ID_LEFT_OUT']}));
+    // The logic was changed to calculate it, so the run is never "complete"; the finish stands, qualified.
+    return {...result,complete:false,activities:[...result.activities,...leftOutRows] as CpmResult['activities'],
+      unresolvedActivityIds:[...result.unresolvedActivityIds,...leftOutRows.map(r=>r.activityId)],
+      assumptions:uniqueSorted([...result.assumptions,'CPM_NETWORK_REPAIRED:duplicates='+leftOut.size+':loop_links='+opened.size]),
+      diagnostics:uniqueSorted([...result.diagnostics,...graph0.diagnostics,...repairCodes])};
+  }
+  return calculateCpmOnce(sourceModel,input);
+}
+
+function calculateCpmOnce(
   sourceModel: CanonicalScheduleModel,
   input?: Partial<CpmConfig>,
 ): CpmResult {

@@ -28,6 +28,7 @@ export interface ForecastQualification {
     | "activity_divergence"
     | "constraints_not_applied"
     | "network_references"
+    | "network_repaired"
     | "partial_coverage";
   text: string;
   action: string;
@@ -266,6 +267,14 @@ export function forecastQualifications(input: {
     out.push({code: "constraints_not_applied", count: input.unappliedConstraints,
       text: input.unappliedConstraints + " source " + plural(input.unappliedConstraints, "constraint was", "constraints were") + " not applied in this calculation.",
       action: "Confirm whether the source constraints still apply."});
+  // P0-B (M5.1): what CMeng changed in the logic to calculate it, named.
+  const leftOut = [...new Set(messages.filter(m => m.startsWith("CPM_DUPLICATE_ACTIVITY_ID_LEFT_OUT:")).map(m => m.split(":")[1]!))];
+  const opened = [...new Set(messages.filter(m => m.startsWith("CPM_LOOP_LINK_LEFT_OUT:")).map(m => m.split(":")[1]!))];
+  if (leftOut.length || opened.length)
+    out.push({code: "network_repaired", count: leftOut.length + opened.length,
+      text: [leftOut.length ? "Activity ID " + leftOut.slice(0, 5).join(", ") + (leftOut.length > 5 ? " and " + (leftOut.length - 5) + " more" : "") + " appears more than once; " + plural(leftOut.length, "it was", "they were") + " left out with " + plural(leftOut.length, "its", "their") + " links" : "",
+        opened.length ? plural(opened.length, "A logic loop was", opened.length + " logic loops were") + " opened at the closing link (" + opened.slice(0, 5).join(", ") + (opened.length > 5 ? ", ..." : "") + ")" : ""].filter(Boolean).join(". ") + ".",
+      action: "Correct the repeated activity IDs and logic loops in the programme; CMeng then calculates them without this change."});
   if (input.graphDiagnostics > 0)
     out.push({code: "network_references", count: input.graphDiagnostics,
       text: "The programme has " + input.graphDiagnostics + " logic reference " + plural(input.graphDiagnostics, "problem", "problems") + " (for example a missing predecessor).",

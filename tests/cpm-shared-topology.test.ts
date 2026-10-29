@@ -20,7 +20,8 @@ test('ten new schedule populations preserve CPM values, exclusions and in-place 
     model.relationships[0]!.lagHours=3;
     assert.equal(calculateCpm(model,config).projectFinishIso,new Date(start+(durations.reduce((a,b)=>a+b,0)+3)*3600000).toISOString());
     model.relationships.push({relationshipId:'cycle',predecessorActivityId:'A'+(count-1),successorActivityId:'A0',type:'FS',lagHours:0,external:false,sourceRefs:[],diagnostics:[]});
-    assert.equal(calculateCpm(model,config).projectFinishIso,null);
+    // The in-place loop is seen (no stale shared analysis): P0-B opens it at the closing link and names it.
+    {const looped=calculateCpm(model,config);assert.equal(looped.complete,false);assert.ok(looped.diagnostics.includes('CPM_LOOP_LINK_LEFT_OUT:cycle'));}
     model.relationships.pop();model.activities[1]!.activityType='level_of_effort';
     const excluded=calculateCpm(model,config);
     assert.ok(excluded.activities.every(a=>a.activityId!=='A1'));

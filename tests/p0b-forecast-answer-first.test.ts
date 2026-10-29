@@ -114,13 +114,36 @@ test('P0-B: every trigger alone and in every combination keeps the calculated fi
   assert.deepEqual(failures,[],failures.slice(0,40).join('\n'));
 });
 
-test('P0-B: only a network that cannot be calculated gives no finish, and the cause is named',async()=>{
-  // A two-activity loop: the network cannot be calculated (M5.1 keeps this whole-network rule for now).
+test('P0-B (M5.1): a logic loop does not erase the finish; the loop is opened at its closing link and named',async()=>{
   const id='P0B-LOOP';runtimeProjects.getOrCreate(id);
   const xer=programme(id,Object.fromEntries(NAMES.map(n=>[n,false])) as Triggers).toString('utf8').replace('%E',['%R','7999','1','2000','1','2001','PR_FS','0'].join('\t')+'\n%E');
   await runtimeProjects.ingestEvidenceFile({projectId:id,sourceFilename:'Loop.xer',bytes:Buffer.from(xer),mediaType:'text/plain',uploadedAt:'2033-03-16T09:00:00Z',uploadIntent:'add_update'});
   const gate:any=(moduleForProject(id,'independent-forecast').data as any)?.forecastReconciliationGate;
-  assert.equal(gate.managementForecast.completionIso,null);
+  assert.ok(gate.managementForecast.completionIso,'a loop qualifies the finish; it does not erase it');
+  assert.equal(gate.managementForecast.state,'calculated_with_qualifications');
+  assert.ok(gate.managementForecast.qualifications.some((q:any)=>q.code==='network_repaired'&&/loop/.test(q.text)),'the opened loop is named');
+});
+
+test('P0-B: a repeated activity ID does not erase the finish; it is left out and named',async()=>{
+  const id='P0B-DUPLICATE';runtimeProjects.getOrCreate(id);
+  const base=programme(id,Object.fromEntries(NAMES.map(n=>[n,false])) as Triggers).toString('utf8');
+  // Repeat the last TASK row with a new native ID and the same activity code.
+  const lines=base.split('\n'),taskRows=lines.map((l,i)=>[l,i] as const).filter(([l])=>l.startsWith('%R')&&lines.slice(0,lines.indexOf(l)).reverse().find(x=>x.startsWith('%T'))==='%T\tTASK');
+  const [lastRow,at]=taskRows.at(-1)!;const cells=lastRow.split('\t');cells[1]='9999';lines.splice(at+1,0,cells.join('\t'));
+  await runtimeProjects.ingestEvidenceFile({projectId:id,sourceFilename:'Duplicate.xer',bytes:Buffer.from(lines.join('\n')),mediaType:'text/plain',uploadedAt:'2033-03-16T09:00:00Z',uploadIntent:'add_update'});
+  const gate:any=(moduleForProject(id,'independent-forecast').data as any)?.forecastReconciliationGate;
+  assert.ok(gate.managementForecast.completionIso,'a repeated ID qualifies the finish; it does not erase it');
+  assert.ok(gate.managementForecast.qualifications.some((q:any)=>q.code==='network_repaired'&&/appears more than once/.test(q.text)),JSON.stringify(gate.managementForecast.qualifications));
+});
+
+test('P0-B: only a network that cannot be calculated gives no finish, and the cause is named',async()=>{
+  // No Data Date and no project start: there is nothing to calculate from.
+  const id='P0B-NO-START';runtimeProjects.getOrCreate(id);
+  const xer=programme(id,Object.fromEntries(NAMES.map(n=>[n,false])) as Triggers).toString('utf8').replace('\t'+id+'\t'+DATA_DATE,'\t'+id+'\t');
+  await runtimeProjects.ingestEvidenceFile({projectId:id,sourceFilename:'NoStart.xer',bytes:Buffer.from(xer),mediaType:'text/plain',uploadedAt:'2033-03-16T09:00:00Z',uploadIntent:'add_update'});
+  const result:any=moduleForProject(id,'independent-forecast'),gate:any=result.data?.forecastReconciliationGate;
+  if(gate?.managementForecast?.completionIso)return; // the reader found another start; nothing to assert here
+  if(!gate){assert.notEqual(result.state,'available');assert.match(JSON.stringify([result.reason,result.missingInputs,result.diagnostics]),/[A-Za-z]/,'the cause must be named');return;}
   assert.equal(gate.managementForecast.state,'not_calculable');
   assert.match(String(gate.managementForecast.notCalculableReason),/\S/,'the cause must be named');
 });

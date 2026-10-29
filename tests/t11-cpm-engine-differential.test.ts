@@ -131,11 +131,17 @@ function run(engine:typeof calculateCpm,model:CanonicalScheduleModel,config:Part
 }
 
 test('T11 CPM engine: 200 random networks give results identical to the bd851ecc engine', () => {
-  let calculated=0,constrained=0,driving=0,notCalculable=0,corrected=0,identical=0;
+  let calculated=0,constrained=0,driving=0,notCalculable=0,corrected=0,identical=0,repaired=0;
   for(let seed=1;seed<=200;seed++){
     const {model,config}=randomModel(seed);
     const expected=run(referenceCalculateCpm,model,config);
     const actual=run(calculateCpm,model,config);
+    // P0-B (M5.1): where the reference engine stopped for a loop or a repeated ID,
+    // this engine opens the loop or leaves the repeated activity out, names it,
+    // and calculates the rest (never "complete").
+    if(expected.result&&actual.result&&expected.result.projectFinishIso===null&&actual.result.diagnostics.some(d=>/^CPM_(LOOP_LINK|DUPLICATE_ACTIVITY_ID)_LEFT_OUT:/.test(d))){
+      assert.equal(actual.result.complete,false,'seed '+seed);repaired++;notCalculable++;continue;
+    }
     const triggers=d1d2Triggers(model,config,expected.result);
     if((triggers.d1||triggers.d2)&&expected.result&&actual.result&&JSON.stringify(actual)!==JSON.stringify(expected)){
       assertCorrectedD1D2(actual.result,expected.result,'seed '+seed);
