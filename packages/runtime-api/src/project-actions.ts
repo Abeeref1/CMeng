@@ -409,6 +409,28 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const heldCertificates=heldCommercial.payments.filter(p=>p.certificationDate&&dataDate&&p.certificationDate.slice(0,10)<=dataDate&&
    !/^(applied|application|draft|submitted)$/i.test(p.sourceStatus)&&p.amounts.grossCertifiedAmount.value!==null);
   const information:ProjectAction[]=[...classificationInformation,...savedContractDecisions];
+  // C11: CMeng's own activity links for register records, reviewed in one place.
+  // Clear links are already used on every page; only unclear matches ask a choice.
+  {
+    const linked=delivery.records.filter(r=>!['superseded','scenario'].includes(r.state)&&r.activityLink);
+    const proposed=linked.filter(r=>r.activityLink!.state==='proposed'),unclear=linked.filter(r=>r.activityLink!.state==='ambiguous');
+    if(proposed.length||unclear.length){
+      const by=(basis:string)=>proposed.filter(r=>r.activityLink!.basis===basis).length;
+      const bases=([['cited_activity_id','a cited activity ID'],['wbs_code','a stated WBS code'],['name_match','a clear name match']] as const).filter(([basis])=>by(basis)>0).map(([basis,label])=>by(basis)+' by '+label);
+      const first=(unclear[0]??proposed[0])!,moduleKey=deliveryPages.find(p=>p[3]===first.kind)?.[0]??'delivery-control';
+      const item:ProjectAction={id:'delivery-activity-links',category:unclear.length?'confirmation':'information',owner:'Planning Engineer',
+        title:'Check CMeng\'s activity links for register records',
+        reason:(proposed.length?countText(proposed.length,'register record is','register records are')+' linked to programme activities by CMeng ('+bases.join('; ')+'). These links are used on every page now. ':'')+
+          (unclear.length?countText(unclear.length,'record matches','records match')+' several activities equally and stays unlinked until you choose.':''),
+        recordCount:proposed.length+unclear.length,
+        evidenceSummary:[...unclear.slice(0,10).map(r=>(r.reference??r.recordId)+': '+r.activityLink!.candidates.map(c=>c.activityId+(c.name?' ('+c.name+')':'')).join(' or ')),
+          ...proposed.slice(0,10).map(r=>(r.reference??r.recordId)+' to '+r.links.activityIds.join(', ')+': '+r.activityLink!.reason)],
+        resolution:{kind:'choose',requiresUserAction:unclear.length>0,instruction:'Open the record, confirm or correct its activity link and save the review. A reviewed link stays through new register revisions.',
+          completionRule:'Reviewed links leave this list; only CMeng proposals and unclear matches remain.'},
+        target:{type:'module',moduleKey,label:'Review activity links'}};
+      (unclear.length?actions:information).push(item);
+    }
+  }
   const noticeBasis=noticeReviewBasis(state),noticeVersions=noticeBasis.candidates;
   // The saved selection can resolve the original conflict. Keep the decision
   // reachable from its source provisions independently of stale issue groups.

@@ -1,4 +1,5 @@
 import {procurementDateBasis} from './procurement-date-basis';
+import {splitLinkCell,LINKED_ACTIVITY_HEADERS} from './link-cell';
 import {cell,csv as parseCsv,sourceTables,procurementTiming,PROCUREMENT_LEAD_REVIEW_HEADERS,programmeOnlyNeedDateText,linkTimingMismatchText} from "../../truth-kernel/src";
 import {canonicalHeader,registerBusinessStatusFields,prepareEvidenceRows,registerDate} from '../../truth-kernel/src';
 import {
@@ -122,6 +123,28 @@ function readinessState(
 
   // SW-18: "Not applicable" is its own state, never known-ready or blocked.
   if(/^(not applicable|n\/a|na)$/.test(value))return "not_applicable";
+  // C10: the words each newly read register uses for its own position.
+  if(documentType==="permit_register"){
+    if(/\b(expired|suspended|revoked|refused|rejected|withdrawn|cancelled)\b/.test(value))return "blocked";
+    if(/\b(approved|issued|granted|valid|active|live)\b/.test(value))return "ready";
+  }
+  if(documentType==="risk_register"){
+    if(/\b(occurred|realised|realized|materiali[sz]ed|triggered|issue)\b/.test(value))return "blocked";
+    if(/\b(closed|retired|mitigated|resolved|expired)\b/.test(value))return "ready";
+    return "unknown";
+  }
+  if(documentType==="resource_register"||documentType==="contractor_manpower_plan"){
+    if(/\b(not available|unavailable|shortfall|short|demobili[sz]ed|not mobili[sz]ed)\b/.test(value))return "blocked";
+    if(/\b(available|mobili[sz]ed|on site|confirmed|allocated|assigned|approved)\b/.test(value))return "ready";
+  }
+  if(documentType==="variation_register"){
+    if(/\b(rejected|disputed|on hold|hold|withdrawn)\b/.test(value))return "blocked";
+    if(/\b(approved|instructed|agreed|accepted|issued)\b/.test(value))return "ready";
+    return "unknown";
+  }
+  if(documentType==="interface_register"){
+    if(/\b(closed|resolved|agreed|released|handed over|available|complete|completed)\b/.test(value))return "ready";
+  }
   if (
     /\b(approved|accepted|closed|complete|completed|delivered|installed|issued|answered|released)\b/.test(
       value,
@@ -149,9 +172,8 @@ function readinessState(
   }
 
   if (
-    documentType ===
-      "rfi_register" &&
-    /\bopen\b/.test(
+    ["rfi_register","permit_register","interface_register","resource_register","contractor_manpower_plan"].includes(documentType) &&
+    /\b(open|pending|applied|submitted|requested|under review)\b/.test(
       value,
     ) &&
     dueIso &&
@@ -198,8 +220,39 @@ function dimensionFor(
   ) {
     return "quality";
   }
+  // C10: the five dimensions that had no document reader.
+  if(documentType==="permit_register")return "permit";
+  if(documentType==="interface_register")return "access";
+  if(documentType==="risk_register")return "risk";
+  if(documentType==="resource_register"||documentType==="contractor_manpower_plan")return "resource";
+  if(documentType==="variation_register")return "commercial";
   return null;
 }
+
+/** The register types read for each readiness dimension (one list, used by the
+ * readers and by the "no listed check" rule). */
+export const READINESS_DIMENSION_DOCUMENT_TYPES:Readonly<Partial<Record<ReadinessDimensionKey,readonly string[]>>>={
+  procurement_material:["procurement_register"],design_submittal:["rfi_register","design_deliverables","submittal_register"],quality:["quality_ncr_register"],
+  permit:["permit_register"],access:["interface_register"],risk:["risk_register"],resource:["resource_register","contractor_manpower_plan"],commercial:["variation_register"],
+};
+/** Each register's own record identity column (never a linked package or activity column). */
+function recordIdentityHeaders(documentType:string){
+  switch(documentType){
+    case "procurement_register":return ["package id","procurement package id","procurement package"];
+    case "submittal_register":return ["submittal id","submittal no","submittal number"];
+    case "rfi_register":return ["rfi id","rfi no","rfi number"];
+    case "design_deliverables":return ["deliverable id","drawing no","document no"];
+    case "quality_ncr_register":return ["ncr id","ncr no","inspection id"];
+    case "permit_register":return ["permit id","permit no","permit number"];
+    case "interface_register":return ["interface id","interface no"];
+    case "risk_register":return ["risk id","risk no","risk ref"];
+    case "resource_register":case "contractor_manpower_plan":return ["resource id","resource code","crew id"];
+    case "variation_register":return ["variation id","variation no","vo no"];
+    default:return ["deliverable id","package id","ncr id","rfi id","submittal id"];
+  }
+}
+const splitActivityCell=splitLinkCell;
+export type ReadinessLinkReader=(row:{documentId:string;documentType:string;reference:string|null;stated:string;fields:Record<string,string>})=>string[];
 
 function procurementPackageMap(
   state: ProjectRuntimeState,
@@ -241,6 +294,11 @@ export function deriveReadinessFromCsv(
     bytes: Uint8Array;
     sheetName?: string;
     dataDateIso?: string | null;
+    /** P0-C (C10, C11, M8.2): the one link reader. Given a source row it returns
+     * the activities the row applies to: the Delivery record's current links
+     * (stated, reviewed or proposed by CMeng), else the stated cell split on
+     * ";", "|" or ",", else CMeng's linker. Without it, the stated cell only. */
+    links?: ReadinessLinkReader;
   },
 ): ReadinessByActivity {
   const dimension =
@@ -275,16 +333,7 @@ export function deriveReadinessFromCsv(
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
 
-  const activityIndex =
-    headerIndex(
-      headers,
-      [
-        "linked activity",
-        "linked schedule activity",
-        "activity id",
-        "schedule activity",
-      ],
-    );
+  const activityIndex = headerIndex(headers,[...LINKED_ACTIVITY_HEADERS]);
   const dueIndex =
     headerIndex(
       headers,
@@ -324,7 +373,7 @@ export function deriveReadinessFromCsv(
   const closedIndex=headerIndex(headers,['close date','closed date','response date','actual issue','approval date','actual delivery','delivered date']);
   const snapshotIndex=headerIndex(headers,['status as of','status date','as of','as of date','snapshot date']);
   const activityById=new Map((projectControlSchedule(input.state)?.revision.model.activities??[]).map(a=>[a.activityId,a]));
-  const recordIdIndex=headerIndex(headers,['deliverable id','package id','ncr id','rfi id','submittal id']);
+  const recordIdIndex=headerIndex(headers,recordIdentityHeaders(input.document.documentType));
   const longLeadIndex=headerIndex(headers,['long lead']);
   const ownerIndex=headerIndex(headers,['owner','responsible','responsible party','action owner']);
   const forecastDeliveryIndex=headerIndex(headers,['forecast delivery','forecast delivery date','delivery forecast date']);
@@ -351,24 +400,24 @@ export function deriveReadinessFromCsv(
       continue;
     }
 
-    let activityId =
-      valueAt(
-        row,
-        activityIndex,
-      );
+    const stated=valueAt(row,activityIndex);
+    let activityIds=input.links
+      ?input.links({documentId:input.document.documentId,documentType:input.document.documentType,reference:valueAt(row,recordIdIndex)||null,stated,
+        fields:Object.fromEntries(headers.map((header,i)=>[normHeader(header),valueAt(row,i)]))})
+      :splitActivityCell(stated);
     let packageLink:PackageLink|undefined;
 
     if (
-      !activityId &&
+      !activityIds.length &&
       input.document
         .documentType ===
         "submittal_register"
     ) {
       packageLink=packageMap.get(valueAt(row,packageIndex));
-      activityId=packageLink?.activityId??"";
+      activityIds=splitActivityCell(packageLink?.activityId??"");
     }
 
-    if (!activityId) {
+    if (!activityIds.length) {
       continue;
     }
 
@@ -389,13 +438,16 @@ export function deriveReadinessFromCsv(
     else if(closed){
       if(closed<=cutoff){
         if(/rejected|blocked|hold|failed/i.test(status)){currentStatus=snapshot===cutoff?status:'';scopeNote='Terminal date and adverse source status require lifecycle reconciliation';}
-        else currentStatus=input.document.documentType==='quality_ncr_register'?'closed':'approved';
+        else currentStatus=['quality_ncr_register','risk_register'].includes(input.document.documentType)?'closed':'approved';
       }
       else {currentStatus=opened?'open':'';scopeNote='Future closure/approval excluded from the current position';}
     }else if(snapshot!==cutoff){
       const isOpen=opened&&/^(open|pending|active|overdue)$/.test(status.toLowerCase());
       if(!isOpen){currentStatus='';scopeNote='Actual status date not established; source final status is not an as-of assertion';}
     }
+    const baseNote=scopeNote,baseDiagnostics=[...diagnostics];
+    for(const activityId of activityIds){
+    let scopeNote=baseNote;const diagnostics=[...baseDiagnostics];
     let state =
       readinessState(
         input.document
@@ -430,7 +482,6 @@ export function deriveReadinessFromCsv(
 
     if(sourceStatus.conflicted){
       state='unknown';
-      currentStatus='';
       scopeNote='Conflicting business-status columns need source review: '+sourceStatus.observed.map(v=>v.field+'='+v.raw).join('; ')+'. '+scopeNote;
     }
 
@@ -463,6 +514,7 @@ export function deriveReadinessFromCsv(
             : ""
         ),
     }));
+    }
   }
 
   return result;
@@ -609,7 +661,7 @@ export function rebuildReadinessEvidence(
 
 /** Rebuild a read-only Data-Date view from verified retained source bytes.
  * Persisted import-time statuses cannot survive as a separate authority. */
-export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null):ReadinessByActivity {
+export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso:string|null,options:{links?:ReadinessLinkReader}={}):ReadinessByActivity {
   const derived:ProjectRuntimeState['derivedReadinessByDocument']={};
   for(const document of analyticalOperationalDocuments(state.evidenceDocuments)){
     try {
@@ -627,14 +679,14 @@ export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso
           const type=sheet.semantic?.documentType??document.documentType;
           if(!dimensionFor(type))continue;
           const semanticDocument=sheet.semantic?{...document,documentType:type,category:sheet.semantic.category as any}:document;
-          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso}));
+          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso,...(options.links?{links:options.links}:{})}));
         }
         continue;
       }
       if(!dimensionFor(document.documentType)||document.mediaType!=='text/csv')continue;
       const bytes=readFileSync(document.storedPath);
       if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)continue;
-      merge(deriveReadinessFromCsv({state,document,bytes,dataDateIso}));
+      merge(deriveReadinessFromCsv({state,document,bytes,dataDateIso,...(options.links?{links:options.links}:{})}));
     }catch { /* No verified source means no derived ready assertion. */ }
   }
   const view={...state,derivedReadinessByDocument:derived,controls:{...state.controls,readinessEvidence:{...state.controls.readinessEvidence}}};

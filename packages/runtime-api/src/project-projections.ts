@@ -1,4 +1,5 @@
 import {registerScopeReason} from './unknown-reason';
+import {currentReadinessEvidence} from './current-readiness';
 import {projectDocumentReading,readingSetup} from './document-read-review';
 import {auditActorDisplayName} from './audit-context';
 import {configuredProviderState} from '../../project-ask/src/provider';
@@ -206,7 +207,7 @@ import {
  * Only current, linked, late procurement records can block unfinished driving
  * work. No source record or pre-existing readiness evidence is removed. */
 export function lookAheadReadinessWithProcurement(state:ProjectRuntimeState,drivingIds:readonly string[]){
-  const retained=state.controls.readinessEvidence;
+  const retained=currentReadinessEvidence(state);
   if(drivingIds.length===0)return retained;
   // Do not build the complete Delivery/BOQ/readiness projections when there
   // is no sourced procurement package to connect to the programme. This
@@ -1422,7 +1423,7 @@ function buildBundle(
     sharedPlanPositions: sharedProjectPlanPositions(state,model,controlledBaseline?.revision.model ?? null,sourcePlanPositions),
     previousModel: ordered.at(-2)?.revision.model ?? null,
     scopeClassification: projectScopeClassification(state,model),
-    readinessEvidence: state.controls.readinessEvidence,
+    readinessEvidence: currentReadinessEvidence(state),
     config: scheduleAnalysisConfig,
     generatedAt,
     producerVersion: versions.breakdown,
@@ -5800,7 +5801,7 @@ function buildSpecialistModuleFast(
       baselineModel: controlledBaseline?.revision.model ?? null,
       previousModel: ordered.at(-2)?.revision.model ?? null,
       scopeClassification: projectScopeClassification(state,model),
-      readinessEvidence: state.controls.readinessEvidence,
+      readinessEvidence: currentReadinessEvidence(state),
           config: scheduleAnalysisConfig,
           generatedAt,
           producerVersion:

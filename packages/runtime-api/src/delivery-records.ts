@@ -14,6 +14,8 @@ import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryFields} from '../../delivery-core/src/fields';
 import {deliveryDocumentKinds} from '../../delivery-core/src/reader-columns';
 import {assetValueMapping} from './delivery-value-mapping';
+import {registerActivityLinker} from './register-activity-linker';
+import {splitLinkCell,LINKED_ACTIVITY_HEADERS} from './link-cell';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
 export const deliveryStore=(state:ProjectRuntimeState):DeliveryStateStore=>state.delivery??{schemaVersion:1,manual:[],decisions:[],populations:[]};
@@ -99,7 +101,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
    }
 
    const reference=cell(row,'record reference',...kindIdentities[k])||null;
-   const links=emptyLinks();links.activityIds=split(cell(row,'linked activity'));links.boqItemIds=split(cell(row,'boq item id','boq item','boq items','boq item no','boq ref','boq reference','boq item ref','boq item reference'));
+   const links=emptyLinks();links.activityIds=splitLinkCell(cell(row,...LINKED_ACTIVITY_HEADERS));links.boqItemIds=split(cell(row,'boq item id','boq item','boq items','boq item no','boq ref','boq reference','boq item ref','boq item reference'));
    if(k!=='package')links.packageIds=split(cell(row,'package id','procurement package id'));
    if(k!=='supplier')links.supplierIds=split(cell(row,'supplier id','subcontractor id'));
    if(k!=='location')links.locationIds=split(cell(row,'location id'));
@@ -208,10 +210,24 @@ export function deliveryRecords(state:ProjectRuntimeState){
    }))];
   }
  }
+ // P0-C (C11): CMeng links each register record to programme activities itself.
+ // A stated or reviewed link stands; otherwise CMeng's rule-based proposal is used
+ // with its basis stated, and an unclear match is left for a choice.
+ const linkable=new Set(['package','submittal','design','quality','permit','commissioning','workfront','interface','hse','handover','snag','asset']);
+ const linker=registerActivityLinker(projectControlSchedule(state)?.revision.model);
+ for(const r of records){
+  if(!linkable.has(r.kind)||r.state==='superseded')continue;
+  if(r.links.activityIds.length){r.activityLink={state:decisionFor(r)?'reviewed':'stated',basis:'stated_activity',score:null,candidates:[],reason:decisionFor(r)?'Activity link confirmed in review.':'The record states its activity.'};continue;}
+  if(decisionFor(r))continue; // a reviewed record without an activity link keeps that decision
+  const proposal=linker(r);
+  r.activityLink={state:proposal.state==='proposed'?'proposed':proposal.state==='ambiguous'?'ambiguous':'none',basis:proposal.basis,score:proposal.score,candidates:proposal.candidates,reason:proposal.reason};
+  if(proposal.state==='proposed')r.links.activityIds=[...proposal.activityIds];
+ }
  const value={records,documents,diagnostics};deliveryRecordsCache.set(state,{version:state.version,decisionFingerprint,value});
  return value;
 }
-export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
+// C11: a CMeng activity-link proposal is not part of what a completeness confirmation covers.
+export function deliveryPopulationFingerprint(records:DeliveryRecord[]){return deliveryHash(records.map(r=>[r.recordId,r.revision,r.state,r.fields,r.activityLink?.state==='proposed'?{...r.links,activityIds:[]}:r.links,...(r.evidenceRevision?[r.evidenceRevision]:[])]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
 /** A3: the population instruction names its own register, so each register page
  * states its own action (one shared sentence for every register read as one action). */
 export function deliveryPopulationBasis(kind:DeliveryKind){return 'Confirm that all applicable records in the '+deliveryLabels[kind]+' register have been captured before relying on a percentage.';}

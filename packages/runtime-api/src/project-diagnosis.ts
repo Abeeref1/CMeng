@@ -1,4 +1,5 @@
 import {parseScheduleInstant} from '../../schedule-cpm/src';
+import {currentReadinessEvidence} from './current-readiness';
 import {sharedReadinessForActivity,predecessorAssessmentMemo} from '../../lookahead-schedule/src';
 import type {ActivityAnalyticsRow} from '../../activity-analytics/src/types';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
@@ -209,10 +210,11 @@ export function buildProjectDiagnosis(state:ProjectRuntimeState,modules:Map<stri
  const productivity=forecast?.sourceProductivityForecastEvidence??forecast?.sourceProductivityForecast;
  const products=new Map<string,any[]>();for(const p of productivity?.rows??[]){if(!p.linkedActivityId)continue;const list=products.get(p.linkedActivityId)??[];list.push(p);products.set(p.linkedActivityId,list);}
  const events=new Map<string,any[]>();for(const e of state.controls.delayClaims?.events??[])for(const id of e.relatedActivityIds){const list=events.get(id)??[];list.push(e);events.set(id,list);}
+ const currentReadiness=currentReadinessEvidence(state);
  const checks:any[]=[],readinessMemo=predecessorAssessmentMemo();
  // Assess all schedule pressure activities, including those outside the look-ahead window.
  for(const r of pressureRows){const activity=sourceById.get(r.activityId)!;
-   const predecessorLinks=incoming.get(r.activityId)??[],readinessEvidence=state.controls.readinessEvidence[r.activityId];
+   const predecessorLinks=incoming.get(r.activityId)??[],readinessEvidence=currentReadiness[r.activityId];
    // Without predecessor links or supplied readiness assertions every readiness
    // dimension is unknown/not applicable, never a sourced blocker. Avoid creating
    // nine empty dimension objects for each of tens of thousands of such activities.

@@ -10,7 +10,7 @@ import {commercialCanonical} from './commercial-canonical';
 import {resolveBoqSource} from './boq-source';
 import {refreshContractSegmentation} from '../../contract-parser/src';
 import {refreshScheduleConstraints} from './schedule-source-refresh';
-import {reportingReadinessEvidence} from './evidence-readiness';
+import {currentReadinessEvidence} from './current-readiness';
 import {noticeVersionCohorts} from './contract-notice-rules';
 import {unlinkedSourceNotices} from './event-source-register';
 import {withInstalledMeasurements} from './installed-measurements';
@@ -20,6 +20,9 @@ const cache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;v
 const views = new WeakSet<ProjectRuntimeState>();
 const origins = new WeakMap<ProjectRuntimeState,ProjectRuntimeState>();
 const operationalCache = new WeakMap<ProjectRuntimeState,{version:number;date:string|null;value:OperationalReporting}>();
+/** The live project state a reporting view was made from (the state itself otherwise). */
+export function reportingOrigin(state:ProjectRuntimeState){return origins.get(state)??state;}
+export function isReportingView(state:ProjectRuntimeState){return views.has(state);}
 export function operationalReporting(state:ProjectRuntimeState) {
   state=origins.get(state)??state;const date=projectDataDate(state),cached=operationalCache.get(state);
   if(cached?.version===state.version&&cached.date===date)return cached.value;
@@ -79,7 +82,7 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   const view={...state,schedules,boq:boqSource.boq,quantities:withInstalledMeasurements(state,boqSource.quantities,date),
     contract:state.contract?refreshContractSegmentation(state.contract):null,
     contractDocuments:state.contractDocuments.map(doc=>({...doc,result:refreshContractSegmentation(doc.result)})),
-    controls:{...state.controls,contractValue:reportingContractValue(state),contractTimeBasis:reportingContractTime??null,bonds:commercialCanonical(state).bonds??state.controls.bonds,readinessEvidence:reportingReadinessEvidence(state,date),delayClaims:source?(date?delayClaimsAsOf(source,date).current:source):null,
+    controls:{...state.controls,contractValue:reportingContractValue(state),contractTimeBasis:reportingContractTime??null,bonds:commercialCanonical(state).bonds??state.controls.bonds,readinessEvidence:currentReadinessEvidence(state,date),delayClaims:source?(date?delayClaimsAsOf(source,date).current:source):null,
     ncrs:ops.quality.current as typeof state.controls.ncrs,rfis:ops.rfi.current as typeof state.controls.rfis,risks:ops.risk.current as typeof state.controls.risks}};
   inheritTimeClaimsCache(state,view);
   views.add(view);origins.set(view,state);cache.set(state,{version:state.version,date,value:view});return view;

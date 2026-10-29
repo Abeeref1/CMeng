@@ -1,4 +1,5 @@
 import {handoverSourceComparison} from './handover-source-review';
+import {currentReadinessEvidence} from './current-readiness';
 import {countText,countUnit} from './count-text';
 import {riskOwner,riskRowInputStatus} from './project-input-status';
 import {programmeTaskReviewBasis,programmeTaskScope,type ProgrammeTaskKind} from './programme-task-review';
@@ -261,7 +262,7 @@ function buildDelivery(state:ProjectRuntimeState){
   const latestOrder=latestActionDates.length&&latestActionDates.every(s=>s.dateIso)?latestActionDates.find(s=>s.stage==='po')?.dateIso??null:null;
   const sourceLongLead=/^(yes|true|1|long lead)$/i.test(field(r,'long lead'));
   return {recordId:r.recordId,reference:r.reference,description:r.description,discipline:field(r,'discipline')||null,owner:field(r,'owner','responsible','responsible party')||null,supplier:field(r,'supplier','vendor','manufacturer')||null,sourceStatus:field(r,'status')||null,sourceState:r.state,
-   supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,registerCleanup,
+   supplierIds:r.links.supplierIds,activityIds:r.links.activityIds,activityLink:r.activityLink??null,boqItemIds:r.links.boqItemIds,locationIds:r.links.locationIds,programmeRevisionId:current?.revision.revisionId??null,registerCleanup,
    linkedWorkState:linkedWork.state,linkedWorkGroup:packageLinkedWorkLabel(linkedWork.state),
    programmeNeedDate:assessedProgrammeNeedDate,sourceRequiredOnSite,needDate,needDateBasis,needDatePassedOnProgrammeOnly,linkTimingMismatch,linkedActivityFinish:linkedFinish,forecastDelivery,actualDelivery:date(r,'actual delivery','actual delivery date','delivered date'),deliveredAtDataDate,deliveredStatusOnly,deliveryDateConflict,openStatusDeliveredConflict,notApplicable,overdueUndelivered,forecastLate,deliveryTimingBasis:deliveryDateConflict?'Source completion status and delivery date conflict; review required':openStatusDeliveredConflict?'Source open status and dated actual delivery conflict; review required':notApplicable?'Source status: not applicable':deliveredAtDataDate?'Dated actual delivery':deliveredStatusOnly?'Delivered, date not stated':forecastLate||overdueUndelivered?'Open package with date exposure':'Open package; timing does not establish lateness',drivingPath:unfinishedDrivingLink,drivingBlockerScenario:!registerCleanup&&(forecastLate||overdueUndelivered)&&unfinishedDrivingLink,linkedFloatHours:linkedActivities.some(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null)?Math.min(...linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.totalFloatHours!)):null,linkedFloatActivityId:(()=>{const open=linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null);if(!open.length)return null;const low=Math.min(...open.map(a=>a!.totalFloatHours!));return open.find(a=>a!.totalFloatHours===low)?.activityId??null;})(),linkedFloatCalendarIds:[...new Set(linkedActivities.filter(a=>a&&a.status!=='completed'&&a.totalFloatHours!==null).map(a=>a!.calendarId??null))],programmeFloat:linkedActivities.map(a=>({activityId:a?.activityId??null,totalFloatHours:a?.totalFloatHours??null,calendarId:a?.calendarId??null})),longLeadCandidate:field(r,'long lead')?sourceLongLead:/elevator|façade|facade|switchgear|transformer|generator|chiller|ahu|fcu|pump|bms|fire alarm|equipment|steel|stone/i.test(r.description??''),headroomCalendarDays:headroom,currentStage,lifecycle,latestActionDates,latestOrderDate:latestOrder,
    latestOrderState:latestOrder?(assumption?'scenario':'calculated'):'not_established',leadTimeBasis:latestOrder?'Governed lifecycle durations, explicit day basis and controlled programme need date.':'Latest order date not established: confirm programme links, lifecycle, duration sources and day/calendar basis.',
@@ -529,7 +530,7 @@ function buildDelivery(state:ProjectRuntimeState){
  // again for each discipline/location workfront and the same 8,000+ activity baseline.
  const sharedPlanPositions=model&&scopeGroups.size?sharedProjectPlanPositions(state,model,workfrontBaseline):undefined;
  const workfrontConfig={baselineModel:workfrontBaseline,...(sharedExactBaselineIds?{sharedExactBaselineIds}:{}),...(sharedPlanPositions?{sharedPlanPositions}:{}),
-   sharedProgrammeLongLeadActivityIds:explicitProgrammeLongLead.activityIds,readinessEvidence:state.controls.readinessEvidence,
+   sharedProgrammeLongLeadActivityIds:explicitProgrammeLongLead.activityIds,readinessEvidence:currentReadinessEvidence(state),
    generatedAt:workfrontGeneratedAt,producerVersion:'shared-progress-breakdown',
    config:projectScheduleControlBasis(state).analysisConfig};
  // A source workfront may be indexed by both its discipline and location.
@@ -558,8 +559,8 @@ function buildDelivery(state:ProjectRuntimeState){
   const rows=progress?.rows??[];
   const total=progress?.overallSummary??null;
   const unfinished=selected.filter(a=>a.status!=='completed');
-  const blockedActivityIds=unfinished.filter(a=>Object.values(state.controls.readinessEvidence[a.activityId]??{}).some(r=>r.state==='blocked')).map(a=>a.activityId);
-  const linkedBlockers=unfinished.flatMap(a=>Object.values(state.controls.readinessEvidence[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
+  const blockedActivityIds=unfinished.filter(a=>Object.values(currentReadinessEvidence(state)[a.activityId]??{}).some(r=>r.state==='blocked')).map(a=>a.activityId);
+  const linkedBlockers=unfinished.flatMap(a=>Object.values(currentReadinessEvidence(state)[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
   // G8-44: one blocked item never makes a whole group blocked. A group is blocked when one of its
   // own gates is blocked or every unfinished activity in it is blocked; otherwise it is partly
   // blocked, with the count of blocked unfinished activities beside it.
@@ -627,8 +628,8 @@ function buildDelivery(state:ProjectRuntimeState){
   if(r.kind!=='permit')for(const ref of field(r,'permit id').split(/[;,]/).map(linkKey).filter(Boolean)){const rows=permitCitations.get(ref)??[];if(!rows.includes(r))rows.push(r);permitCitations.set(ref,rows);}
   if(r.kind==='workfront')for(const area of recordAreas(r)){const rows=areaWorkfronts.get(area)??[];if(!rows.includes(r))rows.push(r);areaWorkfronts.set(area,rows);}
  }
- const permitWorkLink=(r:DeliveryRecord):{activityIds:string[];basis:'stated_activity'|'permit_reference'|'area'|'not_linked';viaRecordId:string|null;reason:string|null}=>{
-  if(r.links.activityIds.length)return {activityIds:r.links.activityIds,basis:'stated_activity',viaRecordId:null,reason:null};
+ const permitWorkLink=(r:DeliveryRecord):{activityIds:string[];basis:'stated_activity'|'cmeng_proposed'|'permit_reference'|'area'|'not_linked';viaRecordId:string|null;reason:string|null}=>{
+  if(r.links.activityIds.length)return {activityIds:r.links.activityIds,basis:r.activityLink?.state==='proposed'?'cmeng_proposed':'stated_activity',viaRecordId:null,reason:r.activityLink?.state==='proposed'?r.activityLink.reason+' Proposed by CMeng; confirm in review.':null};
   const byRef=permitCitations.get(linkKey(r.reference))??[];
   if(r.reference&&byRef.length===1&&byRef[0]!.links.activityIds.length)return {activityIds:byRef[0]!.links.activityIds,basis:'permit_reference',viaRecordId:byRef[0]!.recordId,reason:null};
   if(byRef.length>1)return {activityIds:[],basis:'not_linked',viaRecordId:null,reason:byRef.length+' register records cite this permit reference; not linked'};

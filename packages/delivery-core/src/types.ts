@@ -16,6 +16,8 @@ export interface DeliveryRecord {
  /** F21: how each BOQ reference cited by the source row was resolved
   * (exact BOQ item ID, unique item number, or ambiguous with candidates). */
  boqReferences?:Array<{reference:string;itemId:string|null;state:'exact_item_id'|'unique_item_number'|'ambiguous'|'not_found';candidates:string[]}>;
+ /** C11: how the record's activity link was established (stated, reviewed, or proposed by CMeng with its basis). */
+ activityLink?:{state:'stated'|'reviewed'|'proposed'|'ambiguous'|'none';basis:string|null;score:number|null;candidates:Array<{activityId:string;name:string|null;score:number}>;reason:string};
 }
 export interface DeliveryDecision {
  batchId?:string;

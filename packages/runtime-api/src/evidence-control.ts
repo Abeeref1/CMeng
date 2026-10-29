@@ -331,6 +331,9 @@ export function evidenceFamily(
       "risk_register",
       "procurement_register",
       "permit_register",
+    // C10: the interface register has a reader (Delivery and access readiness);
+    // as a "reference" type it was kept as history and never used.
+    "interface_register",
       "rfi_register",
       "submittal_register",
       "design_deliverables",
