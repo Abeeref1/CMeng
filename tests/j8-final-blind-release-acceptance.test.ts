@@ -28,6 +28,8 @@ type ReleaseBlindProject={
   scenario?:string;
 };
 
+// Pages that the programme alone answers (besides every schedule page).
+const PROGRAMME_ANSWERED=new Set(['master-dashboard','command-center','master-control-programme']);
 const sha=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 const factsDigest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 async function listen(gateway:Awaited<ReturnType<typeof createProjectGateway>>){
@@ -81,6 +83,7 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
   let gateway=await createProjectGateway(root,{maxWorkers:4});
   let base=await listen(gateway);
   let pageChecks=0,askChecks=0;
+  const bodyStates:Record<string,number>={};
 
   const request=async(path:string,init?:RequestInit)=>{
     const response=await fetch(base+path,init),text=await response.text();
@@ -128,20 +131,26 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
       assert.equal(progress.state,'complete');
 
       const otherIds=allIds.filter(id=>id!==project.projectId);
-      let usefulPages=0;
+      let usefulPages=0,blockedPages=0;
       let canonicalProjectFactsDigest:string|null=null;
+      let forecastPage:any=null,dashboardPage:any=null;
       for(const page of moduleRegistry){
         const result=await request(pagePath(project.projectId,page));
-        assert.ok(result.status===200||result.status===409,
-          'J8 page must resolve or be explicitly governed-blocked: '+project.projectId+' / '+page.key+' -> '+result.status+' '+result.text.slice(0,500));
-        if(result.status===200)usefulPages++;
-        if(result.status===409){
-          assert.equal(result.body?.status,'blocked','J8 409 is not a governed blocked result: '+project.projectId+' / '+page.key);
-          assert.ok(typeof result.body?.reason==='string'&&result.body.reason.trim().length>0,
-            'J8 blocked page has no explanation: '+project.projectId+' / '+page.key);
-          assert.ok(Array.isArray(result.body?.dependencies),
-            'J8 blocked page has no dependency evidence: '+project.projectId+' / '+page.key);
-        }
+        // M17.1: every fixture holds a valid programme, so every page must resolve.
+        // A withheld (409) page is a failure, not an accepted outcome.
+        assert.equal(result.status,200,
+          'J8 page withheld for a project with a valid programme: '+project.projectId+' / '+page.key+' -> '+result.status+' '+result.text.slice(0,500));
+        const bodyState=String(result.body?.status??'none');bodyStates[bodyState]=(bodyStates[bodyState]??0)+1;
+        // A page may hold no answer only when it names the missing source; a page that
+        // the programme alone answers is never withheld.
+        if(bodyState==='blocked'){
+          assert.ok(typeof result.body?.reason==='string'&&result.body.reason.trim().length>0,'J8 withheld page names no cause: '+project.projectId+' / '+page.key);
+          assert.ok(Array.isArray(result.body?.dependencies)&&result.body.dependencies.length>0,'J8 withheld page names no missing source: '+project.projectId+' / '+page.key);
+          assert.ok(page.area!=='schedule'&&!PROGRAMME_ANSWERED.has(page.key),'J8 a programme page is withheld for a valid programme: '+project.projectId+' / '+page.key);
+          blockedPages++;
+        }else usefulPages++;
+        if(page.key==='independent-forecast')forecastPage=result.body;
+        if(page.key==='master-dashboard')dashboardPage=result.body;
         assert.ok(!/\b(?:NaN|Infinity|-Infinity)\b/.test(result.text),'J8 non-finite value escaped into JSON: '+project.projectId+' / '+page.key);
         for(const otherId of otherIds)assert.ok(!result.text.includes(otherId),
           'J8 cross-project disclosure: '+project.projectId+' / '+page.key+' contains '+otherId);
@@ -155,7 +164,18 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
         assert.deepEqual(projectFactConsumerMismatches(result.body?.data),[], 'J8 displayed consumer values differ from canonical facts: '+project.projectId+' / '+page.key);
         pageChecks++;
       }
-      assert.ok(usefulPages>0,'J8 project became blocked/unresolved everywhere: '+project.projectId);
+      assert.equal(usefulPages+blockedPages,moduleRegistry.length,'J8 every page must resolve: '+project.projectId);
+      assert.ok(usefulPages>=moduleRegistry.filter(page=>page.area==='schedule'||PROGRAMME_ANSWERED.has(page.key)).length,'J8 programme pages withheld: '+project.projectId);
+      // M17.1: a valid programme gives a management finish, or the cause is named,
+      // and the Dashboard shows the same finish (never a silent blank).
+      const management=forecastPage?.data?.forecastReconciliationGate?.managementForecast;
+      assert.ok(management&&typeof management==='object','J8 no management forecast position: '+project.projectId);
+      const finish=management.completionIso??null,cause=String(management.notCalculableReason??'').trim();
+      assert.ok(finish!==null||cause.length>0,'J8 valid programme has neither a finish nor a named cause: '+project.projectId);
+      const dashboard=dashboardPage?.data?.projectDiagnosis?.completion;
+      assert.ok(dashboard&&typeof dashboard==='object','J8 Dashboard has no completion position: '+project.projectId);
+      if(finish!==null)assert.equal(dashboard.independentFinishIso,finish,'J8 Dashboard finish differs from the management forecast: '+project.projectId);
+      else assert.ok(dashboard.independentFinishIso==null&&String(dashboard.interpretation??'').trim().length>0,'J8 Dashboard hides the cause of a withheld finish: '+project.projectId);
 
       const dateAnswer=await requireOk('/api/projects/'+encodeURIComponent(project.projectId)+'/intelligence/ask',{
         method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:'What is the Data Date?'}),
@@ -208,6 +228,7 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
       pagesPerProject:moduleRegistry.length,
       pageChecks,
       askChecks,
+      bodyStates,
       workerCap:4,
     })+'\n');
   }finally{

@@ -229,7 +229,17 @@ test('Batch J Task 61: primary management surfaces are answer-first, impact/scop
     assert.ok(JSON.stringify(page.data).replace(/null|false|0|\[\]|\{\}/g,'').length>100,name+' usable content');
   }
 
-  assert.ok(dashboard.data.completionPosition,'dashboard completion answer');
+  // M17.1: a completion object is not an answer. The Dashboard shows the management
+  // finish (the same date as the forecast page), or names why it is withheld.
+  const completion=dashboard.data.completionPosition;
+  assert.ok(completion&&typeof completion==='object','dashboard completion answer');
+  const management=(moduleForProject(id,'independent-forecast').data as any)?.forecastReconciliationGate?.managementForecast;
+  assert.ok(management,'management forecast position');
+  if(management.completionIso!==null)assert.equal(completion.independentFinishIso,management.completionIso,'the Dashboard shows the management finish');
+  else{
+    assert.ok(String(management.notCalculableReason??'').trim().length>0,'a withheld finish names its cause');
+    assert.ok(completion.independentFinishIso==null&&String(completion.interpretation??'').trim().length>0,'the Dashboard names the cause');
+  }
   assert.ok(Array.isArray(command.data.actions)&&command.data.actions.length>0,'management actions');
   assert.ok(command.data.actions.some((row:any)=>String(row.issue??'').trim()),'issue');
   assert.ok(command.data.actions.some((row:any)=>String(row.consequence??'').trim()),'impact');

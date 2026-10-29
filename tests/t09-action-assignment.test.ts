@@ -48,7 +48,10 @@ test('T09 assignment: one identity, every consumer shape, overdue only before th
   assert.throws(()=>actionAssignmentPatch({} as any,actionAssignmentInput({actionId:id,action:'clear'})),/no assigned owner/);
   const script=cmengUatHtml();
   assert.ok(script.includes(apiOwnerText.toString()),'the browser uses the same helper');
-  assert.match(script,/data-assign-save=/);assert.match(script,/data-assign-clear=/);assert.match(script,/\/actions\/assign'/);
+  // M17.1: the save itself is proved by behaviour, not by source text: the next test
+  // saves through the route and reads the stored owner back after a restart, and
+  // p0a-c1-real-browser-action-save clicks [data-assign-save] in real Chrome from
+  // both rendered copies and reads the stored owner back after a restart.
 });
 
 test('T09 assignment API: assign, survives restart, stale and invalid input refused, clear restores the calculated owner',async t=>{
