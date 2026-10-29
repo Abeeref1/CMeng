@@ -4,6 +4,7 @@ import {applyCompletionDecision} from './contract-fact-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionCorroboration,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
 import { createHash } from 'node:crypto';
+import {applyCalendarBasis} from './calendar-basis';
 import { readFileSync } from 'node:fs';
 import { cell, has, numberValue, dateValue, governedTables, norm, sumKnown, type SourceReceipt, type SourceRow, type SourceTable } from '../../truth-kernel/src';
 import type { CanonicalClaimRecord, CanonicalDelayEvent, CanonicalNoticeRecord, DelayClaimsModel } from '../../delay-analysis-core/src';
@@ -315,7 +316,8 @@ export function projectControlSchedule(state:ProjectRuntimeState) {
     // source-bound adoption decision. Until then every schedule-dependent
     // calculation must fail closed rather than silently treating the upload as
     // the Current Programme.
-    return selected&&isAdoptedProgrammeRevision(state,selected)?selected:null;
+    // M6.3: the planner's confirmed calendar basis is applied here, once, for every consumer.
+    return selected&&isAdoptedProgrammeRevision(state,selected)?applyCalendarBasis(state,selected):null;
   }
 
   const programmeTypes=new Set([
@@ -345,7 +347,7 @@ export function projectControlSchedule(state:ProjectRuntimeState) {
   const eligible=state.schedules.filter(s=>!isScenarioRevision(s)&&dateValue(s.revision.model.dataDateIso??''));
   const latest=eligible.map(s=>dateValue(s.revision.model.dataDateIso!)!).sort().at(-1);
   const newest=eligible.filter(s=>dateValue(s.revision.model.dataDateIso!)===latest);
-  return newest.length===1?newest[0]!:null;
+  return newest.length===1?applyCalendarBasis(state,newest[0]!):null;
 }
 export function projectDataDate(state:ProjectRuntimeState):string|null {
   return dateValue(projectControlSchedule(state)?.revision.model.dataDateIso ?? '');

@@ -29,6 +29,8 @@ import {boqNumericReview} from './boq-numeric-review';
 import {projectControlSchedule,canonicalTimeClaims,projectDataDate} from './canonical-time-claims';
 import {createHash} from 'node:crypto';
 import {cachedIndependentForecast} from './forecast-cache';
+import {calendarBasisFingerprint,savedCalendarBasis,shorthandCalendars,calendarBasisStatement} from './calendar-basis';
+import {reviewScheduleCalendarBasis} from './schedule-calendar-review';
 import {buildForecastReconciliationGate} from './forecast-control';
 import type {ControlIssueAssessment,ControlIssue,ControlIssueMember} from '../../truth-kernel/src';
 import type {ProjectRuntimeState} from './project-state-types';
@@ -604,6 +606,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   // calendar, the duration basis), gives exactly one item naming each cause
   // and what to do. Correcting it changes the published finish.
   {const item=forecastReviewItem(state);if(item)actions.push(item);}
+  // M6.3: the calendar basis is the planner's decision, asked once here and read by every forecast consumer.
+  for(const item of calendarBasisItems(state))(item.category==='information'?information:actions).push(item);
   // M10.2: register amounts that state no tax basis use the contract's stated
   // basis (or the user's decision). One pre-filled question, asked once.
   {const model=commercialCanonical(state),rule=model.taxBasisDefault,decision=registerTaxBasisDefault(state);
@@ -746,4 +750,35 @@ function populationBlockers(state:ProjectRuntimeState,delivery:ReturnType<typeof
   const undated=rows.filter(r=>r.scope==='undated').length,unknown=rows.filter(r=>r.scope==='current'&&r.currentStatus==='not_established').length,verify=rows.filter(r=>r.scope==='current'&&r.verificationRequired).length;
   const parts=[undated?countText(undated,'record','records')+' with no date':'',unknown?countText(unknown,'current record','current records')+' with no status at the Data Date':'',verify?countText(verify,'closure','closures')+' awaiting verification':''].filter(Boolean);
   return parts.length?{text:parts.join(', '),count:undated+unknown+verify}:null;
+}
+
+/** M6.3: the calendar-basis questions for the control programme, from what the source states. */
+export function calendarBasisItems(state:ProjectRuntimeState):ProjectAction[]{
+  const control=projectControlSchedule(state);
+  if(!control)return [];
+  const stored=state.schedules.find(s=>s.revision.revisionId===control.revision.revisionId)??control;
+  const model=stored.revision.model;
+  const saved=savedCalendarBasis(state,model),items:ProjectAction[]=[];
+  const review=reviewScheduleCalendarBasis(model);
+  if(review.state==='calendar_basis_difference'||saved.durationBasis){
+    const decided=!!saved.durationBasis,count=review.elapsedDayMismatchCount??0;
+    items.push({id:'matter:calendar-basis',category:decided?'information':'confirmation',title:'Confirm the programme duration basis',owner:'Planning Manager',recordCount:count,
+      reason:(count?countText(count,'completed task has','completed tasks have')+' a duration equal to its calendar days, not its working days on the assigned calendar. ':'')+
+        'CMeng keeps its finish visible on the programme calendars as supplied. Your answer decides the basis every forecast uses; CMeng does not choose a calendar.'+
+        (decided?' Saved: '+calendarBasisStatement({durationBasis:saved.durationBasis,patterns:[]}):''),
+      reviewFingerprint:calendarBasisFingerprint(model),reviewSourceRefs:[],
+      resolution:{kind:'choose',requiresUserAction:!decided,instruction:'Planning Manager: confirm whether the programme durations are working days on its calendars, or calendar days.',completionRule:'Your answer is applied to every forecast at once; you can change or undo it. A programme revision with different calendars asks again.'},
+      target:{type:'inline',kind:'review-commercial-record',label:'Confirm duration basis',reviewChoice:saved.durationBasis,reviewReference:null,reviewInputType:'choice_only',
+        reviewOptions:[{value:'working_days',label:'Working days on the programme calendars (keep CMeng\'s calculation)'},{value:'calendar_days',label:'Calendar days (run the remaining work every day on the programme\'s own shifts)'},...(decided?[{value:'undo',label:'Undo my decision'}]:[])]}});
+  }
+  for(const c of shorthandCalendars(model)){
+    const pattern=saved.patterns.find(p=>p.calendarId===c.calendarId);
+    items.push({id:'matter:calendar-pattern:'+c.calendarId,category:pattern?'information':'confirmation',title:'Confirm the working week of calendar '+(c.name??c.calendarId),owner:'Planning Manager',recordCount:1,
+      reason:'The source states '+c.days+' working days of '+c.dayHours+' h for calendar '+(c.name??c.calendarId)+' but not which days or the shift times, so its work cannot be scheduled yet. Choose the working week; CMeng then recalculates.'+(pattern?' Saved: '+pattern.label+'.':''),
+      reviewFingerprint:c.fingerprint,reviewSourceRefs:[],
+      resolution:{kind:'choose',requiresUserAction:!pattern,instruction:'Planning Manager: choose the working week this calendar uses.',completionRule:'Your choice is applied to every forecast at once; you can change or undo it.'},
+      target:{type:'inline',kind:'review-commercial-record',label:'Confirm working week',reviewChoice:pattern?'week:'+pattern.days.join(''):null,reviewReference:null,reviewInputType:'choice_only',
+        reviewOptions:[...c.options.map(o=>({value:o.value,label:o.label})),...(pattern?[{value:'undo',label:'Undo my decision'}]:[])]}});
+  }
+  return items;
 }

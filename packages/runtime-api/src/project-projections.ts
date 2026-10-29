@@ -425,13 +425,15 @@ export function analyticalHistory(
       (item) =>
         !isScenarioRevision(item),
     );
+  // M6.3: the control revision carries the planner's confirmed calendar basis (one accessor).
+  const control=projectControlSchedule(state);
   return [
     ...(official.length > 0
       ? official
       : nonRecovery.length > 0
         ? nonRecovery
         : programmeSchedules),
-  ].sort(revisionChronology);
+  ].map(item=>control&&item.revision.revisionId===control.revision.revisionId?control:item).sort(revisionChronology);
 }
 
 function applyGovernedWindowMovementMetrics(

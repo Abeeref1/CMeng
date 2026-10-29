@@ -166,6 +166,8 @@ export interface CanonicalScheduleModel {
   source: CanonicalScheduleSource;
   sourceRevisionId: string;
   dataDateIso: string | null;
+  /** M6.3: the planner's confirmed calendar basis, applied by the shared control-schedule accessor (absent on stored source models). */
+  calendarBasisDecision?: {durationBasis: "working_days" | "calendar_days" | null; patternCalendarIds: string[]; confirmedAt: string | null; fingerprint: string; statement: string};
   /** Explicit project header finish; distinct from activity-derived forecast. */
   declaredProjectFinishIso?: string | null;
   /** Finish computed by the source scheduler at its last run (P6 PROJECT.scd_end_date). Not a declared or CPM finish. */

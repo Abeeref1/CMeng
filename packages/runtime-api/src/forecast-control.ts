@@ -215,6 +215,10 @@ export function buildForecastReconciliationGate(input: {
       state: managementState,
       qualifications,
       notCalculableReason,
+      // M6.3: the calendar basis the finish uses: the programme as supplied, or the planner's confirmed basis.
+      calendarBasis: model.calendarBasisDecision
+        ? {source: "planner_confirmed" as const, durationBasis: model.calendarBasisDecision.durationBasis, confirmedAt: model.calendarBasisDecision.confirmedAt, text: model.calendarBasisDecision.statement}
+        : {source: "programme" as const, durationBasis: null, confirmedAt: null, text: "The programme's own calendars, as supplied."},
     },
     materialActivityScreeningDays,
     materialityAuthority: "cmeng_screening_not_contractual" as const,
@@ -253,7 +257,8 @@ export function forecastQualifications(input: {
     text: assumed.length + " open " + plural(assumed.length, "activity has", "activities have") + " no readable working calendar; CMeng assumed continuous working for " + plural(assumed.length, "it", "them") + ".",
     action: "Supply the working calendar (days and shift hours) for " + plural(assumed.length, "this activity", "these activities") + "."});
   const messages = [...(forecast.diagnostics ?? []), ...(forecast.assumptions ?? [])];
-  if (messages.some(message => message.includes("SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION")))
+  // M6.3: once the planner has confirmed the duration basis, the pattern is answered (stated in calendarBasis).
+  if (!input.model.calendarBasisDecision?.durationBasis && messages.some(message => message.includes("SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION")))
     out.push({code: "elapsed_day_pattern", count: null,
       text: "Some completed tasks have durations that match calendar days, not working days; remaining durations may follow the same basis.",
       action: "Confirm whether the programme's durations are in working days or calendar days."});
