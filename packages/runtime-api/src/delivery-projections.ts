@@ -559,8 +559,9 @@ function buildDelivery(state:ProjectRuntimeState){
   const rows=progress?.rows??[];
   const total=progress?.overallSummary??null;
   const unfinished=selected.filter(a=>a.status!=='completed');
-  const blockedActivityIds=unfinished.filter(a=>Object.values(currentReadinessEvidence(state)[a.activityId]??{}).some(r=>r.state==='blocked')).map(a=>a.activityId);
-  const linkedBlockers=unfinished.flatMap(a=>Object.values(currentReadinessEvidence(state)[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
+  const currentReadiness=currentReadinessEvidence(state);
+  const blockedActivityIds=unfinished.filter(a=>Object.values(currentReadiness[a.activityId]??{}).some(r=>r.state==='blocked')).map(a=>a.activityId);
+  const linkedBlockers=unfinished.flatMap(a=>Object.values(currentReadiness[a.activityId]??{}).filter(r=>r.state==='blocked').flatMap(r=>r.records?.filter(record=>record.state==='blocked').map(record=>record.recordId??record.note)??[r.note??'Linked prerequisite blocked']));
   // G8-44: one blocked item never makes a whole group blocked. A group is blocked when one of its
   // own gates is blocked or every unfinished activity in it is blocked; otherwise it is partly
   // blocked, with the count of blocked unfinished activities beside it.

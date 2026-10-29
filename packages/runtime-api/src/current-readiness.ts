@@ -60,7 +60,10 @@ export function currentReadinessEvidence(state:ProjectRuntimeState,dataDateIso?:
   const byDate=cache.get(state)??new Map();cache.set(state,byDate);
   const hit=byDate.get(key);
   if(hit&&hit.version===state.version&&hit.delivery===delivery&&hit.controls===state.controls.readinessEvidence)return hit.value;
-  const value=withNoListedChecks(state,reportingReadinessEvidence(state,date,{links:readinessLinkReader(state)}));
+  // Nothing to read from documents: the retained evidence is the answer, unchanged.
+  const readable=new Set(Object.values(READINESS_DIMENSION_DOCUMENT_TYPES).flat());
+  const held=analyticalOperationalDocuments(state.evidenceDocuments).some(d=>readable.has(d.documentType)||(d.tabularRead?.sheets??[]).some(sheet=>readable.has(sheet.semantic?.documentType??'')));
+  const value=held?withNoListedChecks(state,reportingReadinessEvidence(state,date,{links:readinessLinkReader(state)})):state.controls.readinessEvidence;
   byDate.set(key,{version:state.version,delivery,controls:state.controls.readinessEvidence,value});
   return value;
 }
