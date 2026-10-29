@@ -5395,51 +5395,44 @@ function eotCompletionAuthorityContext(
   };
 }
 
+/** M14.1: every failed forecast check, named from its diagnostic (one rule for every reason shown). */
+export function forecastFailedChecks(diagnostics: readonly string[]): string[] {
+  const ids = (prefix: string) => [...new Set(diagnostics.filter(d => d.startsWith(prefix)).flatMap(d => d.slice(prefix.length).split(",")).map(v => v.trim()).filter(Boolean))];
+  const count = (prefix: string) => diagnostics.filter(d => d.startsWith(prefix)).length;
+  const list = (values: string[]) => values.slice(0, 5).join(", ") + (values.length > 5 ? " and " + (values.length - 5) + " more" : "");
+  const out: string[] = [];
+  const duplicates = [...new Set([...ids("SCHEDULE_GRAPH_DUPLICATE_ACTIVITY_IDS:"), ...ids("CPM_DUPLICATE_ACTIVITY_ID_LEFT_OUT:")])];
+  if (duplicates.length) out.push("activity ID " + list(duplicates) + " appears more than once");
+  const cycles = ids("SCHEDULE_GRAPH_CYCLES:");
+  if (cycles.length || count("CPM_LOOP_LINK_LEFT_OUT:")) out.push("the logic has a loop" + (cycles.length ? " through " + list(cycles) : ""));
+  const selfLoops = ids("SCHEDULE_GRAPH_SELF_LOOPS:");
+  if (selfLoops.length) out.push("activity " + list(selfLoops) + " is linked to itself");
+  const broken = [...new Set([...ids("SCHEDULE_GRAPH_BROKEN_PREDECESSORS:"), ...ids("SCHEDULE_GRAPH_BROKEN_SUCCESSORS:")])];
+  const endpoints = count("CPM_RELATIONSHIP_ENDPOINT_UNRESOLVED:");
+  if (broken.length || endpoints) out.push((broken.length ? "links at " + list(broken) : endpoints + " links") + " point to activities that are not in the programme");
+  const external = count("CPM_EXTERNAL_RELATIONSHIP_UNRESOLVED:");
+  if (external) out.push(external + (external === 1 ? " link goes" : " links go") + " to another project");
+  const patterns = count("CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:");
+  if (patterns) out.push(patterns + " referenced P6 calendar " + (patterns === 1 ? "record does" : "records do") + " not establish a usable working-time pattern (CMeng does not assume a substitute)");
+  const semantics = count("CALENDAR_SEMANTICS_UNRESOLVED:");
+  if (semantics) out.push(semantics + " referenced P6 calendar " + (semantics === 1 ? "record cannot" : "records cannot") + " be read with a clear meaning");
+  if (diagnostics.some(d => d.startsWith("CPM_NETWORK_NOT_CALCULABLE"))) out.push("the network has no start CMeng can calculate from");
+  return out;
+}
+
 function independentForecastReviewReason(
   forecast: ReturnType<
     typeof buildIndependentForecastProjection
   >,
 ): string | null {
   if (!forecast.complete) {
-    const missingPatterns =
-      forecast.diagnostics.filter(
-        (diagnostic) =>
-          diagnostic.startsWith(
-            "CALENDAR_WORK_PATTERN_NOT_ESTABLISHED:",
-          ),
-      );
-    const unresolvedSemantics =
-      forecast.diagnostics.filter(
-        (diagnostic) =>
-          diagnostic.startsWith(
-            "CALENDAR_SEMANTICS_UNRESOLVED:",
-          ),
-      );
-    if (missingPatterns.length > 0) {
-      return (
-        String(
-          forecast.unresolvedActivityCount,
-        ) +
-        " execution activities cannot be recalculated because " +
-        String(
-          missingPatterns.length,
-        ) +
-        " referenced P6 calendar record(s) do not establish a usable working-time pattern. CMeng does not assume a substitute calendar."
-      );
-    }
-    if (unresolvedSemantics.length > 0) {
-      return (
-        String(
-          forecast.unresolvedActivityCount,
-        ) +
-        " execution activities cannot be recalculated because " +
-        String(
-          unresolvedSemantics.length,
-        ) +
-        " referenced P6 calendar record(s) cannot be read with a clear meaning. CMeng keeps the forecast unavailable rather than replacing them with assumed working time."
-      );
-    }
-    return "Independent forecast requires review because one or more CPM inputs are unresolved.";
+    // M14.1: the reason names every check that failed, read from the forecast's
+    // own diagnostics, never the first match of a fixed list or a generic line.
+    const named = forecastFailedChecks(forecast.diagnostics);
+    const count = String(forecast.unresolvedActivityCount ?? 0);
+    return named.length
+      ? "Independent forecast requires review: " + named.join("; ") + "."
+      : "Independent forecast requires review: " + count + " execution " + (count === "1" ? "activity was" : "activities were") + " not fully calculated.";
   }
   if(forecast.assumptions.some(a=>a.startsWith('SOURCE_CONSTRAINTS_RETAINED_NOT_APPLIED'))){
     return 'This is an unconstrained execution-network calculation. Source constraints are retained but are not applied by this calculation; their effect must be reconciled before adopting a management forecast.';
@@ -5489,7 +5482,7 @@ function independentForecastReviewReason(
     reviewLimit
   ) {
     return (
-      "Independent forecast is withheld from management comparison because its calendar and programme reconciliation checks have not passed. Review calendars, remaining durations, logic and constraints; the submitted finish remains visible."
+      "CMeng's finish differs from the submitted finish by " + String(Math.round(Math.abs(variance))) + " days, more than the " + String(Math.round(reviewLimit)) + "-day review limit. Reconcile calendars, remaining durations, logic and constraints with the programme owner; both finishes stay visible."
     );
   }
 

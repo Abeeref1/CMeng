@@ -134,6 +134,10 @@ test('P0-B: a repeated activity ID does not erase the finish; it is left out and
   const gate:any=(moduleForProject(id,'independent-forecast').data as any)?.forecastReconciliationGate;
   assert.ok(gate.managementForecast.completionIso,'a repeated ID qualifies the finish; it does not erase it');
   assert.ok(gate.managementForecast.qualifications.some((q:any)=>q.code==='network_repaired'&&/appears more than once/.test(q.text)),JSON.stringify(gate.managementForecast.qualifications));
+  // M14.1: the page reason names the repeated ID, not a generic "inputs are unresolved".
+  const page:any=moduleForProject(id,'independent-forecast');
+  assert.doesNotMatch(String(page.data.managementReviewReason),/one or more CPM inputs are unresolved/);
+  assert.match(String(page.data.managementReviewReason),/MS-FINISH appears more than once|appears more than once/,String(page.data.managementReviewReason));
 });
 
 test('P0-B: only a network that cannot be calculated gives no finish, and the cause is named',async()=>{

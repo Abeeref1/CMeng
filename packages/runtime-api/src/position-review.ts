@@ -73,7 +73,18 @@ export function positionVerdict(result:ModuleRuntimeResult) {
         ?'Review the submitted late completion; the packages driving it have not yet been established. Complete the CMeng forecast reconciliation before setting recovery actions.'
         :'Complete the CMeng forecast reconciliation before treating the submitted ahead position as the management forecast.';
       assignTo='Project Director';
-    }else {rag='amber';text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
+    }else {
+      // M14.1: the reason is the input that is actually missing, not a fixed fallback.
+      rag='amber';
+      const contractHeld=typeof (canonicalTime?.contractualCompletionIso?.value??contract)==='string';
+      const governing=canonicalTime?.governingContractCompletionIso;
+      const finishHeld=typeof independent==='string'||typeof submitted==='string'||typeof canonicalTime?.independentFinishIso?.value==='string';
+      if(!contractHeld&&typeof governing?.value!=='string'){text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
+      else if(typeof governing?.value!=='string'&&canonicalTime?.governingContractCompletionIso!==undefined){text='The contract completion date is held, but the completion date that governs after awarded extensions of time is not established'+(governing?.basis?': '+String(governing.basis).replace(/\.$/,''):'')+'. Programme analysis remains available.';nextAction='Settle the extension of time position in Project Review.';}
+      else if(!finishHeld){text='Contract comparison is not established because no programme finish is available yet. The contract completion date is held.';nextAction='Upload the current programme so CMeng can calculate the finish.';}
+      else {text='Contract comparison is not established: '+String(canonicalTime?.independentDaysAfterCurrentContract?.basis??canonicalTime?.submittedDaysAfterCurrentContract?.basis??'the day difference could not be calculated from the held dates')+'.';nextAction='Check the contract and programme dates in Project Review.';}
+      assignTo='Project Director';
+    }
   } else if(['notices-claims','commercial-claims-notices'].includes(result.key)) {
     // Use the assessed event population. Correspondence also includes determinations
     // and can contain several letters for one event; it is not an event counter.
