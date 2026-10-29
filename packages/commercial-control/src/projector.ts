@@ -1829,9 +1829,11 @@ export function buildCommercialControlPosition(
                 : "not_submitted",
           timeRefs,
           adjusted
-            ? (contractTime?.eotDayBasisState === "candidate"
+            ? [...(contractTime?.eotDayBasisState === "candidate"
                ? ["EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT"]
-               : [])
+               : []),
+               // C9: the additional days are CMeng's proposal until the overlap is confirmed.
+               ...(contractTime?.overlapResolution === "unresolved" ? ["AMENDMENT_DETERMINATION_OVERLAP_PROPOSED_NOT_CONFIRMED"] : [])]
             : contractTime?.overlapResolution === "unresolved"
               ? ["AMENDMENT_DETERMINATION_OVERLAP_NOT_CONFIRMED"]
             : contractTime?.eotDayBasis !== "calendar_days" ? ["OFFICIAL_ADJUSTED_COMPLETION_REQUIRES_SUPPORTED_EOT_DAY_BASIS"] : [
@@ -1839,7 +1841,7 @@ export function buildCommercialControlPosition(
               ],
         ),...(contractTime?.overlapResolution === "unresolved" ? {
           consequence:"Amendment and determination overlap needs review.",
-          action:"Confirm which dated determinations are already incorporated in the amendment before applying additional days."
+          action:"Confirm or correct CMeng's proposal for the days already incorporated in the amendment (Project Review)."
         } : {})},
     },
     currencies: positions,

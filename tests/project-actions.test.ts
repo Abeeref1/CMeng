@@ -271,7 +271,7 @@ test('EOT review validates additional days and reference and retains a manual co
  let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-eot-overlap');assert.ok(action);
  const request=(values:any)=>post('/api/projects/EOT-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'confirm_additional_days',...values});
  for(const additionalDays of ['',-1,21,'bad'])assert.equal((await request({additionalDays,reference:'Engineer decision'})).status,409);
- assert.equal((await request({additionalDays:0,reference:''})).status,409);
+ // C9 / R2: a supporting reference is kept when given, not required.
  assert.equal((await request({additionalDays:0,reference:'Engineer decision'})).status,200);
  workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-eot-overlap');assert.equal(action.target.reviewAdditionalDays,0);
  assert.equal((await request({additionalDays:12,reference:'Revised Engineer decision'})).status,200);

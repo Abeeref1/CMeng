@@ -29,7 +29,10 @@ export function missingValueInputKind(issue:ControlIssue):MissingValueInputKind|
 export function heldMissingValue(state:ProjectRuntimeState,kind:MissingValueInputKind):unknown{
   if(kind==='contract-value')return reportingContractValue(state);
   if(kind==='commencement-date')return commencementDatePosition(state).dateIso;
-  return reportingTimeBasis(state,canonicalTimeClaims(state).contractTimeBasis)?.officialApprovedEotDays??null;
+  const basis=reportingTimeBasis(state,canonicalTimeClaims(state).contractTimeBasis);
+  // C9 / M7.1: when the register holds determinations, the days come from it (and
+  // any amendment overlap is the one decision); a typed entry is not asked as well.
+  return basis?.officialApprovedEotDays??(basis?.registerDeterminationCount?(basis.registerDeterminationDays??basis.overlapProposal?.inEffectDays??basis.registerDeterminationCount):null);
 }
 /** A field is open for input only while nothing holds it. Read contract value
  * candidates keep their own source review decision instead of a free entry. */

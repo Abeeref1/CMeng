@@ -1,4 +1,5 @@
 import {programmeTaskReviewBasis} from './programme-task-review';
+import {overlapProposalFor} from './eot-overlap-proposal';
 import {countText} from './count-text';
 import {handoverSourceComparison} from './handover-source-review';
 import {locationReviewBasis} from './location-review';
@@ -553,13 +554,21 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     (saved?information:actions).push(item);
   }
   const time=canonicalTimeClaims(state),basis=reportingTimeBasis(state,time.contractTimeBasis);
-  if(basis?.incorporatedEotDays!=null&&basis.registerDeterminationCount&&basis.officialApprovedEotDays!==null){
-    const review=eotOverlapReview(state,basis),saved=review.decision;
-    const item:ProjectAction={id:'matter:eot-overlap',category:saved?'information':'confirmation',title:'Reconcile the amendment and EOT awards',owner:'Contracts Manager',recordCount:basis.registerDeterminationCount,
-      reason:'Confirm which awarded days are additional to the completion date already stated in the amendment.',reviewFingerprint:review.sourceFingerprint,reviewSourceRefs:basis.sourceRefs,
-      evidenceSummary:['Amended completion: '+basis.contractualCompletionIso,'Days already incorporated in the amendment: '+basis.incorporatedEotDays,'Determination days effective at the reporting date: '+basis.officialApprovedEotDays,'Full register days: '+basis.registerDeterminationDays,...basis.sourceRefs.filter(r=>!r.startsWith('user-confirmation:'))],
-      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Compare the amendment and determinations. Enter the additional awarded days to apply after the amended completion on the stated contractual day basis and the supporting decision reference.',completionRule:'Every time and commercial view uses the same source-bound reconciliation.'},
-      target:{type:'inline',kind:'review-eot-overlap',label:'Confirm EOT reconciliation',reviewChoice:saved?.choice??null,reviewAdditionalDays:saved?.additionalDays??null,reviewReference:saved?.reference??null,reviewOptions:[{value:'confirm_additional_days',label:'Confirm additional awarded days after the amendment'}]}};
+  // C9: asked whenever an amendment and awarded determinations overlap, with CMeng's best answer filled in;
+  // until the user decides, that answer gives the governing date (qualified).
+  const overlapBasis=basis,proposal=overlapProposalFor(overlapBasis);
+  if(overlapBasis&&proposal&&overlapBasis.registerDeterminationCount&&(overlapBasis.overlapResolution==='unresolved'||overlapBasis.sourceRefs.some(ref=>ref.startsWith('user-confirmation:eot-overlap:')))){
+    const review=eotOverlapReview(state,overlapBasis),saved=review.decision;
+    const governing=(days:number)=>{const t=Date.parse(String(overlapBasis.contractualCompletionIso).slice(0,10)+'T00:00:00Z');return Number.isFinite(t)?new Date(t+days*86400000).toISOString().slice(0,10):null;};
+    const item:ProjectAction={id:'matter:eot-overlap',category:saved?'information':'confirmation',title:'Reconcile the amendment and EOT awards',owner:'Contracts Manager',recordCount:overlapBasis.registerDeterminationCount,
+      reason:(saved?'Saved: '+saved.additionalDays+' additional days after the amended completion.':'CMeng proposes '+proposal.days+' additional days after the amended completion, giving a governing completion of '+(governing(proposal.days)??'not established')+'. '+proposal.reason+' This proposal is used, marked as not confirmed, until you decide.'),
+      reviewFingerprint:review.sourceFingerprint,reviewSourceRefs:overlapBasis.sourceRefs,
+      evidenceSummary:['Amended completion: '+overlapBasis.contractualCompletionIso,'Days the amendment states it includes: '+(overlapBasis.incorporatedEotDays??'not stated'),
+        'Awarded days in effect at the reporting date: '+proposal.inEffectDays,'Full register days: '+(overlapBasis.registerDeterminationDays??'not established'),'CMeng proposal: '+proposal.days+' additional days ('+proposal.basis.replaceAll('_',' ')+')',
+        ...overlapBasis.sourceRefs.filter(r=>!r.startsWith('user-confirmation:'))],
+      resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Accept CMeng\'s proposal, or enter the additional awarded days yourself. A supporting decision reference is kept when you give one.',completionRule:'Every time and commercial view uses the same decision.'},
+      target:{type:'inline',kind:'review-eot-overlap',label:'Confirm EOT reconciliation',reviewChoice:saved?.choice??'accept_proposal',reviewAdditionalDays:saved?.additionalDays??proposal.days,reviewReference:saved?.reference??null,
+        reviewOptions:[{value:'accept_proposal',label:'Use CMeng\'s proposal: '+proposal.days+' additional days'},{value:'confirm_additional_days',label:'Enter the additional days myself'}]}};
     (saved?information:actions).push(item);
   }
   const valueReview=contractValueReview(state);

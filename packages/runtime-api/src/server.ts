@@ -2237,10 +2237,14 @@ async function route(
         const {canonicalTimeClaims}=await import('./canonical-time-claims');
         const {reportingTimeBasis}=await import('./source-review-decisions');
         const basis=reportingTimeBasis(state,canonicalTimeClaims(state).contractTimeBasis);
+        // C9: accepting CMeng's proposal takes its days; otherwise the user's own days.
+        if(choice==='accept_proposal'){const proposal=(await import('./eot-overlap-proposal')).overlapProposalFor(basis);if(!proposal)throw new Error('CMeng has no proposal for these records. Enter the additional days.');additionalDays=proposal.days;}
+        else{
         if(input.additionalDays===null||input.additionalDays===undefined||String(input.additionalDays).trim()==='')throw new Error('Enter the additional awarded days, including zero when none are additional.');
-        additionalDays=Number(input.additionalDays);reference=String(input.reference??'').trim();
-        if(!Number.isFinite(additionalDays)||additionalDays<0||basis?.officialApprovedEotDays==null||additionalDays>basis.officialApprovedEotDays)throw new Error('Additional days must be between zero and the established awards effective at the reporting date.');
-        if(!reference)throw new Error('Enter the supporting contract or determination reference.');
+        additionalDays=Number(input.additionalDays);}
+        reference=String(input.reference??'').trim();
+        const ceiling=Math.max(basis?.officialApprovedEotDays??basis?.registerDeterminationDays??0,basis?.overlapProposal?.inEffectDays??0);
+        if(!Number.isFinite(additionalDays)||additionalDays<0||additionalDays>ceiling)throw new Error('Additional days must be between zero and the awards in the register ('+ceiling+' days).');
       }
       const taskReview=key==='programme-tasks-testing'||key==='programme-tasks-handover'?(await import('./programme-task-review')).programmeTaskReviewInput(state,key==='programme-tasks-testing'?'testing':'handover',{...input,choice}):{};
       const handoverReview=key==='handover-source-basis'?(await import('./handover-source-review')).handoverSourceReviewInput(input):{};

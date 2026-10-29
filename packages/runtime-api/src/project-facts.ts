@@ -356,7 +356,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     baseCompletion!==null&&extendedCompletion.slice(0,10)===baseCompletion.slice(0,10)));
   const dateRepeatedDespiteAward=baseCompletion!==null&&extendedCompletion!==null&&
     baseCompletion.slice(0,10)===extendedCompletion.slice(0,10);
-  const overlapPending=adjustmentUnapplied&&officialAward!==null&&officialAward>0&&(
+  // C9: while the overlap is not confirmed, CMeng's proposal gives the date (qualified), on every page.
+  const overlapProposal=contractTime?.overlapResolution==='unresolved'?contractTime.overlapProposal??null:null;
+  const overlapPending=!overlapProposal&&adjustmentUnapplied&&officialAward!==null&&officialAward>0&&(
     dateRepeatedDespiteAward||contractTime?.overlapResolution!=='resolved'
   );
   const completionPosition=overlapPending?contractCompletionPosition(scoped,dataDateIso):null;
@@ -381,7 +383,10 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // The days shown are the exact difference between the two dates used, so the
   // label always matches the addition actually made.
   const extensionBasis=(start:string|null|undefined,result:string|null|undefined,label:string)=>' '+dateAdditionBasisLabel({label,startIso:start,resultIso:result,asOf:dataDateIso});
-  const presentedExtension=provisionalExtendedDate!==null
+  const presentedExtension=overlapProposal
+    ?fact(extendedCompletion??baseCompletion,'CMeng proposal, not confirmed: the amended completion plus '+overlapProposal.days+' additional awarded days. '+overlapProposal.reason+' Confirm or correct it in Project Review.'+
+        extensionBasis(baseCompletion,extendedCompletion??baseCompletion,'amended completion'),'from_register_not_confirmed',false,[...new Set(contractTime?.sourceRefs??[])],['AMENDMENT_OVERLAP_PROPOSED_NOT_CONFIRMED'])
+    :provisionalExtendedDate!==null
     ?fact(provisionalExtendedDate,'Amendment overlap to confirm: original contract completion plus the source-reported awarded EOT, assuming calendar days unless the contract expressly adopts that day basis. The result is a qualified comparison, not a certified amendment or a basis for liquidated damages.'+extensionBasis(originalDate,provisionalExtendedDate,'original contract completion'),'from_register_not_confirmed',false,overlapSourceRefs,['AMENDMENT_OVERLAP_TO_CONFIRM'])
     :commercialFact(commercial.timeExposure.officialAdjustedCompletion,
         (commercial.timeExposure.officialAdjustedCompletion.diagnostics.includes('EOT_CALENDAR_DAY_BASIS_ASSUMED_CHECK_CONTRACT')

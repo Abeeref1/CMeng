@@ -29,13 +29,15 @@ export function eotOverlapReview(state:ProjectRuntimeState,basis:ContractTimeBas
     register:basis?.registerDeterminationDays,effective:basis?.officialApprovedEotDays,refs:basis?.sourceRefs.filter(r=>!r.startsWith('user-confirmation:')),
   });
   const saved=state.controls.reviewDecisions?.['eot-overlap'];
-  return {sourceFingerprint,decision:saved?.sourceFingerprint===sourceFingerprint&&saved.choice==='confirm_additional_days'&&saved.reference?.trim()?saved:null};
+  // C9: accepting CMeng's proposal or entering own days are both decisions; a supporting reference is kept when given, not required.
+  return {sourceFingerprint,decision:saved?.sourceFingerprint===sourceFingerprint&&['confirm_additional_days','accept_proposal'].includes(saved.choice??'')&&typeof saved.additionalDays==='number'?saved:null};
 }
 
 export function applyEotOverlapDecision(state:ProjectRuntimeState,basis:ContractTimeBasis|null){
   if(basis?.overlapResolution!=='unresolved')return basis;
   const review=eotOverlapReview(state,basis),days=review.decision?.additionalDays;
-  if(typeof days!=='number'||!Number.isFinite(days)||days<0||basis.officialApprovedEotDays===null||days>basis.officialApprovedEotDays)return basis;
+  const ceiling=basis.officialApprovedEotDays??basis.registerDeterminationDays??basis.overlapProposal?.inEffectDays??null;
+  if(typeof days!=='number'||!Number.isFinite(days)||days<0||(ceiling!==null&&days>Math.max(ceiling,basis.overlapProposal?.inEffectDays??0)))return basis;
   return {...basis,additionalApprovedEotDays:days,overlapResolution:'resolved' as const,
     sourceRefs:[...basis.sourceRefs,'user-confirmation:eot-overlap:'+review.sourceFingerprint]};
 }

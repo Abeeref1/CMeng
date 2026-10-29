@@ -109,8 +109,9 @@ test('ORBIT source: 26 awarded days are not erased by an amendment repeating ori
    'a repeated original date must not masquerade as extended contractual completion');
  assert.equal(facts.time.extendedContractCompletionIso.complete,false,
    'a calculated comparison must never invent amendment certification');
- assert.ok(facts.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_TO_CONFIRM'));
- assert.match(facts.time.extendedContractCompletionIso.basis,/Basis: original contract completion 2030-03-31 \+ 26 calendar days of awarded EOT · as of /,'F27: the date addition states its records');
+ // C9: the amendment repeats the original date, so CMeng proposes all 26 days as additional (not confirmed).
+ assert.ok(facts.time.extendedContractCompletionIso.diagnostics.includes('AMENDMENT_OVERLAP_PROPOSED_NOT_CONFIRMED'));
+ assert.match(facts.time.extendedContractCompletionIso.basis,/amended completion 2030-03-31 \+ 26 calendar days/,'F27: the date addition states its records');
  assert.equal(facts.time.submittedDaysAfterCurrentContract?.value??null,null,
    'qualified amendment comparison cannot silently establish late days or LD entitlement');
 });
@@ -919,7 +920,9 @@ test('claim-register event identities do not invent dates, responsibility or cri
 test('determination register total, as-of total and future population remain separate',t=>{
   const {state,csvDoc}=fixture(t);csvDoc(claims,'delay_eot_claims_register');csvDoc(determinations,'delay_eot_claims_register');amendment(state);const m=canonicalTimeClaims(state);
   assert.equal(m.registerDeterminationDays,138);assert.equal(m.effectiveDeterminationDays,26);assert.equal(m.futureDeterminationCount,1);
-  assert.equal(m.contractTimeBasis?.contractualCompletionIso,'2030-03-31');assert.equal(m.contractTimeBasis?.incorporatedEotDays,90);assert.equal(m.contractTimeBasis?.additionalApprovedEotDays,null);assert.equal(m.contractTimeBasis?.overlapResolution,'unresolved');
+  assert.equal(m.contractTimeBasis?.contractualCompletionIso,'2030-03-31');assert.equal(m.contractTimeBasis?.incorporatedEotDays,90);assert.equal(m.contractTimeBasis?.overlapResolution,'unresolved');
+  // C9: CMeng's proposal (the amendment states 90 days; 26 are in effect) gives 0 additional days until the user decides.
+  assert.equal(m.contractTimeBasis?.overlapProposal?.basis,'stated_in_amendment');assert.equal(m.contractTimeBasis?.additionalApprovedEotDays,0);
 });
 test('official dated determinations extend an unamended official contract completion without a false overlap gate',t=>{
   const {state,csvDoc}=fixture(t);

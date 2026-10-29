@@ -5,6 +5,8 @@ import {projectScopeClassification} from './location-review';
 import {refreshResourceSourceFields} from './resource-source-refresh';
 import {resourceLaborHourEligible} from '../../schedule-resource-core/src';
 import {commercialPositionForState} from './commercial-runtime';
+// M7.2 (C9 root): the recovery target is the one shared governing completion date.
+import {contractTimeDatesFrom} from './contract-time-reader';
 import {cachedIndependentForecast} from './forecast-cache';
 import {deliveryFeasibilityForState,programmePcMilestone} from './delivery-feasibility';
 import {deliveryPosition} from './delivery-projections';
@@ -189,7 +191,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   const pathRank={recovery_option:0,path_not_established:1,late_work:2} as const;
   scenarios.sort((a,b)=>pathRank[a.pathRole??'path_not_established']-pathRank[b.pathRole??'path_not_established']);
   const target=(dateIso:string|null)=>{let hours:number|null=null;if(calendar&&dateIso&&finish)try{hours=Math.max(0,workingHoursBetween(calendar,Date.parse(dateIso.slice(0,10)),Date.parse(finish.slice(0,10))));}catch{}return {dateIso,calendarDays:dateIso&&finish?Math.max(0,(Date.parse(finish.slice(0,10))-Date.parse(dateIso.slice(0,10)))/86400000):null,workingHours:hours,workingDays:hours!==null&&calendar?.standardDayHours?hours/calendar.standardDayHours:null};};
-  const recoveryTargets={submittedCompletionIso:finish,original:target(time.contractualCompletion.value),extended:target(time.officialAdjustedCompletion.value),basis:'Calendar days compare the date portion of the submitted completion and contract dates. Working days use the completion milestone calendar and its standard day hours; this is the recovery target, not a calculated scenario gain.'};
+  const recoveryTargets={submittedCompletionIso:finish,original:target(time.contractualCompletion.value),extended:target(contractTimeDatesFrom(time).governingCompletionIso),basis:'Calendar days compare the date portion of the submitted completion and contract dates. Working days use the completion milestone calendar and its standard day hours; this is the recovery target, not a calculated scenario gain.'};
   const drivingChainShortfall={calendarDays:recoveryTargets.extended.calendarDays,
     workingDays:recoveryTargets.extended.workingDays,
     fiveDayDrivingActivityCount:drivingCalendarsComplete?fiveDayDriving.length:null,

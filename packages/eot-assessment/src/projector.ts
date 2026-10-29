@@ -367,7 +367,12 @@ export function buildEotAssessmentProjection(
         : []),
   ];
 
-  const rawAdditionalAwardDays = contractTime.overlapResolution
+  // C9: while the overlap is not confirmed, the additional days are CMeng's
+  // proposal. The governing date uses it (qualified); an "official" adjusted
+  // completion is only calculated once the user has decided.
+  const rawAdditionalAwardDays = contractTime.overlapResolution === "unresolved"
+    ? null
+    : contractTime.overlapResolution
     ? contractTime.additionalApprovedEotDays ?? null
     : contractTime.officialApprovedEotDays;
   // Keep supplied awards untouched in the source contract record, but an
@@ -488,6 +493,8 @@ export function buildEotAssessmentProjection(
       effectiveDeterminationCount: contractTime.effectiveDeterminationCount ?? null,
       futureDeterminationCount: contractTime.futureDeterminationCount ?? null,
       additionalApprovedEotDays: additionalAwardDays,
+      proposedAdditionalApprovedEotDays: contractTime.overlapResolution === "unresolved" ? contractTime.overlapProposal?.days ?? null : null,
+      proposalReason: contractTime.overlapResolution === "unresolved" ? contractTime.overlapProposal?.reason ?? null : null,
       overlapResolution: contractTime.overlapResolution,
       dataDateIso: contractTime.dataDateIso ?? null,
     }} : {}),

@@ -1,4 +1,5 @@
 import {applyEotOverlapDecision,isSourceDerivedTimeBasis} from './source-review-decisions';
+import {amendmentOverlapProposal} from './eot-overlap-proposal';
 import {applyCompletionDecision} from './contract-fact-decisions';
 import {isAdoptedProgrammeRevision,isScenarioRevision} from './schedule-authority';
 import {keepsUserConfirmedCompletion,completionHeldByAdoptedBasis,completionCorroboration,completionSourceLabel,contractCompletionPosition,withoutCompletionSourceLabel} from './contract-completion';
@@ -762,15 +763,19 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
 
 
   const determinations:DeterminationRecord[]=[],determinationById=new Map<string,DeterminationRecord>();
+  // C9: a determined award whose date is blank is not an official dated award, but it is
+  // not "none" either: the amendment overlap proposal counts it.
+  const undatedAwardIds=new Set<string>();
   for(const table of tables.filter(t=>has(t,'determination id','claim id','awarded eot days')))for(const r of table.rows){
     const awardedDays=n(r,'awarded eot days');
     const determinationDate=dateValue(cell(r,'determination date'));
     const authorityText=cell(r,'authority');
     const governanceText=cell(r,'governance state');
     const statusText=cell(r,'status');
-    const explicitAuthorityOk=!authorityText||/engineer|employer representative|contract administrator/i.test(authorityText);
+    // M7.1a (C7 root): the contract's deciding party under its usual names.
+    const explicitAuthorityOk=!authorityText||/engineer|employer(?:'?s)?\s*representative|\bemployer\b|\bclient\b|\bowner\b|\bpmc\b|project manager|contract administrator|\bsuperintendent\b/i.test(authorityText);
     const explicitGovernanceOk=!governanceText||/immutable|official|approved|final/i.test(governanceText);
-    const explicitStatusOk=!statusText||/determined|approved|awarded|final/i.test(statusText);
+    const explicitStatusOk=!statusText||/determined|approved|awarded|granted|agreed|final/i.test(statusText)&&!/\bnot\b|\bun(?:approved|determined)|rejected|refused|declined|withdrawn|pending/i.test(statusText);
     const determinationRegister=/determination/i.test(table.document.documentType??'')||has(table,'determination id','claim id','awarded eot days');
     const sourceDetermination=determinationRegister&&awardedDays!==null&&determinationDate!==null&&explicitAuthorityOk&&explicitGovernanceOk&&explicitStatusOk&&['active','additive'].includes(r.receipt.basisState);
     const record:DeterminationRecord={determinationId:cell(r,'determination id'),claimId:cell(r,'claim id'),awardedDays,determinationDate,
@@ -778,6 +783,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
       authority:authorityText||'Engineer determination register',sourceLetter:cell(r,'source letter')||null,supersedes:cell(r,'supersedes','supersedes determination id')||null,incorporatedInAmendment:cell(r,'incorporated in amendment','amendment id')||null,receipt:{...r.receipt,authority:'engineer_determination'},
       section:determinationSection(cell(r,'section','contract section','section id','section no','section number'))};
     if(!record.determinationId)continue;
+    if(determinationRegister&&awardedDays!==null&&determinationDate===null&&explicitAuthorityOk&&explicitGovernanceOk&&explicitStatusOk&&['active','additive'].includes(r.receipt.basisState))undatedAwardIds.add(record.determinationId);
     const previous=determinationById.get(record.determinationId);
     if(previous){if(previous.awardedDays!==record.awardedDays||previous.claimId!==record.claimId||previous.determinationDate!==record.determinationDate){previous.state='conflicted';diagnostics.push('IMMUTABLE_DETERMINATION_CONFLICT:'+record.determinationId);}continue;}
     determinationById.set(record.determinationId,record);determinations.push(record);
@@ -1014,16 +1020,22 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     // as the reporting time basis keeps it, so every page shows one value.
     const userAward=effectiveDeterminationDays===null&&confirmedManualBasis?.officialApprovedEotDays!=null&&
       confirmedManualBasis.sourceRefs.some(ref=>ref.startsWith('user-confirmation:approved-eot-days:'))?confirmedManualBasis:null;
+    // C9: CMeng's best answer for the days additional to the amendment, so the
+    // governing date is never lost while the overlap is not confirmed.
+    const undatedAwards=trustedDeterminations.filter(d=>undatedAwardIds.has(d.determinationId)&&!d.section);
+    const overlapProposal=trustedDeterminations.length?amendmentOverlapProposal({amendedIso:amendment.completionIso,effectiveDate:amendment.effectiveDate,
+      statedIncorporatedDays:amendment.incorporatedEotDays,originalIso:completion.original?.value??null,
+      determinations:[...eligible,...undatedAwards].map(d=>({days:d.awardedDays,dateIso:d.determinationDate})),dataDateIso}):null;
     contractTimeBasis={contractualCompletionIso:amendment.completionIso,contractualCompletionState:amendment.state,
       officialApprovedEotDays:userAward?userAward.officialApprovedEotDays:effectiveDeterminationDays,
       officialApprovedEotState:userAward?userAward.officialApprovedEotState:effectiveDeterminationDays===null?'missing':'official',eotDayBasis:'calendar_days',eotDayBasisState:amendment.state,
       sourceRefs:[...new Set([...[amendment.receipt,...eligible.map(d=>d.receipt)].map(r=>'evidence-document:'+r.documentId+':'+r.locator),
         ...(userAward?userAward.sourceRefs.filter(ref=>ref.startsWith('user-confirmation:approved-eot-days:')):[])])],
-      incorporatedEotDays:amendment.incorporatedEotDays,additionalApprovedEotDays:null,overlapResolution:'unresolved',registerDeterminationDays,
-      registerDeterminationCount:eligible.length,effectiveDeterminationCount:effective.length,
+      incorporatedEotDays:amendment.incorporatedEotDays,additionalApprovedEotDays:overlapProposal?overlapProposal.days:null,overlapResolution:'unresolved',overlapProposal,registerDeterminationDays,
+      registerDeterminationCount:eligible.length+undatedAwards.length,effectiveDeterminationCount:effective.length,
       futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,dataDateIso,
     };
-    if(trustedDeterminations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
+    if(trustedDeterminations.length)diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_PROPOSED_NOT_CONFIRMED:'+(overlapProposal?.days??'unknown'));
   }
   if(amendmentConflict)diagnostics.push('CONFLICTING_EFFECTIVE_AMENDMENTS');
   // T04: a date read only from a unique, fully read unadopted contract is used
@@ -1091,7 +1103,7 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const confirmed=applyEotOverlapDecision(state,contractTimeBasis);
     if(confirmed?.overlapResolution==='resolved'){
       contractTimeBasis=confirmed;
-      const index=diagnostics.indexOf('AMENDMENT_DETERMINATION_OVERLAP_UNRESOLVED_NO_ADDITIONAL_DAYS_APPLIED');
+      const index=diagnostics.findIndex(code=>code.startsWith('AMENDMENT_DETERMINATION_OVERLAP_PROPOSED_NOT_CONFIRMED'));
       if(index>=0)diagnostics.splice(index,1);
       diagnostics.push('AMENDMENT_DETERMINATION_OVERLAP_CONFIRMED:'+confirmed.additionalApprovedEotDays);
     }

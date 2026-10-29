@@ -27,6 +27,9 @@ export interface ContractTimeBasis {
   incorporatedEotDays?: number | null;
   additionalApprovedEotDays?: number | null;
   overlapResolution?: "resolved" | "unresolved";
+  /** C9: CMeng's best answer for the days additional to an amendment while the
+   * overlap is not confirmed; it is used (qualified) until the user decides. */
+  overlapProposal?: {days: number; basis: string; incorporatedDays: number | null; inEffectDays: number; reason: string} | null;
   registerDeterminationDays?: number | null;
   registerDeterminationCount?: number | null;
   effectiveDeterminationCount?: number | null;
@@ -89,6 +92,8 @@ export interface EotAssessmentProjection {
     futureDeterminationCount: number | null;
     additionalApprovedEotDays: number | null;
     overlapResolution: "resolved" | "unresolved";
+    proposedAdditionalApprovedEotDays?: number | null;
+    proposalReason?: string | null;
     dataDateIso: string | null;
   };
   schemaVersion: "1.0";
