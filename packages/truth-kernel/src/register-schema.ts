@@ -105,6 +105,12 @@ const groups:Record<string,string[]>={
   'planned date':['planned test date','target test date'],
   'actual date':['actual test date','completed date'],
   'week start':['week commencing','week beginning','week start date'],
+  // C7 / M2.2: the resource headings both resource readers accept, in one place.
+  'available capacity':['weekly capacity','capacity available','available hours','weekly available capacity','available capacity hours'],
+  'planned demand':['planned hours','demand hours','required hours','weekly demand','required demand'],
+  'actual approved usage':['actual usage','approved usage','actual hours used','used hours'],
+  'conservative achievable rate day':['conservative rate day','conservative rate per day','conservative rate'],
+  'recent achieved rate day':['recent rate day','recent rate per day','achieved rate day','recent achieved rate'],
   'submitted date':['date submitted','submission date'],
   'assessment date':['date assessed','assessed date'],
   'closed date':['date closed','closure date'],
@@ -139,6 +145,27 @@ const sourceBusinessStatusNames:readonly (readonly [string,readonly string[]])[]
 ];
 for(const [canonical,spellings] of sourceBusinessStatusNames)
   for(const spelling of spellings)aliases.set(normalizeHeader(spelling),canonical);
+// C7: one tolerant reading of a heading. Word order, simple plurals, common
+// abbreviations and filler words do not change the field. A shape shared by two
+// fields is never guessed.
+const SIGNATURE_SYNONYMS:Record<string,string>={qty:'quantity',quantities:'quantity',no:'number',num:'number',nr:'number',ref:'reference',refs:'reference',
+  hrs:'hour',hr:'hour',hours:'hour',days:'day',dt:'date',dates:'date',wk:'week',weeks:'week',amt:'amount',approved:'approve',awarded:'award',granted:'grant',determined:'determine'};
+const SIGNATURE_FILLER=new Set(['of','the','a','an','per','in','on','for','by','to','and']);
+function headerSignature(normalized:string){
+  const tokens=normalized.split(' ').filter(t=>t&&!SIGNATURE_FILLER.has(t)).map(t=>SIGNATURE_SYNONYMS[t]??(t.length>4&&/s$/.test(t)&&!/(ss|us|is)$/.test(t)?t.slice(0,-1):t));
+  return [...new Set(tokens)].sort().join(' ');
+}
+let signatureIndex:Map<string,string|null>|null=null;
+function signatureField(normalized:string):string|undefined{
+  if(!signatureIndex){
+    signatureIndex=new Map();
+    const add=(name:string,key:string)=>{const sig=headerSignature(normalizeHeader(name));if(!sig)return;const prior=signatureIndex!.get(sig);signatureIndex!.set(sig,prior===undefined||prior===key?key:null);};
+    for(const [key,values] of Object.entries(groups))for(const name of [key,...values])add(name,key);
+    for(const name of fields)add(name,name);
+  }
+  const hit=signatureIndex.get(headerSignature(normalized));
+  return hit??undefined;
+}
 export function canonicalHeader(value:string,documentType=''):string {
   // Document-type identity is part of the cache key (a generic "Reference"
   // legitimately means different things in an RFI versus a payment register).
@@ -152,6 +179,9 @@ export function canonicalHeader(value:string,documentType=''):string {
     // approval/certification). Retain the single explicit English field name.
     if(!key&&parts.some(p=>/[\u0600-\u06ff]/.test(p))){const english=parts.filter(p=>/^[a-z0-9 ]+$/.test(p)).map(p=>aliases.get(p)).filter(Boolean);if(english.length===1)key=english[0];}
   }
+  // C7: the same heading in another word order, number or abbreviation ("Days Awarded",
+  // "Qty Installed") is the same field, when exactly one known field has that shape.
+  if(!key)key=signatureField(normalized);
   if(!key){const currency=/\b([A-Z]{3})\b/.exec(value)?.[1];if(currency){const base=aliases.get(normalizeHeader(value.replace(currency,'')));if(base)return base+' '+currency.toLowerCase();}}
   key=key??normalized;
   if(key==='reference'){
@@ -347,11 +377,32 @@ export function registerColumnKind(rawHeader:string,field:string):'date'|'days'|
     /(?:^| )(amount|rate|value|cost|payment|paid|certified|retention|balance|sum|currency|cap)(?: |$)/.test(text)?'amount':'other';
 }
 
+/** C7: a bare generic heading ("Date", "Days", "Capacity") means one field when the
+ * table it sits in says which: a determination register's only date is its
+ * determination date. It is resolved only when exactly one such column exists and
+ * the specific field is not already present. */
+const GENERIC_HEADER_RULES:ReadonlyArray<{when:readonly string[];generic:readonly string[];to:string}>=[
+  {when:['determination id'],generic:['date'],to:'determination date'},
+  {when:['determination id'],generic:['days','eot days','award'],to:'awarded eot days'},
+  {when:['resource id'],generic:['capacity'],to:'available capacity'},
+  {when:['resource id'],generic:['demand'],to:'planned demand'},
+  {when:['resource id'],generic:['usage','actual'],to:'actual approved usage'},
+];
+export function resolveGenericHeaders(headers:string[]):string[]{
+  let out=headers;
+  for(const rule of GENERIC_HEADER_RULES){
+    if(!rule.when.every(key=>out.includes(key))||out.includes(rule.to))continue;
+    const at=out.map((h,i)=>rule.generic.includes(h)?i:-1).filter(i=>i>=0);
+    if(at.length!==1)continue;
+    out=out.map((h,i)=>i===at[0]?rule.to:h);
+  }
+  return out;
+}
 export function prepareRegisterRows(input:readonly string[][],documentType='') {
   let headerIndex=0,best=0;
   input.slice(0,50).forEach((row,index)=>{const score=new Set(row.map(h=>canonicalHeader(h,documentType)).filter(h=>fields.has(h)||fields.has(h.replace(/ [a-z]{3}$/,'')))).size;if(score>best){best=score;headerIndex=index;}});
   if(best<2){const firstWide=input.findIndex(r=>r.filter(v=>v.trim()).length>=2);headerIndex=Math.max(0,firstWide);}
-  const rawHeaders=input[headerIndex]??[],headers=rawHeaders.map(h=>canonicalHeader(h,documentType));
+  const rawHeaders=input[headerIndex]??[],headers=resolveGenericHeaders(rawHeaders.map(h=>canonicalHeader(h,documentType)));
   const readers=registerReaderColumns(headers,documentType);
   const columnAudit=rawHeaders.map((rawHeader,index)=>{
     const field=headers[index]??normalizeHeader(rawHeader);
