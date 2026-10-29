@@ -9,6 +9,8 @@ import {deliveryModule} from '../packages/runtime-api/src/delivery-projections';
 import {currentReadinessEvidence} from '../packages/runtime-api/src/current-readiness';
 import {moduleForProject} from '../packages/runtime-api/src/project-projections';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
+import {ProjectAskEngine} from '../packages/runtime-api/src/ask-engine';
+import {AskStore} from '../packages/runtime-api/src/ask-store';
 
 // P0-C (C10 with C11 and M8.2) invariant. Every readiness dimension has a
 // document reader. A register row applies to the activities its record is
@@ -74,6 +76,13 @@ test('C10: every dimension is read from its register and reaches Ready on Look-A
   const la=lookAheadRow(state,'ACT-100'),cr=readinessRow(state,'ACT-100');
   assert.ok(la,'ACT-100 is on the Look-Ahead');assert.equal(la.readiness?.state,'ready','Look-Ahead: '+JSON.stringify(la.readiness?.dimensions?.filter((d:any)=>d.state!=='ready'&&d.state!=='not_applicable')));
   assert.ok(cr,'ACT-100 is on Construction Readiness');assert.equal(cr.readiness?.state??cr.state,'ready','Construction Readiness agrees with Look-Ahead');
+  // Ask CMeng answers a readiness question from the same reader (no paid model).
+  const root=mkdtempSync(join(tmpdir(),'cmeng-c10-ask-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const engine=new ProjectAskEngine(new AskStore(root),{plan:async()=>{throw new Error('Unexpected paid planning');},explain:async()=>{throw new Error('Unexpected paid explanation');}});
+  const answer=await engine.ask(state.projectId,{userId:'c10',workspaceId:'cmeng-projects',name:null,title:null,company:null,allowModel:false},{question:'Which activities are ready to start?'});
+  assert.ok(answer.plan.authorities.includes('lookahead'),'answered from the readiness reader: '+answer.plan.authorities.join(','));
+  assert.match(answer.narrative[0]!.text,/Look-ahead readiness.*\b[1-9]\d* ready/,answer.narrative[0]!.text);
+  assert.match(answer.narrative[0]!.text,/ACT-100/,'the ready activity is named');
 });
 
 test('C10: the register order does not matter; a corrected link moves the evidence at once; a restart gives the same answer',async t=>{

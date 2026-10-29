@@ -62,14 +62,15 @@ const registrations:Record<string,Registration>={
   'quantity-scurve':{id:'quantities',concepts:['installed','installed quantity','quantity progress','quantities','quantity completion','كميات']},
   'resource-utilization':{id:'resources',concepts:['resources','labour','labor','manpower','crew','عماله'],tables:['rows','weeklyRows']},
   'manhour-scurve':{id:'manhours',concepts:['manhour','man-hour','man hour','ساعات العمل'],tables:['points']},
-  'lookahead-schedule':{id:'lookahead',concepts:['lookahead','look-ahead','next week'],tables:['rows','activities']},
+  // C10: readiness questions are answered from the one readiness reader (Look-Ahead).
+  'lookahead-schedule':{id:'lookahead',concepts:['lookahead','look-ahead','next week','ready to start','ready','readiness','can start','clear to start','constraints'],tables:['rows','activities']},
   'schedule-change-report':{id:'programme-changes',concepts:['changed','change since','previous update','programme change'],tables:['changedActivities','changeCategories'],metrics:[['matchedActivityCount','Matched activities','activities'],['addedActivityCount','Added activities','activities'],['removedActivityCount','Removed activities','activities'],['executionModifiedActivityCount','Changed execution activities','activities']]},
   'revision-trend':{id:'revision-history',concepts:['history','revisions','revision','joined','تاريخ المشروع'],tables:['points']},
   'milestones':{id:'milestones',concepts:['milestone','المعالم'],tables:['rows']},
   'variance-trends':{id:'variance',concepts:['variance trend','movement'],tables:['rows','points']},
   'forecast-history':{id:'forecast-history',concepts:['completion history','forecast history'],tables:['rows','revisions','points']},
   'independent-forecast':{id:'forecast',concepts:['forecast','finish','completion date','cpm','التوقع','الانتهاء'],metrics:[['sourceForecastCompletionIso','Submitted programme finish',null],['independentForecastCompletionIso','Calendar recalculation finish',null],['sourceProductivityForecastCompletionIso','Source productivity forecast finish',null],['activityCoveragePercent','Calculation activity coverage','%']]},
-  'cost-forecast':{id:'evm',concepts:['cpi','spi','evm','earned value','cost performance','ev','pv','ac','مؤشر التكلفه'],domains:['commercial']},
+  'cost-forecast':{id:'evm',concepts:['cpi','spi','evm','earned value','cost performance','ev','pv','ac','eac','estimate at completion','cost at completion','final cost','مؤشر التكلفه'],domains:['commercial']},
   'commercial-overview':{id:'commercial',concepts:['commercial','contract value','cost exposure','commercial kpi','التجاري'],domains:['commercial','claims']},
   'payments':{id:'payments',concepts:['paid','payment','certificate','certified','retention','دفع','مستخلص'],domains:['commercial']},
   'cash-flow':{id:'cash',concepts:['cash','cash flow','التدفق النقدي'],domains:['commercial'],tables:['focus.transactions','focus.cashFlowRegister.currencies']},
@@ -202,6 +203,9 @@ function deliveryAuthority(context:AskProducerContext,scope:ProjectScope,key:str
 function evmAuthority(b:AuthorityBuilder,d:any){
   const performance=d?.position?.performance;
   const positions=performance?.costControl?.positions??[];
+  // EAC is answered from the same cost position the Commercial pages use (the current, adopted cost report).
+  for(const [i,p] of positions.entries()){const v=p.sourceEac;if(v)b.metric('eac-'+p.currency+'-'+p.taxBasis,'EAC (estimate at completion) · '+p.currency+' · tax '+p.taxBasis,v.value,p.currency,
+    'Cost report EAC'+(v.basis?.asOfDate?' as of '+v.basis.asOfDate:'')+'.',{path:'position.performance.costControl.positions.'+i+'.sourceEac',state:v.state,refs:v.basis?.sourceRefs??[]});}
   for(const [i,p] of positions.entries())for(const [key,name] of [['cpi','CPI'],['spi','SPI'],['ev','Earned value'],['pv','Planned value'],['ac','Actual cost']] as const){const v=p[key];b.metric(key+'-'+p.currency+'-'+p.taxBasis,name+' · '+p.currency+' · tax '+p.taxBasis,v?.value,key==='cpi'||key==='spi'?'ratio':p.currency,v?.basis??'Existing Commercial / EVM authority at Data Date.',{path:'position.performance.costControl.positions.'+i+'.'+key,state:v?.state,refs:v?.sourceRefs??[]});}
   if(!positions.length)for(const key of ['cpi','spi','ev','pv','ac'])b.metric(key,key.toUpperCase(),null,key==='cpi'||key==='spi'?'ratio':null,'Commercial EVM inputs and a compatible set of measured records are not established.');
   for(const [i,series] of (performance?.evmPerformance?.series??[]).entries())b.table('evm-'+i,'EVM · '+series.currency,series.points,'Existing Commercial EVM time series; current and future positions retain their producer labels.',{},r=>Object.fromEntries(Object.entries(r).map(([k,v]:[string,any])=>[k,v&&typeof v==='object'?'value'in v?v.value:null:v])));
@@ -269,7 +273,10 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
       ['difference','Recalculation minus submitted finish',p.differenceElapsedDays,'elapsed calendar days'],['contract','Contractual completion',p.contractualFinishIso,null]
     ])b.metric(id,name,value,unit,p.differenceBasis,{state:id==='independentForecastCompletionIso'?p.calculationState:undefined,refs:[scope.programmeRevision??'']});
     for(const [path,name,unit] of registration.metrics??[])if(!b.result.metrics.some(m=>m.id===registration.id+'.'+path))b.metric(path,name,at(d,path),unit,'Existing '+title+' producer.',{path});
-    b.table('position','Completion position',[{submittedFinish:p.submittedFinishIso,calendarRecalculation:p.independentFinishIso,calculationState:p.calculationState,differenceElapsedDays:p.differenceElapsedDays,contractualFinish:p.contractualFinishIso}],p.differenceBasis);
+    // C9: the governing completion (contract plus awarded EOT) is the shared fact every page uses.
+    const governing=d.projectFacts?.time?.governingContractCompletionIso;
+    b.table('position','Completion position',[{submittedFinish:p.submittedFinishIso,calendarRecalculation:p.independentFinishIso,calculationState:p.calculationState,differenceElapsedDays:p.differenceElapsedDays,contractualFinish:p.contractualFinishIso,
+      governingCompletion:governing?.value??null,governingConfirmed:governing?.complete??null,governingBasis:governing?.basis??null}],p.differenceBasis);
     for(const l of p.limitations)b.finding(l.key,'Calculation qualification',l.text,'Review this stated calculation assumption with the relevant programme record.');
     return b.result;
   }
@@ -282,7 +289,7 @@ function moduleAuthority(context:AskProducerContext,scope:ProjectScope,key:strin
   }
   if(registration.id==='lookahead'){
     b.result.explanation='Upcoming and overdue work, with linked issues that may prevent work. A linked issue is not by itself proof of project delay causation.';
-    b.table('rows','Work and linked issues',d?.rows,b.result.explanation,overrides,r=>({...r,
+    b.table('rows','Work and linked issues',d?.rows,b.result.explanation,overrides,r=>({...r,readinessState:r.readiness?.state??null,
       linkedBlockers:(r.readiness?.dimensions??[]).filter((v:any)=>v.state==='blocked').map((v:any)=>v.key.replaceAll('_',' ')+': '+(v.note??'Linked issue needs review')).join('; ')||'No confirmed linked blocker',
       checksMissing:(r.readiness?.dimensions??[]).filter((v:any)=>v.state==='unknown').map((v:any)=>v.key.replaceAll('_',' ')).join('; '),
       sourceRefs:(r.readiness?.dimensions??[]).flatMap((v:any)=>v.sourceRefs??[])}));

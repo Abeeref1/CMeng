@@ -96,4 +96,20 @@ test('C9: the user\'s decision replaces the proposal on every reader; ignoring t
   assert.equal(facts.time.governingContractCompletionIso.value,'2030-04-26');
   const after=overlapItems(state);
   assert.equal(after.length,1);assert.equal(after[0]!.category,'information','the decision stays reachable to change, not asked again');
+  assert.equal(facts.time.extendedContractCompletionIso.value,'2030-04-26','the extended date shown is the decided date');
+});
+
+test('C9: a decision of zero additional days keeps the amended date everywhere (no other comparison replaces it)',t=>{
+  const {state,contract,determinations}=fixture(t);
+  contract('MAIN','main','Original Contractual Completion 31 December 2029');
+  contract('AMD','amendment','Effective Date 15 August 2026\nRevised Contractual Completion 31 March 2030','additive');
+  determinations([['D1',15,'2026-07-24'],['D2',11,'2026-08-16']]);
+  const item=overlapItems(state)[0]!;
+  assert.equal(item.target.reviewAdditionalDays,0,'the amendment (90 days) already holds the 26 awarded days');
+  state.controls.reviewDecisions={...(state.controls.reviewDecisions??{}),'eot-overlap':{choice:'accept_proposal',sourceFingerprint:item.reviewFingerprint!,additionalDays:0,reference:'',recordedAt:stamp} as any};
+  state.version++;
+  const facts=projectFactsForState(state) as any;
+  assert.equal(contractTimeDates(state).governingCompletionIso,'2030-03-31');
+  assert.equal(facts.time.governingContractCompletionIso.value,'2030-03-31');
+  assert.equal(facts.time.extendedContractCompletionIso.value??'2030-03-31','2030-03-31','never the original date plus the awards after the user decided');
 });

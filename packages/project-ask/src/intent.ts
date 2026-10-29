@@ -89,7 +89,10 @@ export function resolveIntent(question:string,catalogue:AuthorityDescriptor[],pr
     // Keep earlier conversation requirements when this is an additive
     // follow-up. A new standalone schedule question may replace the previous
     // schedule slice, but "also/include/add" must never discard it.
-    if(!inherited)plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id));
+    // C10: "which activities are ready to start" is a readiness question: the shared readiness reader (Look-Ahead) answers it.
+    const readinessQuestion=/\bready\b|\breadiness\b|can (?:we )?start|clear to start/.test(q);
+    if(!inherited)plan.authorities=plan.authorities.filter(id=>!['programme','activities','float','critical-path','forecast','delay','lookahead'].includes(id)||(readinessQuestion&&id==='lookahead'));
+    if(readinessQuestion&&available('lookahead')&&!plan.authorities.includes('lookahead'))plan.authorities.push('lookahead');
     if(wantsActivityList&&available('activities')&&!plan.authorities.includes('activities'))plan.authorities.push('activities');
     if(wantsPath&&available('critical-path')&&!plan.authorities.includes('critical-path'))plan.authorities.push('critical-path');
     if(!wantsActivityList&&!wantsPath&&available('activities')&&!plan.authorities.includes('activities'))plan.authorities.push('activities');

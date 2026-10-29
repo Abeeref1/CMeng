@@ -94,7 +94,8 @@ export function bindProjectFacts<T extends ObjectValue>(key:string, source:T, fa
     rows.forEach((row:any,index:number)=>{const fact=metrics[row.key];if(fact&&at(facts,fact))bind(fact,[base+'.'+index+'.value']);});
   }
   bind('time.contractualCompletionIso',['claims.contractualCompletionIso','schedule.contractualCompletionIso','recoveryTargets.original.dateIso']);
-  bind('time.extendedContractCompletionIso',['recoveryTargets.extended.dateIso']);
+  // M7.2: the recovery target is the governing completion (contract plus awarded EOT, or the contract date when none is awarded).
+  bind('time.governingContractCompletionIso',['recoveryTargets.extended.dateIso']);
   bind('schedule.submittedProgrammeCompletionIso',['recoveryTargets.submittedCompletionIso']);
   bind('time.extendedContractCompletionIso',['claims.officialAdjustedCompletionIso','schedule.officialAdjustedCompletionIso']);
   // The original contract date is historical evidence, not the current amended date.

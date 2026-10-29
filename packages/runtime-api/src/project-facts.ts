@@ -358,7 +358,9 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     baseCompletion.slice(0,10)===extendedCompletion.slice(0,10);
   // C9: while the overlap is not confirmed, CMeng's proposal gives the date (qualified), on every page.
   const overlapProposal=contractTime?.overlapResolution==='unresolved'?contractTime.overlapProposal??null:null;
-  const overlapPending=!overlapProposal&&adjustmentUnapplied&&officialAward!==null&&officialAward>0&&(
+  // C9: the user's overlap decision is final: no other comparison replaces it.
+  const overlapDecided=(contractTime?.sourceRefs??[]).some(ref=>ref.startsWith('user-confirmation:eot-overlap:'));
+  const overlapPending=!overlapProposal&&!overlapDecided&&adjustmentUnapplied&&officialAward!==null&&officialAward>0&&(
     dateRepeatedDespiteAward||contractTime?.overlapResolution!=='resolved'
   );
   const completionPosition=overlapPending?contractCompletionPosition(scoped,dataDateIso):null;
