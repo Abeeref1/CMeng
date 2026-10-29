@@ -6,7 +6,6 @@ import {
   type SourceReceipt,
 } from "../../truth-kernel/src";
 import type { ProjectRuntimeState } from "./project-state-types";
-import { inferDocumentType } from "./evidence";
 
 export interface GovernedNumericMetric {
   value: number | null;
@@ -21,19 +20,16 @@ function ref(receipt: SourceReceipt): string {
   return "evidence-document:" + receipt.documentId + ":" + receipt.locator;
 }
 
-function isProjectControlDocument(state: ProjectRuntimeState, documentId: string): boolean {
+export function isProjectControlDocument(state: ProjectRuntimeState, documentId: string): boolean {
   const document = state.evidenceDocuments.find((item) => item.documentId === documentId);
   if (!document) return false;
-  const inferred = inferDocumentType(
-    document.sourceRelativePath ?? document.sourceFilename,
-    null,
-  );
+  // M1.1: the document's type (content reading or the user's decision) decides
+  // inclusion; its file name never does.
   return (
     ["active", "additive", "candidate"].includes(document.basisState) &&
     (
       document.category === "schedule_control" ||
-      ["schedule_metric_register", "project_data_book", "schedule_control_basis"].includes(document.documentType) ||
-      ["schedule_metric_register", "project_data_book", "schedule_control_basis"].includes(inferred)
+      ["schedule_metric_register", "project_data_book", "schedule_control_basis"].includes(document.documentType)
     )
   );
 }

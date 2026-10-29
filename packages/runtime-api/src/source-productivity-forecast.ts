@@ -140,41 +140,12 @@ function basename(value: string): string {
     .at(-1) ?? value;
 }
 
-function productivityDocumentKind(
+export function productivityDocumentKind(
   document: ProjectRuntimeState["evidenceDocuments"][number],
 ): "work_packages" | "basis" | null {
-  const inferred =
-    inferDocumentType(
-      sourcePath(document),
-      null,
-    );
-  const name =
-    basename(
-      sourcePath(document),
-    ).toLowerCase();
-
-  if (
-    document.documentType ===
-      "productivity_work_package_register" ||
-    inferred ===
-      "productivity_work_package_register" ||
-    /^if0?1(?:[_\-.]|$)/i.test(name) ||
-    /productiv.*work.*package/i.test(name)
-  ) {
-    return "work_packages";
-  }
-
-  if (
-    document.documentType ===
-      "productivity_forecast_basis" ||
-    inferred ===
-      "productivity_forecast_basis" ||
-    /^if0?2(?:[_\-.]|$)/i.test(name) ||
-    /productiv.*(?:forecast.*basis|basis.*forecast|allowance)/i.test(name)
-  ) {
-    return "basis";
-  }
-
+  // M1.1: the type decides (content reading or the user's decision); the file name never does.
+  if (document.documentType === "productivity_work_package_register") return "work_packages";
+  if (document.documentType === "productivity_forecast_basis") return "basis";
   return null;
 }
 

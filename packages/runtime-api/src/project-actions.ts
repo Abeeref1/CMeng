@@ -395,6 +395,14 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   for(const kind of deliveryKinds){const records=delivery.records.filter(r=>r.kind===kind&&!['superseded','scenario'].includes(r.state));if(!records.length)continue;
     const pending=records.filter(r=>!deliveryCurrentRecord(r)),moduleKey=deliveryPages.find(p=>p[3]===kind)?.[0]??'delivery-control';
     if(pending.length){/* Candidate/stale Delivery rows remain supporting information; no page-loop action is created. */}
+    else if(delivery.populations[kind]?.state!=='established'&&populationBlockers(state,delivery,kind)){
+      // M4.1: confirming completeness alone would not give a percentage; the real blocker is named instead.
+      const blocker=populationBlockers(state,delivery,kind)!;
+      actions.push({id:'delivery-population:'+kind,category:'follow_up',title:'Add the missing dates and statuses in the '+deliveryLabels[kind]+' register',owner:'Project Controls',recordCount:blocker.count,
+        reason:'Percentages for this register need '+blocker.text+'. Confirming the register complete would not change that.',
+        resolution:{kind:'upload',requiresUserAction:true,instruction:'Add the missing dates or statuses in the register and upload it again.',completionRule:'The item closes when every current record has a date and a status at the Data Date.'},
+        target:{type:'upload',label:'Upload the corrected register',uploadHint:deliveryLabels[kind]+' register with dates and statuses',uploadMode:'evidence'}});
+    }
     else if(delivery.populations[kind]?.state!=='established')actions.push({id:'delivery-population:'+kind,category:'confirmation',title:'Confirm the complete '+deliveryLabels[kind]+' register',reason:countText(records.length,'usable source record is','usable source records are')+' available. Confirm only if these are all the applicable records, so percentages can be reported.',recordCount:records.length,
       resolution:{kind:'confirm',requiresUserAction:true,instruction:'Confirm here that the register is complete. If it is not complete, do nothing; CMeng will keep percentages unconfirmed.',completionRule:'The action closes as soon as the register is confirmed complete.'},
       target:{type:'delivery',kind,moduleKey,population:true,label:'Confirm complete register'}});
@@ -727,4 +735,14 @@ export function forecastReviewItem(state:ProjectRuntimeState):ProjectAction|null
 function countUnknownTaxRows(model:CanonicalCommercialModel):number{
   const amounts=[...model.payments.flatMap(p=>Object.values(p.amounts)),...model.variations.map(v=>v.approvedAmount)] as Array<{value:number|null;taxBasis:string}>;
   return amounts.filter(a=>a&&a.value!==null&&a.taxBasis==='unknown').length;
+}
+
+/** M4.1: what, other than a completeness confirmation, keeps a register's percentages unknown. */
+function populationBlockers(state:ProjectRuntimeState,delivery:ReturnType<typeof deliveryPosition>,kind:string):{text:string;count:number}|null{
+  const rows=(delivery.registerRows??[]).filter((r:any)=>r.kind===kind) as Array<{scope:string;currentStatus:string;verificationRequired?:boolean}>;
+  if(!rows.length)return null;
+  if(!projectDataDate(state))return {text:'a Data Date (upload the current programme)',count:rows.length};
+  const undated=rows.filter(r=>r.scope==='undated').length,unknown=rows.filter(r=>r.scope==='current'&&r.currentStatus==='not_established').length,verify=rows.filter(r=>r.scope==='current'&&r.verificationRequired).length;
+  const parts=[undated?countText(undated,'record','records')+' with no date':'',unknown?countText(unknown,'current record','current records')+' with no status at the Data Date':'',verify?countText(verify,'closure','closures')+' awaiting verification':''].filter(Boolean);
+  return parts.length?{text:parts.join(', '),count:undated+unknown+verify}:null;
 }

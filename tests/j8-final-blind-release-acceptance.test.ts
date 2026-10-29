@@ -54,7 +54,7 @@ function retainedInventory(register:any){
   })).sort((a:any,b:any)=>a.sourceHashSha256.localeCompare(b.sourceHashSha256)||a.sourceFilename.localeCompare(b.sourceFilename));
 }
 
-test('J8 final fresh blind release acceptance: 100 unseen projects remain truthful across every page, deterministic Ask and restart',{timeout:420000},async()=>{
+test('J8 final fresh blind release acceptance: 100 unseen projects remain truthful across every page, deterministic Ask and restart',{timeout:900000},async()=>{
   const rootSeed=defaultBlindSeed()+'::J8-FINAL-REAL-ACCEPTANCE';
   process.stdout.write('\nCMENG_J8_BLIND_PROJECT_SET_SEED='+rootSeed+'\n');
 

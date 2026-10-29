@@ -461,11 +461,15 @@ function buildDelivery(state:ProjectRuntimeState){
   if(sourceOperational)currentStatus=sourceClosed?'closed':sourceOperational.status==='open'?'open':'not_established';
   // Scope establishes when the requirement exists, not when it is completed.
   // Every completion/outcome above must independently satisfy its event date.
-  const firstEvidence=[raised,actual,approval,verified,closed,accepted,statusAsOf].filter((d):d is string=>!!d).sort()[0];const scope=firstEvidence&&dataDateIso?(firstEvidence<=dataDateIso?'current':'future'):'undated';
+  // M4.2: a planned, due or required date also shows when the requirement exists.
+  // A dated row with no Data Date is not "undated": its scope waits for the Data Date.
+  const planned=date(r,'planned date','planned issue','planned submission','planned submission date','planned start','planned delivery');
+  const firstEvidence=[raised,actual,approval,verified,closed,accepted,statusAsOf,planned,due].filter((d):d is string=>!!d).sort()[0];const scope=firstEvidence&&dataDateIso?(firstEvidence<=dataDateIso?'current':'future'):'undated';
+  const scopeBasis=!firstEvidence?'no_date_in_row':!dataDateIso?'no_data_date':firstEvidence===planned||firstEvidence===due?'planned_or_due_date':'event_date';
   const overdue=currentStatus==='not_established'||!dataDateIso||!due?null:!['accepted','closed','source_approved','passed'].includes(currentStatus)&&due<dataDateIso;
   const owner=field(r,'owner','responsible','responsible party','assigned to')||null;
   const programmeContext=registerProgrammeContext(r.links.activityIds,activities);
-  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,linkedPackages:r.links.packageIds.map(id=>({recordId:byId.get(id)?.kind==='package'?id:null,reference:byId.get(id)?.reference??id})),links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed',cellSources:['design','quality'].includes(r.kind)?registerCellSources(r):null};
+  return {recordId:r.recordId,reference:r.reference,kind:r.kind,description:r.description,discipline:field(r,'discipline')||null,owner,sourceStatus:rawStatus||null,currentStatus,scope,scopeBasis,raisedDate:raised,dueDate:due,actualDate:actual,approvalDate:approval,rectifiedDate:rectified,verificationDate:verified,closedDate:closed,acceptedDate:accepted,verifiedEvidence,verificationRequired,overdue,programmeContext,linkedPackages:r.links.packageIds.map(id=>({recordId:byId.get(id)?.kind==='package'?id:null,reference:byId.get(id)?.reference??id})),links:r.links,fields:r.fields,receipts:r.receipts,authority:r.state==='extracted_candidate'?'source_register_not_confirmed':'confirmed',cellSources:['design','quality'].includes(r.kind)?registerCellSources(r):null};
  });
  const registerById=new Map(registerRows.map(r=>[r.recordId,r] as const));
  const registerOrder=new Map(registerRows.map((r,i)=>[r.recordId,i] as const));

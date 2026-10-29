@@ -372,7 +372,8 @@ test('asset/programme source review remains editable after restart without creat
  assert.equal((await upload('2031-08-31')).status,201);
  assert.equal((await fetch(base+'/api/projects/ASSET-REVIEW/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'Assets.csv'},body:'Asset ID,Tag Installed,Commissioned\nA1,Yes,Yes\nA2,Yes,No'})).status,201);
  const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/ASSET-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
- let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-handover-sources');assert.ok(action);
+ // M13.1: the choice orders the presentation only, so it is information (still saveable), never a required action.
+ let workflow=await get(),action=workflow.information.find((a:any)=>a.target.kind==='review-handover-sources');assert.ok(action);assert.ok(!workflow.actions.some((a:any)=>a.target.kind==='review-handover-sources'));
  const request=(values:any)=>post('/api/projects/ASSET-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'asset_focus',reference:'ASSET-CHECK',...values});
  for(const invalid of [{sourceFingerprint:'old'},{expectedVersion:workflow.projectVersion-1},{choice:'accepted'},{reference:''}])assert.equal((await request(invalid)).status,409);
  assert.equal((await request({})).status,200);
@@ -381,5 +382,5 @@ test('asset/programme source review remains editable after restart without creat
  const page=(await get('/delivery/modules/handover-readiness')).data;assert.equal(page.handover.readinessPercent,null);assert.equal(page.handoverSourceComparison.rows[0].source,'asset_register');assert.equal(page.handoverSourceComparison.rows[0].numerator,2);assert.equal(page.handoverSourceComparison.rows[0].denominator,2);
  const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String});assert.match(html,/Source basis review reference/);
  assert.equal((await request({choice:'keep_separate',reference:'ASSET-CHECK-2'})).status,200);
- assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-handover-sources'));
+ assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.information.some((a:any)=>a.target.kind==='review-handover-sources'&&a.target.reviewChoice===null),'changed sources: the old choice no longer applies; the review is offered again as information');
 });

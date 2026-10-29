@@ -281,20 +281,10 @@ export function projectScheduleControlBasis(
   ]);
   const documents = state.evidenceDocuments.filter(
     (document) => {
-      const inferredType =
-        inferDocumentType(
-          document.sourceRelativePath ??
-            document.sourceFilename,
-          null,
-        );
+      // M1.1: included by its type (content or the user's decision), never by its file name.
       return (
-        (
-          basisDocumentTypes.has(
-            document.documentType,
-          ) ||
-          basisDocumentTypes.has(
-            inferredType,
-          )
+        basisDocumentTypes.has(
+          document.documentType,
         ) &&
         ["active", "additive", "candidate"].includes(
           document.basisState,
