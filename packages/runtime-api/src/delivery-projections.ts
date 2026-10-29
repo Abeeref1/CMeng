@@ -27,6 +27,7 @@ import {projectScheduleControlBasis} from './schedule-control-basis';
 
 import {registerProgrammeContext} from './register-programme-context';
 import {buildLookAheadProjection,readinessReviewState} from '../../lookahead-schedule/src';
+import {resourceIdentityFor,withResourceIdentity} from './lookahead-resource-linkage';
 import {resolveBoqSource,suppliedBoqFigures} from './boq-source';
 import {boqScopeIntelligence} from './boq-scope-intelligence';
 import {interfaceIntelligence,interfaceModule} from './interface-intelligence';
@@ -865,7 +866,9 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  const readinessModel=scopedProgramme?projectControlSchedule(scopedProgramme)?.revision.model:null;
  const programmeReadiness=readinessModel?buildLookAheadProjection(readinessModel,{generatedAt:new Date().toISOString(),producerVersion:'shared-lookahead-readiness',drivingActivityIds:cachedIndependentForecast(readinessModel,new Date().toISOString()).drivingNetwork?.activityIds,readinessEvidence:scopedProgramme!.controls.readinessEvidence}):null;
  const readinessClassifications=readinessModel?new Map(projectScopeClassification(state,readinessModel).rows.map(row=>[row.activityId,row])):new Map();
- if(programmeReadiness)rows=programmeReadiness.rows.map(row=>({...row,reference:row.activityId,description:row.name,
+ // M9.1: the same resource links as Look-Ahead, applied by the same rule.
+ const resourceIdentity=programmeReadiness?resourceIdentityFor(state):new Map<string,any[]>();
+ if(programmeReadiness)rows=programmeReadiness.rows.map(source=>(resourceIdentity.has(source.activityId)?withResourceIdentity(source,resourceIdentity.get(source.activityId)!):source) as typeof source).map(row=>({...row,reference:row.activityId,description:row.name,
   discipline:readinessClassifications.get(row.activityId)?.discipline??null,readinessPercent:pct(row.readiness.readyCount,row.readiness.dimensions.filter(d=>d.state!=='not_applicable').length),
   // ABB G2_PLANNING-55: the same readiness state as the Look-Ahead tab for the same activity.
   state:readinessReviewState(row.readiness),unknownCount:row.readiness.unknownCount,

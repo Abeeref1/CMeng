@@ -265,3 +265,25 @@ test('F45 earned hours: BOQ items with stated labour hours per unit come first (
  assert.equal(e.budgetedHours,(item.contractQuantity as number)*2);
  assert.match(e.boq.basis,/hours per unit/);
 });
+
+// M9.1 invariant: a resource link found for an activity is part of its one
+// readiness state. Look-Ahead counts, Look-Ahead rows and Construction
+// Readiness give the same resource evidence and the same state for it.
+test('M9.1: an activity whose resource evidence is a register link: tiles equal rows, and Construction Readiness agrees',async()=>{
+ const id=await uploadProject(weekRowsRegister());
+ const p=lookAhead(id);
+ const forward=p.forwardWindowRows??p.rows;
+ const linked=forward.filter((r:any)=>(r.readiness?.dimensions??[]).find((d:any)=>d.key==='resource')?.records?.some((x:any)=>x.documentType==='Resource register'));
+ assert.ok(linked.some((r:any)=>r.activityId==='A-110'),'A-110 carries its LAB-001 link');
+ const coverage=(p.readinessCoverage??[]).find((c:any)=>c.key==='resource');
+ assert.equal(coverage.linkedActivityCount,linked.length,'the tile counts the rows that carry the link');
+ const cr=moduleForProject(id,'construction-readiness').data as any;
+ const crRows=cr.rows??cr.result?.rows??[];
+ for(const row of linked){
+  const own=crRows.find((r:any)=>r.activityId===row.activityId);
+  assert.ok(own,'Construction Readiness lists '+row.activityId);
+  const a=row.readiness.dimensions.find((d:any)=>d.key==='resource'),b=(own.rows??own.readiness?.dimensions??[]).find((d:any)=>d.key==='resource');
+  assert.equal(b.state,a.state,row.activityId+': same resource state');
+  assert.deepEqual((b.records??[]).map((x:any)=>x.recordId).sort(),(a.records??[]).map((x:any)=>x.recordId).sort(),row.activityId+': same resource records');
+ }
+});

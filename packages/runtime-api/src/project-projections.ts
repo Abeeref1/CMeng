@@ -11,7 +11,7 @@ import {sourceProgressEvidence} from './source-progress-evidence';
 import {summarizeControlledBaselineCompletion} from './controlled-baseline-completion';
 import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
-import {attachLookaheadResourceLinks} from './lookahead-resource-linkage';
+import {attachLookaheadResourceLinks,registerResourceIdentityProvider} from './lookahead-resource-linkage';
 import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
 import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner,groupActionsByOwnerRegister} from './action-priority';
 import {completionPosition} from './completion-position';
@@ -7743,7 +7743,7 @@ function resolveProjectModuleCandidate(
     output.resourceHoursBasis='Per trade (sourceResourceTrades): planned hours are the register planned demand for weeks starting in the look-ahead window; latest recorded hours are the latest register week on or before the Data Date with recorded hours, both from the shared weekly resource reader. Per activity (resourceHours): its own remaining hours from its programme labour assignments.';
     output.resourceHoursNoAssignmentReason='The programme assigns no labour resource to this activity.';
   }
-  if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p);}
+  if(key==='lookahead-schedule'&&result.data){const p=result.data as any;attachLookaheadResourceLinks(p.result?.projectionKey==='lookahead_schedule'?p.result:p,state);}
   if(result.data&&typeof result.data==='object'&&['pmo-analysis','schedule-analytics','independent-forecast','progress-report','cash-flow','cost-forecast','commercial-overview'].includes(key)) {
     // An unavailable Director interpretation is not permission to rebuild
     // every specialist projection. Use the canonical source interpretation
@@ -7944,6 +7944,8 @@ export function projectActionRegisterForState(state:ProjectRuntimeState){
 const publishedModuleResponses = new WeakMap<ProjectRuntimeState,{
   version:number; results:Map<string,ModuleRuntimeResult>
 }>();
+// M9.1: Construction Readiness reads the resource links Look-Ahead found.
+registerResourceIdentityProvider(state=>{if(runtimeProjects.get(state.projectId))moduleForProject(state.projectId,'lookahead-schedule');});
 export function moduleForProject(projectId:string,key:string):ModuleRuntimeResult {
   const state=runtimeProjects.get(projectId),canonical=resolveModuleKey(key);
   if(!state)return moduleForProjectUncached(projectId,canonical);
