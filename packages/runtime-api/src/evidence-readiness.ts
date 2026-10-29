@@ -290,7 +290,10 @@ type ParsedReadinessTable=ReturnType<typeof prepareEvidenceRows>;
 const parsedReadinessTables=new Map<string,ParsedReadinessTable>();
 function parsedReadinessTable(document:StoredEvidenceDocument,sheetName:string,meanings:readonly unknown[],bytes:Uint8Array|(()=>Uint8Array|null)):ParsedReadinessTable|null{
   const confirmations=(document.tableConfirmations??[]).filter(item=>item.sheetName===sheetName);
-  const key=[document.documentId,document.sourceHashSha256,sheetName,document.documentType,JSON.stringify(confirmations),JSON.stringify(meanings)].join('\u0001');
+  // Given bytes are keyed by their own content hash (equal to the source hash for an
+  // uploaded file); a loader is keyed by the verified source hash it reads.
+  const contentKey=typeof bytes==='function'?document.sourceHashSha256:createHash('sha256').update(bytes).digest('hex');
+  const key=[document.documentId,contentKey,sheetName,document.documentType,JSON.stringify(confirmations),JSON.stringify(meanings)].join('\u0001');
   const held=parsedReadinessTables.get(key);
   if(held){parsedReadinessTables.delete(key);parsedReadinessTables.set(key,held);return held;}
   const raw=typeof bytes==='function'?bytes():bytes;
