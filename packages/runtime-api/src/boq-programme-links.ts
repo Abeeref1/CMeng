@@ -31,7 +31,7 @@ export function boqProgrammeLinks(state:ProjectRuntimeState,model:CanonicalSched
 }
 
 type AllocationBasis='recorded_allocation'|'confirmed_link'|'rate_table_link';
-const allocationCache=new WeakMap<ProjectRuntimeState,{version:number;model:CanonicalScheduleModel;value:{quantities:CanonicalQuantityProgressModel|null;basisByItem:Map<string,AllocationBasis>}}>();
+const allocationCache=new WeakMap<ProjectRuntimeState,{version:number;model:CanonicalScheduleModel;source?:unknown;reviews?:unknown;value:{quantities:CanonicalQuantityProgressModel|null;basisByItem:Map<string,AllocationBasis>}}>();
 /** M8.3 + M11.2: the one BOQ-to-activity allocation truth. Every consumer
  * (Delivery, quantity S-curve, feasibility and challenge, the shared link rows)
  * reads the quantities through this model. Per BOQ item, in this order:
@@ -41,13 +41,16 @@ const allocationCache=new WeakMap<ProjectRuntimeState,{version:number;model:Cano
  * row naming the item and exactly one activity. CMeng proposals and WBS scope
  * associations are never allocations. */
 export function governedQuantityModel(state:ProjectRuntimeState,model:CanonicalScheduleModel){
-  const cached=allocationCache.get(state);if(cached?.version===state.version&&cached.model===model)return cached.value;
+  // The cache is keyed by the source quantities too: a saved mapping can replace
+  // them without a new project version (J8 F7), and must be read at once.
   const quantities=resolveBoqSource(state,model.sourceRevisionId).quantities;
+  const cached=allocationCache.get(state);if(cached?.version===state.version&&cached.model===model&&cached.source===quantities&&cached.reviews===state.linkCandidateReviews)return cached.value;
   const basisByItem=new Map<string,AllocationBasis>();
-  if(!quantities){const value={quantities:null,basisByItem};allocationCache.set(state,{version:state.version,model,value});return value;}
+  if(!quantities){const value={quantities:null,basisByItem};allocationCache.set(state,{version:state.version,model,source:quantities,reviews:state.linkCandidateReviews,value});return value;}
   const activityIds=new Set(model.activities.map(a=>a.activityId));
   const sameRevision=quantities.scheduleRevisionId===model.sourceRevisionId;
-  const recorded=sameRevision?quantities.allocations.filter(a=>activityIds.has(a.activityId)):[];
+  // A recorded allocation is kept as recorded (it may name the activity by its native ID; the readers resolve it), as before.
+  const recorded=sameRevision?quantities.allocations:[];
   for(const a of recorded)basisByItem.set(a.quantityItemId,'recorded_allocation');
   const linkIsCurrent=boqActivityReviewChecker(state,model,quantities.items);
   const confirmed=new Map<string,Array<{activityId:string;reviewId:string}>>();
@@ -81,6 +84,6 @@ export function governedQuantityModel(state:ProjectRuntimeState,model:CanonicalS
   const governed:CanonicalQuantityProgressModel={...quantities,scheduleRevisionId:sameRevision||derived.length?model.sourceRevisionId:quantities.scheduleRevisionId,allocations:[...recorded,...derived]};
   // A recorded allocation for another revision stays out (it is not current) but is not lost from the source model.
   const value={quantities:governed,basisByItem};
-  allocationCache.set(state,{version:state.version,model,value});
+  allocationCache.set(state,{version:state.version,model,source:quantities,reviews:state.linkCandidateReviews,value});
   return value;
 }
