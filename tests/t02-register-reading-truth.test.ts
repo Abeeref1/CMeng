@@ -69,7 +69,7 @@ test('T02 SW-12 a cost report with no internal date or two dates is not ordered 
 const submittalHeader='Submittal ID,Revision,Description,Procurement Package,Location,Criticality,Cost Code,Linked Letter,Status,Planned Issue';
 const submittalRow='SUB-001,B,Chilled water pump shop drawings,PKG-07,Level 2 Plant Room,High,CC-23-410,LTR-0042,Approved with comments,2026-05-01';
 
-test('T02 SW-11 R2 a file named as one type but holding another is identified by content and queued for review',async()=>{
+test('T02 SW-11 R2 a file named as one type but holding another is identified by content; established content raises no name review (K1)',async()=>{
  await withServer(async base=>{
   const project='T02-NAME-CONTENT-CONFLICT';
   const result=await upload(base,project,'Risk_Register.csv',[submittalHeader,submittalRow].join('\n'));
@@ -80,11 +80,12 @@ test('T02 SW-11 R2 a file named as one type but holding another is identified by
   const document=projectState(project).evidenceDocuments.find((d:any)=>d.documentId===result.documentId);
   const plain=documentClassificationForReview(document);
   assert.equal(plain.documentType,'submittal_register');
-  assert.equal(plain.reviewRequired,true,'queued for review, not filed silently');
-  assert.match(String(plain.reason),/file name suggests risk register but the content shows submittal register/);
+  // K1: the content establishes the type, so the file name raises no review (the conflict stays recorded above).
+  assert.equal(plain.reviewRequired,false,'content established: the name does not queue a review');
+  assert.doesNotMatch(String(plain.reason??''),/file name suggests/);
   const withRows=documentClassificationForReview(document,[submittalHeader.split(','),submittalRow.split(',')]);
   assert.equal(withRows.documentType,'submittal_register');
-  assert.equal(withRows.reviewRequired,true);
+  assert.equal(withRows.reviewRequired,false);
   // A recorded user decision closes the review.
   const decided=documentClassificationForReview({...document,classificationDecision:{sourceHash:document.sourceHashSha256,documentType:document.documentType,category:document.category,reference:'Checked source',recordedAt:'2026-10-19T00:00:00Z',originalDocumentType:document.documentType,originalCategory:document.category}});
   assert.equal(decided.reviewRequired,false);
