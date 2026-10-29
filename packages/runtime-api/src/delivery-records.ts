@@ -62,6 +62,7 @@ const boqContinuityCache=new WeakMap<ProjectRuntimeState,{version:number;mapping
 // R2 (M3.4): the file-and-row identity of each source record, for confirmations saved before record identity.
 const legacyIdentity=new WeakMap<DeliveryRecord,{id:string;revision:string}>();
 type DeliveryDocumentReceipt={documentId:string;filename:string;kind:DeliveryKind|null;rowCount:number;state:string;readingComplete:boolean|null;diagnostics:string[];columnsNotUsed?:string[]};
+const recordsByInputs=new WeakMap<object,{version:number;decisionFingerprint:string;store:unknown;model:unknown;items:unknown;value:{records:DeliveryRecord[];documents:DeliveryDocumentReceipt[];diagnostics:string[]}}>();
 const deliveryRecordsCache=new WeakMap<ProjectRuntimeState,{version:number;decisionFingerprint:string;value:{
  records:DeliveryRecord[];documents:DeliveryDocumentReceipt[];diagnostics:string[];
 }}>();
@@ -81,6 +82,14 @@ export function deliveryRecords(state:ProjectRuntimeState){
  ]);
  const prior=deliveryRecordsCache.get(state);
  if(prior?.version===state.version&&prior.decisionFingerprint===decisionFingerprint)return prior.value;
+ // Performance (T11): a reporting view shares the project's documents, Delivery
+ // store, control programme and BOQ items, so it reuses the project's records
+ // instead of reading every register row a second time.
+ const linkModel=projectControlSchedule(state)?.revision.model,linkItems=resolveBoqSource(state,linkModel?.sourceRevisionId??'').quantities?.items;
+ const shared=recordsByInputs.get(state.evidenceDocuments);
+ if(shared&&shared.version===state.version&&shared.decisionFingerprint===decisionFingerprint&&shared.store===state.delivery&&shared.model===linkModel&&shared.items===linkItems){
+  deliveryRecordsCache.set(state,{version:state.version,decisionFingerprint,value:shared.value});return shared.value;
+ }
  const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);
  const decidedIds=new Set(store.decisions.map(d=>d.recordId));
  const records:DeliveryRecord[]=[...store.manual.map(r=>({...structuredClone(r),sourceActive:r.receipts.every(receipt=>state.evidenceDocuments.some(d=>d.documentId===receipt.documentId&&d.sourceHashSha256===receipt.sourceHash&&(['active','additive','candidate'].includes(d.basisState)||['supporting_document','delivery_register','interface_register','permit_register'].includes(d.documentType)&&d.basisState==='historical'&&!d.supersededByDocumentId)))}))];
@@ -224,6 +233,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
   if(proposal.state==='proposed')r.links.activityIds=[...proposal.activityIds];
  }
  const value={records,documents,diagnostics};deliveryRecordsCache.set(state,{version:state.version,decisionFingerprint,value});
+ recordsByInputs.set(state.evidenceDocuments,{version:state.version,decisionFingerprint,store:state.delivery,model:linkModel,items:linkItems,value});
  return value;
 }
 // C11: a CMeng activity-link proposal is not part of what a completeness confirmation covers.

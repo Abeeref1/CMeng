@@ -286,12 +286,29 @@ function packageLinked(link:PackageLink|undefined,packageId:string,evidence:Read
   return out;
 }
 
+type ParsedReadinessTable=ReturnType<typeof prepareEvidenceRows>;
+const parsedReadinessTables=new Map<string,ParsedReadinessTable>();
+function parsedReadinessTable(document:StoredEvidenceDocument,sheetName:string,meanings:readonly unknown[],bytes:Uint8Array|(()=>Uint8Array|null)):ParsedReadinessTable|null{
+  const confirmations=(document.tableConfirmations??[]).filter(item=>item.sheetName===sheetName);
+  const key=[document.documentId,document.sourceHashSha256,sheetName,document.documentType,JSON.stringify(confirmations),JSON.stringify(meanings)].join('\u0001');
+  const held=parsedReadinessTables.get(key);
+  if(held){parsedReadinessTables.delete(key);parsedReadinessTables.set(key,held);return held;}
+  const raw=typeof bytes==='function'?bytes():bytes;
+  if(!raw)return null;
+  const text=Buffer.from(raw).toString('utf8').replace(/^\uFEFF/,'');
+  const parsed=prepareEvidenceRows(parseCsv(text),document.documentType,confirmations,meanings as any);
+  parsedReadinessTables.set(key,parsed);
+  while(parsedReadinessTables.size>64)parsedReadinessTables.delete(parsedReadinessTables.keys().next().value!);
+  return parsed;
+}
+
 export function deriveReadinessFromCsv(
   input: {
     state: ProjectRuntimeState;
     document:
       StoredEvidenceDocument;
-    bytes: Uint8Array;
+    /** The source bytes, or a loader called only when the parsed table is not held yet. */
+    bytes: Uint8Array | (() => Uint8Array | null);
     sheetName?: string;
     dataDateIso?: string | null;
     /** P0-C (C10, C11, M8.2): the one link reader. Given a source row it returns
@@ -313,25 +330,15 @@ export function deriveReadinessFromCsv(
   }
 
   const procurementDateChoice=input.document.documentType==='procurement_register'?procurementDateBasis(input.state).choice:null;
-  const text =
-    Buffer.from(
-      input.bytes,
-    )
-      .toString("utf8")
-      .replace(
-        /^\uFEFF/,
-        "",
-      );
   const sheetName=input.sheetName??'CSV';
   const semantic=sheetName==='CSV'
     ?input.document.csvSemantic
     :input.document.tabularRead?.sheets.find(sheet=>sheet.name===sheetName)?.semantic;
-  const parsedTable=prepareEvidenceRows(
-    parseCsv(text),
-    input.document.documentType,
-    (input.document.tableConfirmations??[]).filter(item=>item.sheetName===sheetName),
-    semantic?.columnMeanings??[],
-  );
+  // Performance (T11): the link-independent parse of a source table is held per
+  // source hash, sheet, type and column decisions, so a read after upload applies
+  // the current links without parsing every register row again.
+  const parsedTable=parsedReadinessTable(input.document,sheetName,semantic?.columnMeanings??[],input.bytes);
+  if(!parsedTable)return {};
   const rows=[parsedTable.headers,...parsedTable.rows];
   const headers=parsedTable.headers;
 
@@ -682,13 +689,13 @@ export function reportingReadinessEvidence(state:ProjectRuntimeState,dataDateIso
           const type=sheet.semantic?.documentType??document.documentType;
           if(!dimensionFor(type))continue;
           const semanticDocument=sheet.semantic?{...document,documentType:type,category:sheet.semantic.category as any}:document;
-          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso,...(options.links?{links:options.links}:{}),...(options.onUnlinked?{onUnlinked:options.onUnlinked}:{})}));
+          merge(deriveReadinessFromCsv({state,document:semanticDocument,bytes:()=>Buffer.from(registerCsv(sheet.rows)),sheetName:sheet.name,dataDateIso,...(options.links?{links:options.links}:{}),...(options.onUnlinked?{onUnlinked:options.onUnlinked}:{})}));
         }
         continue;
       }
       if(!dimensionFor(document.documentType)||document.mediaType!=='text/csv')continue;
-      const bytes=readFileSync(document.storedPath);
-      if(createHash('sha256').update(bytes).digest('hex')!==document.sourceHashSha256)continue;
+      // The file is read and verified only when its parsed table is not already held.
+      const bytes=()=>{const raw=readFileSync(document.storedPath);return createHash('sha256').update(raw).digest('hex')===document.sourceHashSha256?raw:null;};
       merge(deriveReadinessFromCsv({state,document,bytes,dataDateIso,...(options.links?{links:options.links}:{}),...(options.onUnlinked?{onUnlinked:options.onUnlinked}:{})}));
     }catch { /* No verified source means no derived ready assertion. */ }
   }
