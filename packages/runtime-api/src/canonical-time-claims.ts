@@ -1057,19 +1057,26 @@ export function canonicalTimeClaims(state:ProjectRuntimeState,force=false):Canon
     const completionAlreadyAmended=completion.value!==null&&completion.candidates.some(candidate=>
       candidate.role==='amendment'&&candidate.date===completion.value&&candidate.effectiveFrom!==null&&dataDateIso!==null&&candidate.effectiveFrom<=dataDateIso
     );
-    const determinationOnlyExtension=!amendment&&!completionAlreadyAmended&&completion.state==='official'&&effectiveDeterminationDays!==null;
+    // M7.1b: a determined award with a blank date is counted (it is in the register),
+    // the total is marked not confirmed and the undated rows are named; it never
+    // drops out silently.
+    const undatedWorks=trustedDeterminations.filter(d=>undatedAwardIds.has(d.determinationId)&&!d.section&&typeof d.awardedDays==='number');
+    const undatedDays=undatedWorks.reduce((sum,d)=>sum+(d.awardedDays??0),0);
+    const awardedInEffect=undatedWorks.length?(effectiveDeterminationDays??0)+undatedDays:effectiveDeterminationDays;
+    if(undatedWorks.length)diagnostics.push('UNDATED_DETERMINATIONS_COUNTED_NOT_CONFIRMED:'+undatedWorks.map(d=>d.determinationId).join(','));
+    const determinationOnlyExtension=!amendment&&!completionAlreadyAmended&&completion.state==='official'&&awardedInEffect!==null;
     const effectiveDeterminationRefs=effective.map(d=>'evidence-document:'+d.receipt.documentId+':'+d.receipt.locator);
     contractTimeBasis={...previous,...completionSourceLabel(completion),contractualCompletionIso:completion.value,contractualCompletionState:completion.state,completionReason:completion.reason,
-      officialApprovedEotDays:determinationOnlyExtension?effectiveDeterminationDays:previous?.officialApprovedEotDays??null,
-      officialApprovedEotState:determinationOnlyExtension?'official':previous?.officialApprovedEotState??'missing',
+      officialApprovedEotDays:determinationOnlyExtension?awardedInEffect:previous?.officialApprovedEotDays??null,
+      officialApprovedEotState:determinationOnlyExtension?(undatedWorks.length?'candidate':'official'):previous?.officialApprovedEotState??'missing',
       eotDayBasis:determinationOnlyExtension?'calendar_days':previous?.eotDayBasis??'unknown',
       eotDayBasisState:determinationOnlyExtension?'official':previous?.eotDayBasisState??'missing',
       ...(determinationOnlyExtension?{
         incorporatedEotDays:null,
-        additionalApprovedEotDays:effectiveDeterminationDays,
+        additionalApprovedEotDays:awardedInEffect,
         overlapResolution:'resolved' as const,
         registerDeterminationDays,
-        registerDeterminationCount:eligible.length,
+        registerDeterminationCount:eligible.length+undatedWorks.length,
         effectiveDeterminationCount:effective.length,
         futureDeterminationCount:eligible.filter(d=>dataDateIso!==null&&d.determinationDate!==null&&d.determinationDate>dataDateIso).length,
         dataDateIso,

@@ -113,3 +113,18 @@ test('C9: a decision of zero additional days keeps the amended date everywhere (
   assert.equal(facts.time.governingContractCompletionIso.value,'2030-03-31');
   assert.equal(facts.time.extendedContractCompletionIso.value??'2030-03-31','2030-03-31','never the original date plus the awards after the user decided');
 });
+
+// M7.1b invariant: a determined award with a blank date never drops out. It is
+// counted (not confirmed), named, and asked for once.
+test('M7.1b: an undated determination is counted, marked not confirmed, and named once',t=>{
+  const {state,contract,determinations}=fixture(t);
+  contract('MAIN','main','Original Contractual Completion 31 December 2029');
+  determinations([['D1',15,'2026-07-24'],['D2',11,'']]);
+  const basis=canonicalTimeClaims(state).contractTimeBasis as any;
+  assert.equal(basis?.officialApprovedEotDays,26,'the undated award is counted');
+  assert.equal(basis?.officialApprovedEotState,'candidate','and marked not confirmed');
+  assert.ok(canonicalTimeClaims(state).diagnostics.some((d:string)=>d==='UNDATED_DETERMINATIONS_COUNTED_NOT_CONFIRMED:D2'),'the undated row is named');
+  assert.equal(contractTimeDates(state).governingCompletionIso,'2030-01-26','the governing date includes it');
+  const review=projectActions(state,summarizeControlIssues([],0));
+  assert.equal([...review.actions,...review.information].filter(a=>a.id==='matter:undated-determinations').length,1,'asked once');
+});

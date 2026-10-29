@@ -571,6 +571,13 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         reviewOptions:[{value:'accept_proposal',label:'Use CMeng\'s proposal: '+proposal.days+' additional days'},{value:'confirm_additional_days',label:'Enter the additional days myself'}]}};
     (saved?information:actions).push(item);
   }
+  // M7.1b: undated determined awards are counted (not confirmed) and named here, once.
+  {const undated=(time.diagnostics??[]).find((d:string)=>d.startsWith('UNDATED_DETERMINATIONS_COUNTED_NOT_CONFIRMED:'));
+   if(undated){const ids=undated.split(':')[1]!.split(',');
+    actions.push({id:'matter:undated-determinations',category:'follow_up',title:'Add the dates of '+countText(ids.length,'determination','determinations')+' in the register',owner:'Contracts Manager',recordCount:ids.length,
+      reason:countText(ids.length,'determination','determinations')+' ('+ids.slice(0,8).join(', ')+') '+(ids.length===1?'has':'have')+' no determination date. '+(ids.length===1?'Its days are':'Their days are')+' counted in the awarded EOT, marked as not confirmed, until the date is supplied.',
+      resolution:{kind:'upload',requiresUserAction:true,instruction:'Add the determination date to the register and upload it again.',completionRule:'The item closes when every counted determination has a date.'},
+      target:{type:'upload',label:'Upload the corrected determination register',uploadHint:'Determination register with dates',uploadMode:'evidence'}});}}
   const valueReview=contractValueReview(state);
   if(!state.controls.contractValue&&valueReview.candidates.length){
     const saved=valueReview.decision;
