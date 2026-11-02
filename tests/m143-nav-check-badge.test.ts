@@ -26,6 +26,6 @@ test('M14.3: the nav check badge comes from the page own check state',()=>{
  assert.match(badge({issueAssessment:{counts:{system_defect:2}}}),/Error 2/);
  // The nav uses the opened page's own result for this project version.
  assert.match(script!,/rememberPageChecks\(result\)/,'an opened page records the checks it ran');
- assert.match(script!,/const count='<span class="nav-counts">'\+navCheckBadge\(state\)\+'<\/span>'/,'the nav badge reads one rule');
+ assert.match(script!,/const count='<span class="nav-counts">'\+\(typeof navCheckBadge==='function'\?navCheckBadge\(state\):''\)\+'<\/span>'/,'the nav badge reads one rule');
  assert.doesNotMatch(script!,/nav-count review">Checks not established/,'the old label for pages without checks is gone');
 });
