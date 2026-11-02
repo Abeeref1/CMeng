@@ -280,3 +280,21 @@ test('uncertain classification requests a source review and a saved choice is bo
  document.sourceHashSha256='replaced';assert.equal(documentClassificationForReview(document).reviewRequired,true);
  const headers=documentClassificationForReview(document,[['Period End','PV','EV','AC','Currency'],['2034-04-30','100','90','95','QAR']]);assert.equal(headers.reviewRequired,false,'strong source headers resolve the original low-confidence guess');
 });
+
+// M1.3 invariant: a clear contract read by an OCR engine that reports no
+// confidence is not sent for a type review; the missing score is disclosed. A
+// reported low confidence still asks for review, and weak content without a
+// score still asks for review.
+test("M1.3: OCR with no reported confidence does not raise a type review when the content is clear", async () => {
+  const jpeg=new Uint8Array([0xff,0xd8,0xff,0xe0,0x00,0x10]);
+  const contract=["CONTRACT AGREEMENT","This Agreement is made between the Employer and the Contractor for the execution and completion of the Works.","Conditions of Contract: FIDIC Red Book 2017. Particular Conditions.","Contract Price: SAR 450,000,000. Time for Completion: 900 days from the Commencement Date.","Clause 8.2 Time for Completion. Clause 14 Contract Price and Payment. Clause 20 Employer's and Contractor's Claims.","Performance Security 10% of the Accepted Contract Amount. Delay Damages 0.1% per day.","Signed for and on behalf of the Employer. Signed for and on behalf of the Contractor."].join("\n");
+  const read=(text:string,confidence:number|null)=>identifyEvidenceDocument({bytes:jpeg,sourceFilename:"scan_0001.jpg",sourceRelativePath:"Other/scan_0001.jpg",declaredMediaType:"image/jpeg",declaredCategory:"other",declaredDocumentType:null,ocrProvider:new FakeOcrProvider(text,confidence)});
+  const clear=await read(contract,null);
+  assert.equal(clear.identification.detectedDocumentType,"main_contract");
+  assert.equal(clear.identification.needsReview,false,"no confidence reported is not a poor reading");
+  assert.ok(clear.identification.diagnostics.includes("DOCUMENT_OCR_CONFIDENCE_NOT_REPORTED"),"the missing score is disclosed");
+  const low=await read(contract,0.4);
+  assert.equal(low.identification.needsReview,true,"a reported low confidence still asks for review");
+  const weak=await read("Page 1 scan",null);
+  assert.equal(weak.identification.needsReview,true,"weak content without a score still asks for review");
+});

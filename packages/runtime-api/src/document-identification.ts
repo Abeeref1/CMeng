@@ -2583,6 +2583,16 @@ export async function identifyEvidenceDocument(
     );
   }
 
+  // M1.3: an OCR engine that reports no confidence has not said the reading is
+  // poor. That alone does not ask for a type review when the content establishes
+  // the type clearly (the same 0.82 bar as a name/content conflict); it is
+  // disclosed instead. A reported low confidence still asks for review, because
+  // the values read from that scan are not trusted.
+  if (ocrUsed && ocrConfidence === null) {
+    diagnostics.push(
+      "DOCUMENT_OCR_CONFIDENCE_NOT_REPORTED",
+    );
+  }
   const needsReview =
     method === "unreadable" ||
     confidence < 0.62 ||
@@ -2592,10 +2602,13 @@ export async function identifyEvidenceDocument(
     ) ||
     (
       ocrUsed &&
-      (
-        ocrConfidence === null ||
-        ocrConfidence < 0.65
-      )
+      ocrConfidence !== null &&
+      ocrConfidence < 0.65
+    ) ||
+    (
+      ocrUsed &&
+      ocrConfidence === null &&
+      confidence < 0.82
     );
 
   return {
