@@ -863,6 +863,25 @@ function renderPlatformNav(){
     button.onclick=()=>setAppView(button.dataset.view);
   });
 }
+// M14.3/K4: the page check badge. Only a page that runs CMeng's listed checks has
+// a check state (the overview lists every such page). A page without listed checks
+// (Delivery registers, Accountability, Recovery) shows no check badge at all; its
+// own page states its qualifications. A check page whose checks have not run yet
+// says so in plain words, and is never shown as zero.
+function navCheckBadge(state){
+  if(!state)return '';
+  const errors=knownScreenCount(state.issueAssessment?.counts?.system_defect);
+  if(errors===null)return '<span class="nav-count review" title="Open the page to run its checks">Not checked yet</span>';
+  return errors>0?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'';
+}
+// The checks a page ran when it was last opened, for this project version.
+let pageCheckStates=new Map();
+function rememberPageChecks(result){
+  if(!result?.key)return;
+  const issueAssessment=result.issueAssessment||result.data?.issueAssessment||null;
+  if(!issueAssessment?.counts)return;
+  pageCheckStates.set(result.key,{projectId:project(),version:overview?.version??null,issueAssessment});
+}
 function renderNav(){
   const nav=el("nav");
   if(!["project","ai"].includes(appView)||!overview){nav.innerHTML="";return}
@@ -874,13 +893,16 @@ function renderNav(){
     html+='<div class="nav-group-title" style="padding-top:10px">'+group+'</div>';
     keys.filter(key=>key!=='source-quality'&&!(typeof moduleWorkspaces==='undefined'?[]:moduleWorkspaces).some(w=>w.key!==key&&w.views.includes(key))).forEach(key=>{
       const workspace=(typeof moduleWorkspaces==='undefined'?[]:moduleWorkspaces).find(w=>w.key===key),active=workspace?workspace.views.includes(selected):selected===key;
-      const state=states.get(key)||{};
-      const issues=state.issueAssessment?.counts||{};
+      const own=pageCheckStates.get(key);
+      const listed=states.get(key);
+      // A check page that has calculated uses its own result for this version.
+      const state=listed&&own&&own.projectId===project()&&own.version===(overview?.version??null)&&!listed.issueAssessment?.counts?{...listed,issueAssessment:own.issueAssessment}:listed;
+      const issues=state?.issueAssessment?.counts||{};
       const errors=knownScreenCount(issues.system_defect),source=sumKnownScreenCounts(issues,['source_conflict','data_quality','missing_information']),review=sumKnownScreenCounts(issues,['comparison_difference','governance_review']),pending=knownScreenCount(issues.verification_pending);
       const title=names[key]+' · Information items: '+screenCountText(source)+' · System failures: '+screenCountText(errors)+' · Reviews: '+screenCountText(review)+' · Pending checks: '+screenCountText(pending);
       // Keep the full counts on Information & Actions. Repeating the same
       // propagated requests on every destination makes navigation look broken.
-      const count='<span class="nav-counts">'+(errors===null?'<span class="nav-count review">Checks not established</span>':errors>0?'<span class="nav-count error" aria-label="'+errors+' system failures">Error '+errors+'</span>':'')+'</span>';
+      const count='<span class="nav-counts">'+navCheckBadge(state)+'</span>';
       html+='<button class="nav-item '+(appView==="project"&&active?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&active?'page':'false')+'"><span class="nav-label">'+(workspace?.title||readerModuleHeading(key))+'</span>'+count+'</button>';
     });
   });
@@ -6730,6 +6752,7 @@ function progressBreakdownSystemFailures(data){
 function renderModuleResultBody(result){
   result={...result,key:result.legacyKey||result.key};
   currentModuleResult=result;
+  {const before=pageCheckStates.get(result.key);rememberPageChecks(result);if(pageCheckStates.get(result.key)!==before)renderNav();}
   el("moduleReport").disabled=false;
   el("moduleContent").classList.remove("empty");
   renderRoleViewSelector();
