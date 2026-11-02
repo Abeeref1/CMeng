@@ -56,3 +56,22 @@ test('M2.1: the column report is what the readers consumed, for determinations, 
 const RAW:Record<string,string[]>={DET:['Determination ID','Claim ID','Days','Date','Source Letter','Status','Value'],NCR:['NCR ID','Description','Raised Date','Status','Severity','Responsible Party','Value'],
   PAY:['Certificate No','Payment Type','Period End','Certificate Date','Gross Work','Net Certified','Currency','Certified Amount Basis']};
 function physicalRaw(id:string,i:number){return RAW[id]![i]!;}
+
+// M2.1 cost invariant: the document register (published after every request that
+// changes the project) runs only the readers of the project's register tables. A
+// project with a programme and no register table runs none, so a large upload is
+// never followed by the time, commercial, operational and delivery readers over
+// the whole project before the saved files are listed.
+test('M2.1: the document register runs only the readers of the register tables present',t=>{
+  const readers=require('../packages/runtime-api/src/reader-consumption') as {runRegisterReaders:(state:unknown,types?:readonly string[])=>void};
+  const original=readers.runRegisterReaders,calls:Array<readonly string[]|undefined>=[];
+  readers.runRegisterReaders=(state,types)=>{calls.push(types);return original(state,types);};
+  t.after(()=>{readers.runRegisterReaders=original;});
+  const {state,csv}=project(t);
+  projectDocumentRegister(state.projectId);
+  assert.deepEqual(calls,[],'a project with no register table runs no reader for its document register');
+  csv('NCR2','quality_ncr_register','design_quality','NCR ID,Description,Raised Date,Status\nN1,Honeycombing,2031-03-02,Open');
+  projectDocumentRegister(state.projectId);
+  assert.equal(calls.length,1,'one reader pass for the register tables');
+  assert.deepEqual([...(calls[0]??[])],['quality_ncr_register'],'only the NCR register type is read, never all readers');
+});

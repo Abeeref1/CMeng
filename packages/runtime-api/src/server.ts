@@ -379,13 +379,18 @@ export function portfolioProjectRow(projectId:string){
 
 export function projectDocumentRegister(projectId:string){
   const state=runtimeProjects.get(projectId);if(!state)return null;
-  runRegisterReaders(state);
     const schemaDiagnostics: string[] = [];
     const parsedTables = sourceTables(
           state.evidenceDocuments,
           schemaDiagnostics,
           {includeHistorical: true},
         );
+  // M2.1: only the readers of the register tables in this project run for the
+  // column report (the same reader-by-type rule as upload). A project with no
+  // register table runs none, so publishing the document register after an upload
+  // never runs the time, commercial or delivery readers over the whole project.
+  const tableTypes=[...new Set(parsedTables.filter(table=>table.rows.length>0).map(table=>String(table.document.documentType??'')))];
+  if(tableTypes.length)runRegisterReaders(state,tableTypes);
     const tablesByDocument = new Map<string, typeof parsedTables>();
     for (const table of parsedTables) {
       const tables = tablesByDocument.get(table.document.documentId) ?? [];
