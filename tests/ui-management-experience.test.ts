@@ -430,7 +430,7 @@ test('source quality and date scope preserve record evidence behind concise disc
 });
 
 test('navigation does not multiply information warnings across page links; calculation failures remain explicit',()=>{
- const render=functions(['renderNav']);
+ const render=functions(['renderNav','navCheckBadge']);
  const nav={innerHTML:'',querySelectorAll:()=>[]};
  const ctx={...common,el:()=>nav,project:()=> 'TEST-PROJECT',appView:'project',selected:'one',names:{one:'One',two:'Two'},groups:{Planning:['one','two']},overview:{moduleStates:[{key:'one',issueAssessment:{counts:{missing_information:3}}},{key:'two',issueAssessment:{counts:{system_defect:1,source_conflict:4}}}],managementStates:[{key:'master-dashboard',issueAssessment:{counts:{missing_information:7,system_defect:1}}}]}};
  runInNewContext(render+';renderNav()',ctx);

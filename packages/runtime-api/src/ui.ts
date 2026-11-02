@@ -903,7 +903,7 @@ function renderNav(){
       const title=names[key]+' · Information items: '+screenCountText(source)+' · System failures: '+screenCountText(errors)+' · Reviews: '+screenCountText(review)+' · Pending checks: '+screenCountText(pending);
       // Keep the full counts on Information & Actions. Repeating the same
       // propagated requests on every destination makes navigation look broken.
-      const count='<span class="nav-counts">'+(typeof navCheckBadge==='function'?navCheckBadge(state):'')+'</span>';
+      const count='<span class="nav-counts">'+navCheckBadge(state)+'</span>';
       html+='<button class="nav-item '+(appView==="project"&&active?"active":"")+'" data-key="'+key+'" title="'+escapeHtml(title)+'" aria-current="'+(appView==="project"&&active?'page':'false')+'"><span class="nav-label">'+(workspace?.title||readerModuleHeading(key))+'</span>'+count+'</button>';
     });
   });
