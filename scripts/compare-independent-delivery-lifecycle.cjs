@@ -2,7 +2,7 @@ const {readFileSync,writeFileSync,mkdtempSync,rmSync,mkdirSync}=require('node:fs
 const {join,resolve}=require('node:path');const {tmpdir}=require('node:os');const {createHash}=require('node:crypto');
 const {runInNewContext}=require('node:vm');const ExcelJS=require('exceljs');
 const {RuntimeProjectStore}=require('../dist/packages/runtime-api/src/project-state');
-const {changeDelivery,deliveryRecords}=require('../dist/packages/runtime-api/src/delivery-records');
+const {changeDelivery,deliveryRecords,deliveryCurrentRecord}=require('../dist/packages/runtime-api/src/delivery-records');
 const {deliveryPosition,deliveryModule}=require('../dist/packages/runtime-api/src/delivery-projections');
 const {buildDeliveryWorkbook}=require('../dist/packages/runtime-api/src/delivery-export');
 const {deliveryScript}=require('../dist/packages/runtime-api/src/ui-delivery');
@@ -30,12 +30,19 @@ async function main(){
   let summary=deliveryPosition(state).summaries.submittal;
   check('r1ReviewDays',summary.reviewPeriodCalendarDays,c.expected.revisions[0].reviewDays);check('r1ReviewCount',summary.reviewPeriodKnownCount,c.expected.revisions[0].reviewCount);
   await upload('Submittal-R2.csv');
-  const r2=deliveryRecords(state).records.find(r=>r.reference===c.reference&&r.recordId!==r1.recordId);
-  check('newRevisionCandidate',r2?.state,'extracted_candidate');check('newRevisionVisibleButNotPromoted',deliveryPosition(state).registerRows.some(r=>r.recordId===r2.recordId),true);check('newRevisionPopulationStillUnconfirmed',deliveryPosition(state).populations.submittal.state,'not_established');
+  // M3.4: a record that states its own reference keeps that identity across register
+  // revisions, so each revision is found by the source it was read from, not by an ID
+  // scheme. The earlier decision does not apply to changed content: it goes stale and
+  // the new revision waits for review: shown as an available record, not governed.
+  const docId=name=>state.evidenceDocuments.find(d=>d.sourceFilename===name&&!d.supersededByDocumentId)?.documentId??state.evidenceDocuments.find(d=>d.sourceFilename===name)?.documentId;
+  const readFrom=name=>deliveryRecords(state).records.find(r=>r.reference===c.reference&&r.receipts.some(x=>x.documentId===docId(name)));
+  const r2=readFrom('Submittal-R2.csv'),r1Row=readFrom('Submittal-R1.csv');
+  check('newRevisionCandidate',r2?.state,'stale');check('newRevisionNotGoverned',['governed','verified'].includes(r2?.state),false);check('newRevisionAvailable',deliveryCurrentRecord(r2),true);check('earlierRevisionRowSuperseded',r1Row?.state,'superseded');check('newRevisionVisibleButNotPromoted',deliveryPosition(state).registerRows.some(r=>r.recordId===r2.recordId),true);check('newRevisionPopulationStillUnconfirmed',deliveryPosition(state).populations.submittal.state,'not_established');
   rejects('staleSourceRejected',()=>review({...r2,revision:r1.revision}));
-  const oldVersion=state.version;review(r2,{supersedesId:r1.recordId});population('submittal');
+  rejects('selfSupersessionRejected',()=>review(r2,{supersedesId:r2.recordId}));
+  const oldVersion=state.version;review(r2,{supersedesId:r1Row.recordId});population('submittal');
   rejects('staleWriterRejected',()=>change({action:'review',recordId:r2.recordId,sourceRevision:r2.revision,state:'governed',fields:{},note:'stale writer',expectedVersion:oldVersion}));
-  check('r1Superseded',record(r1.recordId).state,'superseded');check('r2Governed',record(r2.recordId).state,'governed');
+  check('r1Superseded',record(r1Row.recordId).state,'superseded');check('r2Governed',record(r2.recordId).state,'governed');
   summary=deliveryPosition(state).summaries.submittal;
   check('currentPopulation',summary.currentCount,1);check('r2ReviewDays',summary.reviewPeriodCalendarDays,c.expected.revisions[1].reviewDays);check('r2ReviewCount',summary.reviewPeriodKnownCount,c.expected.revisions[1].reviewCount);
   const filtered=ui.deliveryFiltered({rows:deliveryRecords(state).records,query:'Drawing revision 2',filter:'governed',sort:'reference',direction:1});

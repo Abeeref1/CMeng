@@ -33,7 +33,12 @@ const numericFieldsValid=(r:DeliveryRecord)=>{
  const known=numericValidity.get(r.fields);if(known&&known.kind===r.kind)return known.valid;
  const valid=deliveryNumericIssues(r.kind,r.fields).length===0;numericValidity.set(r.fields,{kind:r.kind,valid});return valid;
 };
-export const deliveryCurrentRecord=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified'||r.state==='extracted_candidate'&&r.sourceActive&&r.diagnostics.length===0&&numericFieldsValid(r);
+// A record whose earlier decision went stale only because its content changed in a
+// new register revision (M3.4 identity) is still a readable current source row: it
+// counts as an available, unreviewed record exactly like a first-read candidate, and
+// it stays offered for review (deliveryAwaitingDecision). A stale record whose source
+// is no longer current is not available.
+export const deliveryCurrentRecord=(r:DeliveryRecord)=>r.state==='governed'||r.state==='verified'||(r.state==='extracted_candidate'||r.state==='stale')&&r.sourceActive&&r.diagnostics.length===0&&numericFieldsValid(r);
 export function classifyDeliveryRowKind(row:SourceRow,type:string,governedKind:DeliveryKind|null=null):DeliveryKind|null {
  // Explicit source identity is strongest. A reviewed mapping is an intentional
  // user decision and therefore outranks inferred document classification.
@@ -264,7 +269,7 @@ export function deliveryPopulationPosition(kind:DeliveryKind,scopeId:string|null
  * decision (deliveryPopulationPosition, bound to the record fingerprint) ends
  * that wait; the per-record source flag alone does not keep it open. */
 export function deliveryAwaitingDecision(records:DeliveryRecord[],populationOf:(kind:DeliveryKind)=>{state:string}|null|undefined){
- return records.filter(r=>['extracted_candidate','working','conflicted','stale'].includes(r.state)&&!(deliveryCurrentRecord(r)&&populationOf(r.kind)?.state==='established'));
+ return records.filter(r=>['extracted_candidate','working','conflicted','stale'].includes(r.state)&&!(r.state!=='stale'&&deliveryCurrentRecord(r)&&populationOf(r.kind)?.state==='established'));
 }
 function deliveryLinkValidator(state:ProjectRuntimeState,records:DeliveryRecord[]){
  const model=projectControlSchedule(state)?.revision.model,boq=resolveBoqSource(state,model?.sourceRevisionId??'').quantities;

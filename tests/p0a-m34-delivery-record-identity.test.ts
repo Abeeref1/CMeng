@@ -4,7 +4,8 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {RuntimeProjectStore} from '../packages/runtime-api/src/project-state';
-import {changeDelivery,deliveryRecords} from '../packages/runtime-api/src/delivery-records';
+import {changeDelivery,deliveryRecords,deliveryCurrentRecord,deliveryAwaitingDecision} from '../packages/runtime-api/src/delivery-records';
+import {deliveryPosition} from '../packages/runtime-api/src/delivery-projections';
 // Same small programme as tests/delivery-authority.test.ts (copied: importing that file would run its tests here).
 const calendar='(0||CalendarData()((0||DaysOfWeek()('+Array.from({length:7},(_,i)=>'(0||'+(i+1)+'()((0||0(s|08:00|f|16:00)())))').join('')+'))(0||Exceptions()())))';
 function deliveryProgramme(date='2031-08-31',count=2){return ['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tDELIVERY\t'+date,'%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tWorking calendar\t'+calendar,'%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt',...Array.from({length:count},(_,i)=>'%R\t'+(i+1)+'\t1\t1\tA'+(i+1)+'\tEquipment installation '+(i+1)+'\tTK_NotStart\t2031-09-30 08:00\t2031-10-10 16:00\t80\t80\t16'),'%E'].join('\n');}
@@ -37,6 +38,11 @@ test('M3.4: a reviewed Delivery record keeps its decision through a new register
   let current=byRef();
   assert.equal(current.get('P1')!.state,'governed','an unchanged record must keep its decision in the new register revision');
   assert.equal(current.get('P3')!.state,'stale','a record whose content changed must be re-offered for review');
+  // Available information first: the changed record is still a readable current row.
+  // It is counted as an available unreviewed record and stays in the review queue.
+  assert.equal(deliveryCurrentRecord(current.get('P3')!),true,'a changed record read from the current register stays available');
+  assert.ok(deliveryPosition(state).registerRows.some(r=>r.recordId===current.get('P3')!.recordId),'the changed record is shown in the register, not hidden');
+  assert.ok(deliveryAwaitingDecision(deliveryRecords(state).records,()=>({state:'established'})).some(r=>r.recordId===current.get('P3')!.recordId),'the changed record stays offered for review even when the population is confirmed');
   assert.notEqual(current.get('P2')!.state,'governed','an unreviewed record is not made governed');
 
   // Restart: the same answer from the stored state.
