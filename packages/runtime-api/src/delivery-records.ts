@@ -14,7 +14,7 @@ import {deliveryNumericIssues} from './delivery-validation';
 import {deliveryFields} from '../../delivery-core/src/fields';
 import {deliveryDocumentKinds} from '../../delivery-core/src/reader-columns';
 import {assetValueMapping} from './delivery-value-mapping';
-import {registerActivityLinker} from './register-activity-linker';
+import {registerActivityLinker,sameLinkProgramme} from './register-activity-linker';
 import {splitLinkCell,LINKED_ACTIVITY_HEADERS} from './link-cell';
 export const deliveryHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const split=(value:string)=>value.split(/[;|]/).map(x=>x.trim()).filter(Boolean);
@@ -92,7 +92,7 @@ export function deliveryRecords(state:ProjectRuntimeState){
  // instead of reading every register row a second time.
  const linkModel=projectControlSchedule(state)?.revision.model,linkItems=resolveBoqSource(state,linkModel?.sourceRevisionId??'').quantities?.items;
  const shared=recordsByInputs.get(state.evidenceDocuments);
- if(shared&&shared.version===state.version&&shared.decisionFingerprint===decisionFingerprint&&shared.store===state.delivery&&shared.model===linkModel&&shared.items===linkItems){
+ if(shared&&shared.version===state.version&&shared.decisionFingerprint===decisionFingerprint&&shared.store===state.delivery&&sameLinkProgramme(shared.model as typeof linkModel,linkModel)&&shared.items===linkItems){
   deliveryRecordsCache.set(state,{version:state.version,decisionFingerprint,value:shared.value});return shared.value;
  }
  const diagnostics:string[]=[];const tables=deliverySourceTables(state,diagnostics);

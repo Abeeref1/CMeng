@@ -32,10 +32,30 @@ const norm=(v:unknown)=>String(v??'').normalize('NFKC').toLowerCase();
 function words(text:string){return norm(text).split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>=3&&!STOP.has(w)&&!/^\d+$/.test(w));}
 
 const linkers=new WeakMap<object,(r:RecordLike)=>ActivityLinkPosition>();
+/** True when two programme models hold the same fields the linker reads (activity
+ * ID, type, name and WBS; WBS ID, parent and code). A reporting view copies the
+ * activities to restate their baseline date basis; that copy links exactly as the
+ * stored programme does, so its links and indexes are reused instead of rebuilt. */
+export function sameLinkProgramme(a:CanonicalScheduleModel|null|undefined,b:CanonicalScheduleModel|null|undefined):boolean{
+  if(a===b)return true;
+  if(!a||!b||a.activities.length!==b.activities.length||(a.wbs?.length??0)!==(b.wbs?.length??0))return false;
+  for(let i=0;i<a.activities.length;i++){const x=a.activities[i]!,y=b.activities[i]!;
+    if(x!==y&&(x.activityId!==y.activityId||x.activityType!==y.activityType||x.name!==y.name||x.wbsId!==y.wbsId))return false;}
+  if(a.wbs!==b.wbs)for(let i=0;i<(a.wbs?.length??0);i++){const x=a.wbs![i]!,y=b.wbs![i]!;
+    if(x!==y&&(x.wbsId!==y.wbsId||x.parentWbsId!==y.parentWbsId||x.code!==y.code))return false;}
+  return true;
+}
+let lastLinked:{model:WeakRef<CanonicalScheduleModel>;linker:(r:RecordLike)=>ActivityLinkPosition}|null=null;
 /** One linker per programme model (built once; the indexes are reused for every record). */
 export function registerActivityLinker(model:CanonicalScheduleModel|null|undefined){
   if(!model)return buildLinker(model);
-  let linker=linkers.get(model);if(!linker){linker=buildLinker(model);linkers.set(model,linker);}
+  let linker=linkers.get(model);
+  if(!linker){
+    const previous=lastLinked?.model.deref();
+    linker=previous&&sameLinkProgramme(previous,model)?lastLinked!.linker:buildLinker(model);
+    linkers.set(model,linker);
+  }
+  lastLinked={model:new WeakRef(model),linker};
   return linker;
 }
 
