@@ -228,7 +228,9 @@ export function deliveryRecords(state:ProjectRuntimeState){
  // A stated or reviewed link stands; otherwise CMeng's rule-based proposal is used
  // with its basis stated, and an unclear match is left for a choice.
  const linkable=new Set(['package','submittal','design','quality','permit','commissioning','workfront','interface','hse','handover','snag','asset']);
- const linker=registerActivityLinker(projectControlSchedule(state)?.revision.model);
+ // Built on first use: a project with no register record to link never indexes the programme.
+ let built:ReturnType<typeof registerActivityLinker>|null=null;
+ const linker=(r:DeliveryRecord)=>(built??=registerActivityLinker(projectControlSchedule(state)?.revision.model))(r);
  for(const r of records){
   if(!linkable.has(r.kind)||r.state==='superseded')continue;
   if(r.links.activityIds.length){r.activityLink={state:decisionFor(r)?'reviewed':'stated',basis:'stated_activity',score:null,candidates:[],reason:decisionFor(r)?'Activity link confirmed in review.':'The record states its activity.'};continue;}

@@ -191,7 +191,11 @@ export function pmcScheduleRules(model:CanonicalScheduleModel|null,revisions:Can
   :{state:'not_established' as const,source:'independent_cpm' as const,completionIso:null,activityCount:null,activityIds:[] as string[],finishActivityIds:[] as string[],relationshipIds:[] as string[],formula:PROGRAMME_QUALITY_FORMULAS.driving_chain,stages:drivingStages,
    reason:forecast?'The independent CPM did not reach a complete, publishable completion.':'The independent CPM forecast is not available for this programme.'};
  let iLength:number|null=null,iHeadroom:number|null=null;
- const finishActs=network?network.finishActivityIds.map(id=>model?.activities.find(a=>a.activityId===id)).filter((a):a is NonNullable<typeof a>=>!!a):[];
+ // Linear lookup (first activity with the ID, as before). A find per finish
+ // activity was quadratic when most activities end the network.
+ const firstActivityById=new Map<string,NonNullable<typeof model>['activities'][number]>();
+ for(const a of model?.activities??[])if(!firstActivityById.has(a.activityId))firstActivityById.set(a.activityId,a);
+ const finishActs=network?network.finishActivityIds.map(id=>firstActivityById.get(id)).filter((a):a is NonNullable<typeof a>=>!!a):[];
  const finishCalendarIds=new Set(finishActs.map(a=>a.calendarId));
  const iCalendar=model&&network&&finishActs.length&&finishCalendarIds.size===1?resolveWorkingCalendar(finishActs[0]!.calendarId,model.calendars,false)?.calendar:null;
  if(iCalendar&&model?.dataDateIso&&forecast?.independentForecastCompletionIso&&requiredFinishIso){try{

@@ -30,7 +30,9 @@ export function readinessLinkReader(state:ProjectRuntimeState):ReadinessLinkRead
     for(const documentId of new Set(r.receipts.map(receipt=>receipt.documentId))){const key=documentId+'|'+norm(r.reference);const list=byReference.get(key)??[];list.push(r);byReference.set(key,list);}
     if(r.kind==='package')packageActivities.set(norm(r.reference),[...r.links.activityIds]);
   }
-  const linker=registerActivityLinker(projectControlSchedule(state)?.revision.model);
+  // Built on first use: rows that state their link, or a project with no such rows, never index the programme.
+  let built:ReturnType<typeof registerActivityLinker>|null=null;
+  const linker=(record:Parameters<ReturnType<typeof registerActivityLinker>>[0])=>(built??=registerActivityLinker(projectControlSchedule(state)?.revision.model))(record);
   return row=>{
     // A register held as Delivery records: the Delivery record holds the link decision.
     if(row.reference){
