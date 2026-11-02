@@ -2514,6 +2514,50 @@ export class RuntimeProjectStore {
    * replay affected families so a false cross-role supersession is corrected
    * while real revisions and deliberately historical uploads retain their rules.
    */
+  /** M16.1: finish AI column reading for tables read without AI (AI off at upload,
+   * no provider, a failed call or the spending cap). Runs only when the request is
+   * allowed to make paid AI calls, uses the same reading steps as upload (a sheet
+   * AI already read is never called again) and keeps every source value. Refresh
+   * never calls AI on its own; this route is the explicit way to finish. */
+  async finishAiTableReading(projectId:string,input:{allowSemanticAi:boolean}):Promise<{state:'not_allowed'|'not_set_up'|'nothing_to_read'|'read';documentsRead:number;steps:Array<{documentId:string;sheetName:string;status:string}>}>{
+    const state=this.projects.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+    const awaiting=new Set(['disabled','provider_unavailable','call_limit','stopped_at_cap','provider_error','invalid_response','failed']);
+    const pending=state.evidenceDocuments.filter(document=>!document.supersededByDocumentId&&(document.semanticAiSteps??[]).some(step=>step.sourceHashSha256===document.sourceHashSha256&&awaiting.has(step.status)));
+    if(!pending.length)return {state:'nothing_to_read',documentsRead:0,steps:[]};
+    if(!input.allowSemanticAi)return {state:'not_allowed',documentsRead:0,steps:[]};
+    const resolver=this.semanticAiResolver??configuredTableSemanticAiResolver();
+    if(!resolver)return {state:'not_set_up',documentsRead:0,steps:[]};
+    const out:Array<{documentId:string;sheetName:string;status:string}>=[];let documentsRead=0;
+    for(const document of pending){
+      const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)continue;
+      const current=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256);
+      const kept=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256!==document.sourceHashSha256);
+      const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];const diagnostics:string[]=[];
+      if(/spreadsheetml|ms-excel|macroEnabled/.test(document.mediaType)){
+        document.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,document.sourceHashSha256,document.documentType),
+          {project:state,resolver,requested:true,steps,cached:document.tabularRead,priorSteps:current,diagnostics});
+      }else{
+        const rows=truthCsv(Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/,''));
+        const route=inferTableSemanticRoute(rows,document.documentType);
+        const interpretation=route?readerInterpretation(state,rows,route.documentType,route.category,'CSV',[]):null;
+        let status:NonNullable<StoredEvidenceDocument['semanticAiSteps']>[number]['status']='not_required',attempted=false;
+        if(!document.csvSemantic&&(!route||tableNeedsSemanticReading(interpretation!))){
+          attempted=true;
+          try{
+            const proposed=await resolver.resolveTable({sourceHashSha256:document.sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??document.documentType,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})});
+            if(proposed){document.csvSemantic=proposed;status='validated';}else status='unresolved';
+          }catch(error){const code=classifyAiCallError(error);status=code==='stopped_at_cap'?'stopped_at_cap':code??'failed';if(code==='stopped_at_cap')attempted=false;}
+        }else if(document.csvSemantic?.method==='ai_grounded')status='reused';
+        steps.push({sheetName:'CSV',sourceHashSha256:document.sourceHashSha256,status,attempted,
+          note:status==='validated'?'Validated against original CSV headers and content.':status==='unresolved'?'AI call did not validate the unmatched source columns.':status==='reused'?'Previously grounded source reading reused without another call.':status==='not_required'?'Rule-based CSV column reading is sufficient.':aiErrorNote(status as Parameters<typeof aiErrorNote>[0],'original CSV retained.')});
+      }
+      document.semanticAiSteps=[...kept,...steps];documentsRead++;
+      for(const step of steps)out.push({documentId:document.documentId,sheetName:step.sheetName,status:step.status});
+    }
+    if(documentsRead){this.touch(state);}
+    return {state:'read',documentsRead,steps:out};
+  }
+
   async refreshSpreadsheetRegisters(projectId?:string){
     let refreshedDocumentCount=0;const diagnostics:string[]=[];
     for(const state of this.projects.values()){

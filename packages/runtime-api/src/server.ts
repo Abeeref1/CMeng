@@ -1290,6 +1290,23 @@ async function route(
     return;
   }
 
+  // M16.1: finish AI column reading for tables read without AI. Paid calls run
+  // only when the gateway allows them for this request (x-cmeng-paid-ai); the
+  // answer names the real next step and never quotes a cost.
+  const aiReadingMatch=/^\/api\/projects\/([^/]+)\/evidence\/ai-reading$/.exec(url.pathname);
+  if(req.method==="POST"&&aiReadingMatch){
+    const projectId=decodeURIComponent(aiReadingMatch[1]!);
+    if(!runtimeProjects.get(projectId)){json(res,404,{error:"project_not_found"});return;}
+    const result=await runtimeProjects.finishAiTableReading(projectId,{allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1'});
+    const message=result.state==='not_allowed'?'AI is not switched on for this visit. The owner can allow AI; no paid call was made.'
+      :result.state==='not_set_up'?'AI is not set up on this service. The columns stay unread; their source values are kept.'
+      :result.state==='nothing_to_read'?'Every table is already read; there is nothing left for AI to read.'
+      :'AI read '+result.documentsRead+' document'+(result.documentsRead===1?'':'s')+'. Review the reading on each document.';
+    const state=runtimeProjects.get(projectId)!;
+    json(res,result.state==='not_allowed'?403:result.state==='not_set_up'?409:200,{...result,message,aiReading:aiReadingCoverage(state.evidenceDocuments,configuredProviderState())});
+    return;
+  }
+
   const evidenceRerunMatch =
     /^\/api\/projects\/([^/]+)\/evidence\/rerun$/.exec(
       url.pathname,
@@ -3497,6 +3514,8 @@ async function route(
         "/api/projects/:projectId/evidence/documents/:documentId/table-confirmations",
       evidenceRerun:
         "/api/projects/:projectId/evidence/rerun",
+      evidenceAiReading:
+        "/api/projects/:projectId/evidence/ai-reading",
       scheduleUpload:
         "/api/projects/:projectId/schedule/uploads",
       scheduleRevisions:
