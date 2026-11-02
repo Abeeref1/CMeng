@@ -15,6 +15,7 @@ import {resolveWorkingCalendar,addWorkingHours,workingHoursBetween} from '../../
 import {commercialCanonical} from './commercial-canonical';
 import {plotCrewScenarios} from './plot-crew-scenarios';
 import {classifyRecoveryAgainstCompletion,type RecoveryCpmChange} from './recovery-completion-path';
+import {projectScheduleControlBasis} from './schedule-control-basis';
 import type {ProjectRuntimeState,ModuleRuntimeResult} from './project-state-types';
 import {tradeChainResourcesForState} from './trade-chain-resources';
 import {heldDataCrewCandidates} from './recovery-held-data';
@@ -187,7 +188,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   scenarios.sort((a,b)=>Number(b.drivingPath)-Number(a.drivingPath)||(a.linkedFloatHours??Infinity)-(b.linkedFloatHours??Infinity)||(b.possibleDaysRecovered??-1)-(a.possibleDaysRecovered??-1)||a.scenarioId.localeCompare(b.scenarioId));
   const time= commercialPositionForState(state).timeExposure,pc=programmePcMilestone(programme),finish=pc.dateIso;
   const finishActivity=pc.activityIds.length===1?activityById.get(pc.activityIds[0]!):null,calendar=finishActivity&&programme?resolveWorkingCalendar(finishActivity.calendarId,programme.calendars,false)?.calendar:null;
-  const completionPath=classifyRecoveryAgainstCompletion(scenarios,programme,forecast??null,calendar??null);
+  const completionPath=classifyRecoveryAgainstCompletion(scenarios,programme,forecast??null,calendar??null,projectScheduleControlBasis(state).analysisConfig);
   const pathRank={recovery_option:0,path_not_established:1,late_work:2} as const;
   scenarios.sort((a,b)=>pathRank[a.pathRole??'path_not_established']-pathRank[b.pathRole??'path_not_established']);
   const target=(dateIso:string|null)=>{let hours:number|null=null;if(calendar&&dateIso&&finish)try{hours=Math.max(0,workingHoursBetween(calendar,Date.parse(dateIso.slice(0,10)),Date.parse(finish.slice(0,10))));}catch{}return {dateIso,calendarDays:dateIso&&finish?Math.max(0,(Date.parse(finish.slice(0,10))-Date.parse(dateIso.slice(0,10)))/86400000):null,workingHours:hours,workingDays:hours!==null&&calendar?.standardDayHours?hours/calendar.standardDayHours:null};};

@@ -5,6 +5,7 @@ import {loadCertifiedDemoProject} from '../packages/runtime-api/src/demo-project
 import {plotCrewScenarios} from '../packages/runtime-api/src/plot-crew-scenarios';
 import {cachedIndependentForecast} from '../packages/runtime-api/src/forecast-cache';
 import {classifyRecoveryAgainstCompletion} from '../packages/runtime-api/src/recovery-completion-path';
+import {DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../packages/schedule-analysis-core/src';
 import {recoveryAccelerationIntelligence,type RecoveryScenario} from '../packages/runtime-api/src/recovery-acceleration';
 
 // SW-24: a recovery option must sit on the CPM path to completion and carry the
@@ -34,7 +35,7 @@ test('SW-24 a driving-path crew option states its completion gain from a CMeng C
  assert.ok(typeof local==='number'&&local>0,'the existing local chain figure (calendar days) is present');
  const offPath=lateItem('LATE-OFF-PATH',['B']),unlinked=lateItem('LATE-UNLINKED',[]);
  const scenarios=[...crew,offPath,unlinked];
- const summary=classifyRecoveryAgainstCompletion(scenarios,model,forecast,model.calendars[0]!);
+ const summary=classifyRecoveryAgainstCompletion(scenarios,model,forecast,model.calendars[0]!,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(crew[0]!.pathRole,'recovery_option');
  // 64 working hours on one crew against two parallel 32-hour crews on the same 8-hour calendar.
  assert.equal(crew[0]!.completionGainWorkingDays,4,'CPM run: two crews move the project finish 4 working days earlier');
@@ -51,12 +52,12 @@ test('SW-24 a driving-path crew option states its completion gain from a CMeng C
 test('SW-24 an on-path option with no CPM-runnable change shows the completion gain as not established',()=>{
  const model=chainModel(),forecast=cachedIndependentForecast(model,'2034-01-01T00:00:00.000Z');
  const onPath=lateItem('LATE-ON-PATH',['A3']);
- classifyRecoveryAgainstCompletion([onPath],model,forecast,model.calendars[0]!);
+ classifyRecoveryAgainstCompletion([onPath],model,forecast,model.calendars[0]!,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(onPath.pathRole,'recovery_option');
  assert.equal(onPath.completionGainWorkingDays,null);
  assert.match(onPath.completionGainBasis!,/^Not established/);
  // Without the completion calendar's working-day hours no working-day gain is stated.
- const crew=plotCrewScenarios(model);classifyRecoveryAgainstCompletion(crew,model,forecast,{...model.calendars[0]!,standardDayHours:null});
+ const crew=plotCrewScenarios(model);classifyRecoveryAgainstCompletion(crew,model,forecast,{...model.calendars[0]!,standardDayHours:null},DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(crew[0]!.completionGainWorkingDays,null);assert.match(crew[0]!.completionGainBasis!,/^Not established/);
 });
 
@@ -81,7 +82,7 @@ test('SW-24 crew and shift options on the driving path get a CPM completion gain
  const crew={...lateItem('crew:A7',['A7']),type:'additional_crew' as const,cpmChange:{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:'A7',factor:2/4}]}};
  // Equal second shift on an off-path activity: still late work, no gain claimed.
  const offShift={...lateItem('shift:B',['B']),type:'additional_shift_or_calendar' as const,cpmChange:{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:'B',factor:0.5}]}};
- classifyRecoveryAgainstCompletion([crew,offShift],model,forecast,model.calendars[0]!);
+ classifyRecoveryAgainstCompletion([crew,offShift],model,forecast,model.calendars[0]!,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(crew.pathRole,'recovery_option');
  assert.equal(crew.completionGainWorkingDays,0.5,'4 working hours earlier on an 8-hour calendar day');
  assert.match(crew.completionGainBasis!,/A7 × 0\.5/);
@@ -89,7 +90,7 @@ test('SW-24 crew and shift options on the driving path get a CPM completion gain
  // A remaining duration the source does not state cannot be scaled: not established, never 0.
  const unstated=chainModel();unstated.activities.find(a=>a.activityId==='A6')!.remainingDurationHours=null as any;
  const missing={...lateItem('crew:A6',['A6']),type:'additional_crew' as const,cpmChange:{removeRelationshipIds:[],addRelationships:[],durationScale:[{activityId:'A6',factor:0.5}]}};
- classifyRecoveryAgainstCompletion([missing],unstated,{complete:true,drivingNetwork:{activityIds:['A6']},activities:[]},unstated.calendars[0]!);
+ classifyRecoveryAgainstCompletion([missing],unstated,{complete:true,drivingNetwork:{activityIds:['A6']},activities:[]},unstated.calendars[0]!,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(missing.pathRole,'recovery_option');assert.equal(missing.completionGainWorkingDays,null);assert.match(missing.completionGainBasis!,/^Not established/);
  assert.equal(JSON.stringify(model),before);
 });
@@ -99,13 +100,27 @@ test('SW-24 with no completion milestone the gain is counted on the CPM finish a
  const model=chainModel(),forecast=cachedIndependentForecast(model,'2034-01-01T00:00:00.000Z');
  assert.deepEqual(forecast.drivingNetwork?.finishActivityIds,['A7']);
  const crew=plotCrewScenarios(model);
- classifyRecoveryAgainstCompletion(crew,model,forecast,null);
+ classifyRecoveryAgainstCompletion(crew,model,forecast,null,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(crew[0]!.pathRole,'recovery_option');
  assert.equal(crew[0]!.completionGainWorkingDays,4,'counted in working days of calendar C (8 stated hours per day)');
  assert.match(crew[0]!.completionGainBasis!,/calendar C of the CPM finish activity/);
  // The source calendar does not state its day hours: still not established, never assumed.
  const unstated=chainModel();(unstated.calendars[0] as any).standardDayHours=null;
  const again=plotCrewScenarios(unstated);
- classifyRecoveryAgainstCompletion(again,unstated,cachedIndependentForecast(unstated,'2034-01-01T00:00:00.000Z'),null);
+ classifyRecoveryAgainstCompletion(again,unstated,cachedIndependentForecast(unstated,'2034-01-01T00:00:00.000Z'),null,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
  assert.equal(again[0]!.completionGainWorkingDays,null);assert.doesNotMatch(again[0]!.completionGainBasis!,/CMeng CPM run with/);
+});
+
+// M7.5b invariant: the recovery path uses the project's near-critical basis, not
+// the 40-hour system default. The inspection has 56 hours (7 working days) of CPM
+// float: late work under a 40-hour basis, on the completion path under the
+// project's 80-hour basis.
+test('M7.5b recovery path classification follows the project near-critical basis',()=>{
+ const model=chainModel(),forecast=cachedIndependentForecast(model,'2034-01-01T00:00:00.000Z');
+ const underDefault=lateItem('LATE-B-40',['B']);
+ classifyRecoveryAgainstCompletion([underDefault],model,forecast,model.calendars[0]!,DEFAULT_SCHEDULE_ANALYSIS_CONFIG);
+ assert.equal(underDefault.pathRole,'late_work','56 h float is above a 40 h basis');
+ const underProject=lateItem('LATE-B-80',['B']);
+ classifyRecoveryAgainstCompletion([underProject],model,forecast,model.calendars[0]!,{...DEFAULT_SCHEDULE_ANALYSIS_CONFIG,nearCriticalFloatThresholdHours:80});
+ assert.equal(underProject.pathRole,'recovery_option','56 h float is near-critical under the project 80 h basis');
 });

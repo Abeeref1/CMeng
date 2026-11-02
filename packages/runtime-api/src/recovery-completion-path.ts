@@ -1,5 +1,5 @@
-import type {CanonicalScheduleModel,CanonicalCalendar} from '../../schedule-analysis-core/src';
-import {activityNearCriticalThresholdHours,DEFAULT_SCHEDULE_ANALYSIS_CONFIG} from '../../schedule-analysis-core/src';
+import type {CanonicalScheduleModel,CanonicalCalendar,ScheduleAnalysisConfig} from '../../schedule-analysis-core/src';
+import {activityNearCriticalThresholdHours} from '../../schedule-analysis-core/src';
 import {calculateCpm} from '../../schedule-cpm/src/engine';
 import {workingHoursBetween,resolveWorkingCalendar} from '../../schedule-cpm/src/calendar';
 import type {RecoveryScenario} from './recovery-acceleration';
@@ -53,6 +53,9 @@ export function classifyRecoveryAgainstCompletion(
   programme:CanonicalScheduleModel|null,
   forecast:ForecastView|null,
   completionCalendar:CanonicalCalendar|null,
+  // M7.5b: the project's own near-critical basis (projectScheduleControlBasis),
+  // the one every other float reader uses. Required: no system default here.
+  analysisConfig:ScheduleAnalysisConfig,
 ){
   const complete=!!programme&&!!forecast?.complete&&!!forecast.drivingNetwork;
   const driving=new Set(complete?forecast!.drivingNetwork!.activityIds:[]);
@@ -62,7 +65,7 @@ export function classifyRecoveryAgainstCompletion(
   const nearCritical=(id:string):boolean|null=>{
     const activity=activityById.get(id),float=floatById.get(id);
     if(!activity||float===null||float===undefined)return null;
-    const threshold=activityNearCriticalThresholdHours(programme!,activity,DEFAULT_SCHEDULE_ANALYSIS_CONFIG,calendarById);
+    const threshold=activityNearCriticalThresholdHours(programme!,activity,analysisConfig,calendarById);
     return threshold===null?null:float<=threshold;
   };
   // The gain is counted on the completion milestone calendar. Where the
