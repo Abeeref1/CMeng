@@ -68,6 +68,7 @@ jobs:
                 ;;
               concurrency)
                 node scripts/run-unit-tests.cjs concurrency
+                node scripts/run-unit-tests.cjs timing
                 ;;
               acceptance)
                 node scripts/run-unit-tests.cjs acceptance

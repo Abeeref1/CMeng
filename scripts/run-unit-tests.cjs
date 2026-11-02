@@ -18,7 +18,14 @@ const raster = tests.filter(path => relative(testRoot, path) === 'boq-raster-rec
 if (raster.length !== 1) throw new Error('The retained scan regression suite must exist exactly once.');
 const concurrency = tests.filter(path => relative(testRoot, path) === 'project-concurrency.test.js');
 if (concurrency.length !== 1) throw new Error('The simultaneous-upload and restart regression suite must exist exactly once.');
-const regression = tests.filter(path => !acceptance.includes(path) && !raster.includes(path) && !concurrency.includes(path));
+// Owner timing gates (cold Dashboard within 10 s; stored-file load growth within 10%)
+// measure one workload against a fixed limit. Beside three other heavy suites on the
+// two-CPU CI host they measure runner contention instead. Run them alone, one file at
+// a time; the limits are unchanged.
+const timingNames = ['t11-large-register-cold-dashboard.test.js', 't02-r1-stored-size-load.test.js'];
+const timing = tests.filter(path => timingNames.includes(relative(testRoot, path)));
+if (timing.length !== timingNames.length) throw new Error('The owner timing gate suites must each exist exactly once.');
+const regression = tests.filter(path => !acceptance.includes(path) && !raster.includes(path) && !concurrency.includes(path) && !timing.includes(path));
 
 // Keep the full test population and each suite's deadlines. Original-page
 // OCR is CPU intensive and hit its unchanged deadline beside other suites;
@@ -32,15 +39,16 @@ const phases = [
   ['raster', 'isolated original-page raster regressions', raster],
   ['concurrency', 'isolated simultaneous uploads and restart regressions', concurrency],
   ['acceptance', 'isolated 100-project blind acceptance', acceptance],
+  ['timing', 'isolated owner timing gates', timing, 1],
 ];
 const selectedPhase = process.argv[2];
 if (process.argv.length > 3 || (selectedPhase && !phases.some(([key]) => key === selectedPhase))) {
-  throw new Error('Optional phase must be regression, raster, concurrency or acceptance; omitting it runs every mandatory phase.');
+  throw new Error('Optional phase must be regression, raster, concurrency, acceptance or timing; omitting it runs every mandatory phase.');
 }
-for (const [key, label, files] of phases) {
+for (const [key, label, files, concurrencyLimit = 4] of phases) {
   if (selectedPhase && key !== selectedPhase) continue;
   process.stdout.write('\nCMENG_UNIT_PHASE=' + label + '; files=' + files.length + '\n');
-  const result = spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...files], {stdio: 'inherit'});
+  const result = spawnSync(process.execPath, ['--test', '--test-concurrency=' + concurrencyLimit, ...files], {stdio: 'inherit'});
   if (result.error) throw result.error;
   if (result.signal) throw new Error('Test phase terminated by ' + result.signal);
   if (result.status !== 0) process.exit(result.status ?? 1);
