@@ -107,7 +107,7 @@ test('missing contract date stays a review state and single-revision change limi
   const candidateResult=projectActions(candidateState,candidateAssessment,{completionPosition:{submittedFinishIso:'2028-01-12T00:00:00.000Z'}});
   assert.ok(!candidateResult.actions.some((a:any)=>a.target.kind==='contract-completion'));
   const candidateGap=candidateResult.information.find((a:any)=>a.id==='matter:contract-completion');
-  assert.ok(candidateGap);assert.equal(candidateGap.resolution.requiresUserAction,false);
+  assert.ok(candidateGap);assert.equal(candidateGap!.resolution?.requiresUserAction,false);
 
   const {assessModuleIssues}=await import('../packages/runtime-api/src/module-issues');
   const assessment=assessModuleIssues({key:'schedule-change-report',status:'partial',reason:'A second revision is required.',dependencies:[],engineState:'ready',evidenceState:'partial',data:{state:'insufficient_history',diagnostics:['SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'],systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[]}}} as any,{state:'pass',failedCheckIds:[],checkCount:0,checks:[]} as any);
