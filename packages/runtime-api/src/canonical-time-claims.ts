@@ -350,7 +350,10 @@ export function projectControlSchedule(state:ProjectRuntimeState) {
   return newest.length===1?applyCalendarBasis(state,newest[0]!):null;
 }
 export function projectDataDate(state:ProjectRuntimeState):string|null {
-  return dateValue(projectControlSchedule(state)?.revision.model.dataDateIso ?? '');
+  const schedule=projectControlSchedule(state);
+  return schedule&&isAdoptedProgrammeRevision(state,schedule)
+    ? dateValue(schedule.revision.model.dataDateIso ?? '')
+    : null;
 }
 function claimStatus(s:string):CanonicalClaimRecord['state'] {
   return /reject/i.test(s)?'rejected':/withdraw/i.test(s)?'withdrawn':/determined/i.test(s)?'determined':/assess|review/i.test(s)?'under_review':/submit/i.test(s)?'submitted':'unknown';
