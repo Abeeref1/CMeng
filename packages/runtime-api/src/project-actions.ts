@@ -111,33 +111,13 @@ function actionResolution(group:ReviewGroup,issues:ControlIssue[],context:{compl
       return informationResolution('CMeng found a difference between submitted dates and its independent calculation. This is a calculation qualification, not something you must confirm. The submitted programme remains the reporting authority unless you explicitly replace it.');
     case 'programme-comparison':
       return informationResolution('A baseline or earlier adopted revision is needed only for baseline/revision comparison. Current programme analysis remains usable. Any uploaded programme that actually needs selection appears separately as a direct programme confirmation action.');
-    case 'contract-completion': {
-      const completion=context.completionPosition as {submittedFinishIso?:string|null}|undefined;
-      const suggestedDateIso=typeof completion?.submittedFinishIso==='string'?completion.submittedFinishIso:null;
-      return {
-        category:'confirmation',
-        resolution:{
-          kind:'confirm',
-          requiresUserAction:true,
-          instruction:suggestedDateIso
-            ? 'Confirm the contractual completion date here. The current programme finish is shown only as a suggested candidate; change it if the contract date is different.'
-            : 'Enter and confirm the contractual completion date here. Programme and forecast analysis remain available while this date is unconfirmed.',
-          completionRule:'This action closes when a contractual completion date is explicitly confirmed.'
-        },
-        target:{type:'inline',kind:'contract-completion',label:'Confirm contractual completion date',suggestedDateIso}
-      };
-    }
+    case 'contract-completion':
+      return informationResolution('Contractual completion is not established from the supplied contract evidence. CMeng keeps contract/EOT entitlement comparisons unavailable, but programme and forecast analysis continue. Add the governing contract source when available; do not invent or confirm a date here.');
     // T04 / C2: a missing value the user can supply gets its own input here.
     case 'contract-value-entry':
-      return {category:'confirmation',resolution:{kind:'confirm',requiresUserAction:true,
-        instruction:'Enter the contract value and its currency here if you hold them. They are saved as your confirmation; nothing is calculated from an unknown value.',
-        completionRule:'This action closes when a contract value and currency are saved, or when a source establishes them.'},
-        target:{type:'inline',kind:'contract-value',label:'Save contract value'}};
+      return informationResolution('Contract value and currency are not established from the supplied evidence. Monetary measures that require them stay unavailable until a governing source is added. This is a data gap, not a decision.');
     case 'approved-eot-days-entry':
-      return {category:'confirmation',resolution:{kind:'confirm',requiresUserAction:true,
-        instruction:'Enter the total approved extension of time in days here if you hold it, including zero when none is approved. It is saved as your confirmation.',
-        completionRule:'This action closes when approved EOT days are saved, or when a source establishes them.'},
-        target:{type:'inline',kind:'approved-eot-days',label:'Save approved EOT days'}};
+      return informationResolution('No approved EOT is established from the supplied evidence. Approved EOT therefore remains unknown, never zero. Entitlement measures that require it stay unavailable; this is a data gap, not a decision.');
     case 'notice-term-versions':
       return {category:'confirmation',resolution:{kind:'choose',requiresUserAction:true,instruction:'Review the original notice periods and dates, then confirm whether the amendment applies prospectively.',completionRule:'The choice is stored against the same contract documents.'},target:{type:'inline',kind:'review-notice',label:'Confirm notice provisions',reviewOptions:[{value:'confirm_versions',label:'Confirm the dated notice provisions'},{value:'refer_contracts',label:'Refer the interpretation to the Contracts Manager'}]}};
     case 'risk-rating-rule':
