@@ -311,13 +311,13 @@ export function projectControlSchedule(state:ProjectRuntimeState) {
   const basis=state.activeEvidenceBasis['schedule:control'] ?? state.activeEvidenceBasis['schedule:baseline'];
   if(basis?.activeArtifactId){
     const selected=state.schedules.find(s=>s.revision.revisionId===basis.activeArtifactId&&!isScenarioRevision(s)) ?? null;
-    // An evidence-family selection is not itself programme adoption. A current
-    // analytical programme exists only after the exact schedule revision has a
-    // source-bound adoption decision. Until then every schedule-dependent
-    // calculation must fail closed rather than silently treating the upload as
-    // the Current Programme.
+    // A valid selected programme is available for analytical use immediately.
+    // Formal adoption remains a separate authority decision and is still shown
+    // to the user as unresolved; it must not suppress schedule calculations.
+    // This keeps the source visible as provisional evidence without inventing
+    // contractual approval.
     // M6.3: the planner's confirmed calendar basis is applied here, once, for every consumer.
-    return selected&&isAdoptedProgrammeRevision(state,selected)?applyCalendarBasis(state,selected):null;
+    return selected?applyCalendarBasis(state,selected):null;
   }
 
   const programmeTypes=new Set([
