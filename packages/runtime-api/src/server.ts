@@ -1945,13 +1945,21 @@ async function route(
             intent,
           allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1',
         });
-    await runtimeProjects.refreshDeferredPdfReads(projectId);
-    await runtimeProjects.refreshSpreadsheetRegisters(projectId);
+    // A schedule uploaded through the generic evidence route has already been
+    // fully parsed and persisted by ingestEvidenceFile -> ingestSchedule. Do not
+    // re-read every unrelated evidence family before returning the upload. That
+    // formerly held the project's single worker lane for minutes, so adoption,
+    // Project Review, Actions and Dashboard all queued behind an already-saved
+    // programme. Non-schedule evidence keeps the existing refresh path.
+    if(result.category!=="schedule"){
+      await runtimeProjects.refreshDeferredPdfReads(projectId);
+      await runtimeProjects.refreshSpreadsheetRegisters(projectId);
       await runtimeProjects.refreshHseReports(projectId);
-    await runtimeProjects
-      .refreshCorrespondenceNarratives(
-        projectId,
-      );
+      await runtimeProjects
+        .refreshCorrespondenceNarratives(
+          projectId,
+        );
+    }
     invalidateProject(
       projectId,
     );

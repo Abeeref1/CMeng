@@ -78,8 +78,8 @@ test('project actions require decisions only for non-current programme candidate
   assert.ok(!restored.actions.some((a:any)=>a.target.phaseId==='Tower-B'&&a.target.type==='schedule'));
 });
 
-test('missing contractual completion becomes one inline confirmation action and persists the confirmed date',async t=>{
-  const root=mkdtempSync(join(tmpdir(),'contract-completion-action-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
+test('missing contractual completion is a data gap and never blocks programme analysis',async t=>{
+  const root=mkdtempSync(join(tmpdir(),'contract-completion-gap-'));let gateway=await createProjectGateway(root,{maxWorkers:1}),base='';
   t.after(async()=>{await gateway.close();rmSync(root,{recursive:true,force:true});});
   const listen=async()=>{await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));base='http://127.0.0.1:'+(gateway.server.address() as any).port;};await listen();
   const post=(path:string,body:any)=>fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
@@ -89,15 +89,10 @@ test('missing contractual completion becomes one inline confirmation action and 
   assert.equal(upload.status,201);
   const pending=await get('/api/projects/CONTRACT-DATE-A/actions');
   assert.equal(pending.actions.filter((a:any)=>a.target.type==='schedule').length,0,'ordinary submitted-current schedule must not require manual confirmation');
-  const contract=pending.actions.find((a:any)=>a.target.kind==='contract-completion');
-  assert.ok(contract);assert.equal(contract.category,'confirmation');assert.equal(contract.target.type,'inline');
-  assert.match(contract.resolution.instruction,/current programme finish|contractual completion date/i);
-  assert.ok(Object.hasOwn(contract.target,'suggestedDateIso'));
-  const saved=await post('/api/projects/CONTRACT-DATE-A/actions/confirm-contract-completion',{actionId:contract.id,expectedVersion:pending.projectVersion,dateIso:'2031-12-30'});
-  assert.equal(saved.status,200);const receipt=await saved.json() as any;assert.equal(receipt.contractualCompletionIso,'2031-12-30T00:00:00.000Z');
-  const after=await get('/api/projects/CONTRACT-DATE-A/actions');assert.ok(!after.actions.some((a:any)=>a.target.kind==='contract-completion'));
-  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
-  const restored=await get('/api/projects/CONTRACT-DATE-A/actions');assert.ok(!restored.actions.some((a:any)=>a.target.kind==='contract-completion'));
+  assert.ok(!pending.actions.some((a:any)=>a.target.kind==='contract-completion'),'missing contract date must not be a required decision');
+  const gap=pending.information.find((a:any)=>a.id==='matter:contract-completion');
+  assert.ok(gap);assert.equal(gap.category,'information');assert.equal(gap.resolution.requiresUserAction,false);
+  assert.match(gap.resolution.instruction,/data gap|not established|programme and forecast analysis continue/i);
 });
 
 test('missing contract date stays a review state and single-revision change limitation uses business wording',async()=>{
@@ -109,8 +104,10 @@ test('missing contract date stays a review state and single-revision change limi
   const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
   const candidateState=(await import('../packages/runtime-api/src/project-state')).runtimeProjects.getOrCreate('CONTRACT-CANDIDATE-PROPAGATION');
   const candidateAssessment=summarizeControlIssues([{code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'Contractual Completion Date',detail:'The contractual completion date is not established.',action:'Confirm the applicable contract completion date.',owner:'Project evidence owner',moduleKeys:['master-dashboard'],sourceRefs:[],checkIds:[],evidencePaths:['contract.contractualCompletionDate']}]);
-  const candidateAction=projectActions(candidateState,candidateAssessment,{completionPosition:{submittedFinishIso:'2028-01-12T00:00:00.000Z'}}).actions.find((a:any)=>a.target.kind==='contract-completion');
-  assert.ok(candidateAction);assert.equal(candidateAction!.target.suggestedDateIso,'2028-01-12T00:00:00.000Z');
+  const candidateResult=projectActions(candidateState,candidateAssessment,{completionPosition:{submittedFinishIso:'2028-01-12T00:00:00.000Z'}});
+  assert.ok(!candidateResult.actions.some((a:any)=>a.target.kind==='contract-completion'));
+  const candidateGap=candidateResult.information.find((a:any)=>a.id==='matter:contract-completion');
+  assert.ok(candidateGap);assert.equal(candidateGap!.resolution?.requiresUserAction,false);
 
   const {assessModuleIssues}=await import('../packages/runtime-api/src/module-issues');
   const assessment=assessModuleIssues({key:'schedule-change-report',status:'partial',reason:'A second revision is required.',dependencies:[],engineState:'ready',evidenceState:'partial',data:{state:'insufficient_history',diagnostics:['SECOND_SCHEDULE_REVISION_REQUIRED_FOR_CHANGE_COMPARISON'],systemEvidenceContract:{state:'verified_for_checked_metrics',checks:[]}}} as any,{state:'pass',failedCheckIds:[],checkCount:0,checks:[]} as any);

@@ -64,6 +64,18 @@ test('mitigation and acceleration programme names stay scenario-only until purpo
   assert.equal(projectDataDate(f.store.get('EXPLICIT-ACCELERATION')!),'2036-08-31');
 });
 
+test('unadopted valid programme is analytically usable but does not establish the governed Data Date',async t=>{
+  const f=store(t),projectId='PROVISIONAL-ANALYSIS';
+  const uploaded=await f.store.ingestSchedule({
+    projectId,bytes:xer('2036-08-31'),mediaType:'text/plain',sourceFilename:'Approved Baseline.xer',
+    role:'baseline',roleConfirmed:true,uploadedAt:'2036-09-01',uploadIntent:'add_update',
+  });
+  const state=f.store.get(projectId)!;
+  assert.equal(projectControlSchedule(state)?.revision.revisionId,uploaded.revisionId,'the parsed programme must be available for analysis before formal adoption');
+  assert.equal(projectDataDate(state),null,'formal project Data Date remains governed until the programme is adopted');
+  assert.throws(()=>f.store.adoptSchedule(projectId,uploaded.revisionId),/BASELINE_APPROVAL_REFERENCE_REQUIRED/,'baseline authority still requires its approval reference');
+});
+
 test('explicit baseline names remain unapproved candidates and never become submitted-current',async t=>{
   const f=store(t);
   for(const name of ['Contract_Baseline_01.xer','Tender_Baseline_02.xer','Baseline_Programme_03.xer','Proposed_Baseline_04.xer','Rebaseline_Submission_05.xer']){
