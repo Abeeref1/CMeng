@@ -713,3 +713,12 @@ test('handover comparison displays separate source denominators and review quali
  const html=runInNewContext(deliveryScript()+`;const panel=renderHandoverSourceComparison(p);refreshDeliveryTable('handoverSourceComparison');panel`,{...common,p,el:(id:string)=>nodes[id]??={innerHTML:'',textContent:''},document:{querySelectorAll:()=>[]}});
  assert.match(html,/SCOPE-CHECK/);assert.match(html,/no acceptance is inferred/);assert.match(html,/no status date/);assert.match(html,/openProjectActions\(\)/);assert.match(nodes.handoverSourceComparisonBody!.innerHTML,/678/);assert.match(nodes.handoverSourceComparisonBody!.innerHTML,/91/);
 });
+
+test('P3: the verdict states the page answer; an open request is the next step, never the finding',()=>{
+ const html=runInNewContext(functions(['renderPositionVerdict'])+
+   ';renderPositionVerdict({positionVerdict:{rag:"amber",specific:true,label:"Review needed",text:"The contractor\'s programme finishes on 23 Aug 2049.",nextAction:"CONFIRM_DATE",owner:"Project Director",basis:"Programme"},issueAssessment:{issues:[{action:"CONFIRM_DATE"}]}})',
+   {...common,readerIssue:()=>({title:'Contract comparison is not established',action:'Confirm the contractual completion date',assignTo:'Project Director'})});
+ assert.match(html,/Current finding:<\/b> The contractor's programme finishes on 23 Aug 2049\./);
+ assert.match(html,/Next step:<\/b> Confirm the contractual completion date\./);
+ assert.doesNotMatch(html,/Current finding:<\/b> Contract comparison is not established/);
+});

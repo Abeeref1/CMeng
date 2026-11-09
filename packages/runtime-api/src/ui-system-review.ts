@@ -11,10 +11,12 @@ function renderPositionVerdict(data,includeGeneral=false){
   const v=data?.positionVerdict;if(!v)return '';
   const issue=(data.issueAssessment?.issues||[]).find(i=>i.action===v.nextAction);
   const request=issue?readerIssue(issue):null;
-  const nextText=request?.action||(v.nextAction?readerText(v.nextAction):'');
+  // P3: the finding is the page's answer (v.text). An open request is the next step,
+  // never the finding itself, so the answer leads and the action follows it.
+  const nextText=request?.action||(v.nextAction?readerText(v.nextAction):'')||request?.title||'';
   const next=nextText?'<p><b>Next step:</b> '+escapeHtml(reviewSentence(nextText))+'</p><p><b>Responsible role:</b> '+escapeHtml(reviewSentence(request?.assignTo||v.assignTo||'Project Controls'))+'</p>':'';
   if(v.specific===false)return includeGeneral?'<details class="page-review-summary"><summary>About this view</summary><p>'+escapeHtml(readerText(v.text))+'</p>'+next+'</details>':'';
-  return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p><b>Current finding:</b> '+escapeHtml(request?.title||readerText(v.text))+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(v):v.owner)||'Not assigned')+'</p></details></section>';
+  return '<section class="position-verdict '+escapeHtml(v.rag)+'" aria-label="Position verdict"><h4>'+escapeHtml(v.label)+'</h4><p><b>Current finding:</b> '+escapeHtml(readerText(v.text)||request?.title||'')+'</p>'+next+'<details><summary>How this status was assessed</summary><p>'+escapeHtml(v.basis)+'</p><p>Assigned owner: '+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(v):v.owner)||'Not assigned')+'</p></details></section>';
 }
 /** W5: each label/value line ends as a sentence, so page text never runs into the next block. */
 function reviewSentence(value){const text=String(value??'').trim();return !text||/[.!?:]$/.test(text)?text:text+'.';}

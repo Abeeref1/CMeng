@@ -30,6 +30,7 @@ export const pageLayoutStyles=String.raw`
 .table-pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 14px;font-size:12px;color:#526479}
 .page-kind-pick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 12px;font-size:13px;color:#294766}.page-kind-pick>b{font-weight:650;margin-right:2px}.page-kind-pick select{max-width:min(100%,640px)}.page-kind-pick span{font-size:12px;color:#61738a}
 .page-kind-option{border:1px solid #cfdbe8;background:#fff;color:#294766;border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;line-height:1.3;cursor:pointer;text-align:left}.page-kind-option[aria-pressed="true"]{background:#e8f0f9;border-color:#7d9cc0;font-weight:650}
+.page-said-once,.page-unknown-col{display:none!important}.page-unknown-once{margin:4px 0 8px;font-size:12.5px;color:#526479}.page-unknown-once b{font-weight:650;color:#3d5570}.page-panel-basis{margin:10px 0 0!important;font-size:12px!important;color:#61738a!important}
 @media(max-width:900px){.page-detail-groups{grid-template-columns:1fr}}
 @media print{.page-detail-groups{display:block}.table-row-paged{display:table-row!important}.page-kind-hidden,.page-detail-off{display:block!important}.table-pager,.page-kind-pick,.page-detail-pager{display:none!important}}
 `;
@@ -107,14 +108,22 @@ function pageGroupTitle(titles){
  if(named.length<=3)return pageShortTitle(named.join(' · '));
  return pageShortTitle(named.slice(0,2).join(' · '))+' and '+(named.length-2)+' more';
 }
-// The answer leads: page context and verdict always; then, in this order of
-// importance and while the first screens hold them, the reading box, the key
-// tiles, a block the page renderer names as part of its answer
-// (data-page-answer) and the main chart, the primary panel, a second row of
-// tiles and short action notices. A long table never leads the page.
+// P3 (owner rule): the page's management answer leads, its actions follow, and
+// qualifications and system evidence come after them. The verdict, alerts and the
+// programme / Data Date line always stay; then, while the first screens hold them,
+// the reading box, the key tiles, a block the page renderer names as part of its
+// answer (data-page-answer) and the main chart, the primary panel, the page actions
+// and a second row of tiles. A long table, a collapsed section and a block of system
+// evidence (readiness, evidence snapshot, calculation checks) never lead the page.
+const PAGE_EVIDENCE='[data-page-role="evidence"],.module-evidence-link,.experience-scope-note,.experience-audit,.page-review-summary,[data-owner-topic="cross-module-consistency"]';
+function pageIsAction(node){
+ if(node.matches('[data-page-role="action"],.actions,.action-notification'))return true;
+ return !!node.querySelector('button')&&!node.querySelector('table')&&!node.matches(PAGE_EVIDENCE)&&pageBlockHeight(node)<=PAGE_ACTION_MAX_PX;
+}
 function pageAnswerRank(node,seen){
  if(node.matches(PAGE_FIXED)&&node.tagName!=='DETAILS')return 0;
- if(node.tagName==='DETAILS'||node.matches('.owner-link-panel,.module-evidence-link,.experience-scope-note'))return -1;
+ if(node.matches(PAGE_EVIDENCE))return -1;
+ if(node.tagName==='DETAILS'||node.matches('.owner-link-panel'))return -1;
  if(pageVisibleTableRows(node)>PAGE_LONG_TABLE_ROWS)return -1;
  if(node.matches('.experience-management-reading'))return 1;
  const tiles=pageShows(node,PAGE_TILE);
@@ -122,10 +131,114 @@ function pageAnswerRank(node,seen){
  if(node.matches('[data-page-answer]'))return 3;
  if(!seen.chart&&pageShows(node,PAGE_CHART)){seen.chart=true;return 3;}
  if(!seen.primary&&node.matches('.primary')){seen.primary=true;return 4;}
- if(tiles&&seen.tiles===1){seen.tiles=2;return 5;}
  // A short notice or card with a button is a page action (for example "Upload register").
- if(node.matches('.actions,.action-notification')||node.querySelector('button')&&!node.querySelector('table')&&pageBlockHeight(node)<=PAGE_ACTION_MAX_PX)return 6;
+ if(pageIsAction(node))return 5;
+ if(tiles&&seen.tiles===1){seen.tiles=2;return 6;}
  return -1;
+}
+// P3: the order on the page, for every page (also one that already fits 3 screens).
+// Within each group of sibling blocks: the verdict (the answer), the one-line
+// programme and Data Date context, a system alert, the page's own content, its
+// actions, then qualifications and system evidence. Blocks are only moved.
+function pageOrderKey(node,hasVerdict){
+ if(node.matches('.position-verdict'))return 0;
+ if(node.matches('.view-state-bar'))return hasVerdict?2:0;
+ if(node.matches('.module-basis')&&node.tagName!=='DETAILS')return 1;
+ if(node.matches('[role="alert"],.experience-notes.error'))return 2;
+ if(node.matches(PAGE_EVIDENCE))return 5;
+ if(node.tagName!=='DETAILS'&&pageIsAction(node))return 4;
+ return 3;
+}
+function pageAnswerFirst(container){
+ const hasVerdict=!!container.querySelector('.position-verdict');
+ let moved=0;
+ const order=parent=>{
+  const items=Array.from(parent.children).filter(child=>!['STYLE','SCRIPT','TEMPLATE','LINK'].includes(child.tagName)&&(String(child.textContent||'').trim()||child.querySelector('svg,canvas,img,table')));
+  for(const child of items)if(pageIsWrapper(child))order(child);
+  if(items.length<2)return;
+  const keyed=items.map((node,i)=>({node,i,key:pageIsWrapper(node)?3:pageOrderKey(node,hasVerdict)}));
+  const sorted=[...keyed].sort((a,b)=>a.key-b.key||a.i-b.i);
+  if(sorted.every((item,i)=>item===keyed[i]))return;
+  const anchor=document.createComment('page-order');parent.insertBefore(anchor,items[0]);
+  for(const item of sorted)parent.insertBefore(item.node,anchor);
+  anchor.remove();moved++;
+ };
+ order(container);
+ // Inside a panel, the method note under its heading is a qualification: it follows the panel's answer.
+ for(const note of Array.from(container.querySelectorAll('.planning-panel-head p,.pmc-control-head p,.pmc-domain-sub'))){
+  const panel=note.closest('.planning-panel,.pmc-control-room,.pmc-domain-card');
+  if(!panel||!String(note.textContent||'').trim()||note.closest('.position-verdict'))continue;
+  note.classList.add('page-panel-basis');panel.appendChild(note);moved++;
+ }
+ return moved;
+}
+// P3: unknown information is stated once, not repeated per row or per block.
+// (1) A table column that is unknown on every row is one line above the table.
+// (2) The same unknown sentence on several rows of a column is one line above the
+//     table; each row says "Not established" (the full sentence stays in the cell).
+// (3) The same unknown sentence in several blocks of the page is said where it is
+//     first shown. Nothing is removed: the repeats are only hidden.
+const PAGE_UNKNOWN_VALUE=/^(?:not established|not available|unknown|not known|unresolved|not calculated|not calculable|not assessable|not recorded|not stated|not supplied|not confirmed|n\/a|[—–-])\.?$/i;
+const PAGE_UNKNOWN_TEXT=/\b(?:not established|not available|not known|unresolved|cannot (?:yet )?be (?:calculated|established|priced|compared|assessed)|not calculable|not assessable|not recorded|not stated|not supplied|not confirmed|not linked|no [a-z ]{0,40}(?:supplied|recorded|provided|in the documents)|is missing|are missing)\b/i;
+function pageNormal(text){return String(text||'').replace(/\s+/g,' ').trim();}
+function pageUnknownNote(table,html){
+ const host=table.closest('.table-wrap')||table;
+ const line=document.createElement('p');line.className='page-unknown-once';line.innerHTML=html;
+ host.parentNode.insertBefore(line,host);
+ return line;
+}
+function pageSayUnknownOnce(container){
+ let said=0;
+ const esc=value=>String(value).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+ for(const table of Array.from(container.querySelectorAll('table'))){
+  if(table.closest('.position-verdict')||table.dataset.pageUnknownOnce)continue;
+  const head=table.tHead?.rows?.[table.tHead.rows.length-1];
+  const rows=Array.from(table.tBodies||[]).flatMap(body=>Array.from(body.rows)).filter(row=>!head||row.cells.length===head.cells.length);
+  if(!head||rows.length<3)continue;
+  table.dataset.pageUnknownOnce='1';
+  const allUnknown=[],repeated=[];
+  for(let col=0;col<head.cells.length;col++){
+   const texts=rows.map(row=>pageNormal(row.cells[col]?.textContent));
+   const label=pageNormal(head.cells[col].textContent)||'Column '+(col+1);
+   if(texts.every(text=>!text||PAGE_UNKNOWN_VALUE.test(text))&&texts.some(text=>text&&/[a-z]/i.test(text))&&head.cells.length>2){allUnknown.push({col,label});continue;}
+   const counts=new Map();
+   for(const text of texts)if(text.length>=30&&PAGE_UNKNOWN_TEXT.test(text))counts.set(text,(counts.get(text)||0)+1);
+   for(const [text,count] of counts)if(count>=3)repeated.push({col,label,text,count});
+  }
+  if(allUnknown.length&&allUnknown.length<head.cells.length){
+   const cols=new Set(allUnknown.map(item=>item.col));
+   for(const row of [head,...rows])for(const col of cols)row.cells[col]?.classList.add('page-unknown-col');
+   pageUnknownNote(table,'<b>Not established for every row:</b> '+esc(allUnknown.map(item=>item.label).join(', '))+'.');said++;
+  }
+  for(const item of repeated){
+   for(const row of rows){
+    const cell=row.cells[item.col];if(!cell||pageNormal(cell.textContent)!==item.text)continue;
+    const full=document.createElement('span');full.className='page-said-once';
+    while(cell.firstChild)full.appendChild(cell.firstChild);
+    const short=document.createElement('span');short.className='page-unknown-short';short.textContent='Not established';
+    cell.appendChild(short);cell.appendChild(full);cell.title=item.text;
+   }
+   pageUnknownNote(table,'<b>'+esc(item.label)+' ('+esc(item.count)+' rows):</b> '+esc(item.text));said++;
+  }
+ }
+ // (3) The same unknown sentence in several blocks: said once, where it is first shown.
+ const groups=new Map();
+ for(const node of Array.from(container.querySelectorAll('p,li,small,.notice,.pmc-domain-sub,.planning-kpi small,.experience-fact small'))){
+  if(node.closest('table,summary,.page-said-once'))continue;
+  const text=pageNormal(node.textContent);
+  if(text.split(' ').length<8||text.length>400||!PAGE_UNKNOWN_TEXT.test(text))continue;
+  let up=node.parentElement,inside=false;
+  while(up&&up!==container){if(pageNormal(up.textContent)===text&&up.matches('p,li,small,.notice,.pmc-domain-sub')){inside=true;break;}up=up.parentElement;}
+  if(inside)continue;
+  if(!groups.has(text))groups.set(text,[]);
+  groups.get(text).push(node);
+ }
+ for(const nodes of groups.values()){
+  if(nodes.length<2)continue;
+  const keep=nodes.find(pageNodeShown)||nodes[0];
+  for(const node of nodes)if(node!==keep){node.classList.add('page-said-once');said++;}
+ }
+ return said;
 }
 // Copies of the wrappers a block came from (class and attributes, no id), so
 // the moved block keeps its layout and style context.
@@ -279,7 +392,10 @@ function arrangePageDetail(container){
  if(!container||!container.children||typeof container.querySelectorAll!=='function'||typeof container.getBoundingClientRect!=='function')return null;
  if(typeof document==='undefined'||typeof document.createElement!=='function'||container.isConnected===false)return null;
  const limitHeight=PAGE_DEFAULT_SCREENS*PAGE_SCREEN_PX,budget=limitHeight-PAGE_LATE_CONTENT_PX;
- // A page that already fits keeps its layout.
+ // P3: on every page the answer leads, actions follow and evidence comes after; unknowns are said once.
+ pageAnswerFirst(container);
+ pageSayUnknownOnce(container);
+ // A page that already fits keeps that order.
  if(container.scrollHeight<=limitHeight&&pageClosedTotal(container)<=PAGE_MAX_CLOSED_SECTIONS)return null;
  const blocks=pageBlocks(container);
  if(blocks.length<2)return null;

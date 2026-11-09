@@ -5455,8 +5455,13 @@ function managementModuleLink(key,label="Open owning module"){
   // ('Completion forecast' 'Progress measures' read as 'Completion forecastProgress measures').
   return '<button type="button" class="management-module-link" data-module="'+escapeHtml(key)+'">'+escapeHtml(label)+'</button> ';
 }
+// P3: the shared layout places a panel by its role: system evidence and qualifications
+// come after the page's answer, actions straight after it.
+const MANAGEMENT_EVIDENCE_PANELS=new Set(["Control Readiness","Evidence Snapshot","Evidence review","Programme basis","Analysis available","Approvals and publication","Missing information"]);
+const MANAGEMENT_ACTION_PANELS=new Set(["Actions requiring management attention","Information to confirm","Suggested updates for review"]);
 function managementPanel(title,description,body,primary=false){
-  return '<section class="planning-panel '+(primary?'primary ':'')+'management-panel"><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
+  const role=MANAGEMENT_EVIDENCE_PANELS.has(title)?' data-page-role="evidence"':MANAGEMENT_ACTION_PANELS.has(title)?' data-page-role="action"':'';
+  return '<section class="planning-panel '+(primary?'primary ':'')+'management-panel"'+role+'><div class="planning-panel-head"><div><h4>'+escapeHtml(title)+'</h4><p>'+escapeHtml(description)+'</p></div></div><div class="planning-panel-body">'+body+'</div></section>';
 }
 function managementMetricDisplay(metric){
   const value=metric?.value;
