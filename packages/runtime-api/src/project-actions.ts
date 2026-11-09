@@ -119,10 +119,18 @@ function actionResolution(group:ReviewGroup,issues:ControlIssue[],context:{compl
     case 'contract-completion':
       return informationResolution('Contractual completion is not established from the supplied contract evidence. CMeng keeps contract/EOT entitlement comparisons unavailable, but programme and forecast analysis continue. Add the governing contract source when available; do not invent or confirm a date here.');
     // T04 / C2: a missing value the user can supply gets its own input here.
+    // Owner rule: a missing value is a data gap (applyUniversalReviewRule), never a
+    // required question, and the gap keeps the input that lets the user supply it.
     case 'contract-value-entry':
-      return informationResolution('Contract value and currency are not established from the supplied evidence. Monetary measures that require them stay unavailable until a governing source is added. This is a data gap, not a decision.');
+      return {category:'confirmation',resolution:{kind:'confirm',requiresUserAction:true,
+        instruction:'Contract value and currency are not established from the supplied evidence. Enter them here if you hold them; they are saved as your confirmation. Nothing is calculated from an unknown value.',
+        completionRule:'This data gap closes when a contract value and currency are saved, or when a source establishes them.'},
+        target:{type:'inline',kind:'contract-value',label:'Save contract value'}};
     case 'approved-eot-days-entry':
-      return informationResolution('No approved EOT is established from the supplied evidence. Approved EOT therefore remains unknown, never zero. Entitlement measures that require it stay unavailable; this is a data gap, not a decision.');
+      return {category:'confirmation',resolution:{kind:'confirm',requiresUserAction:true,
+        instruction:'No approved EOT is established from the supplied evidence, so it stays unknown, never zero. Enter the total approved extension of time in days here if you hold it, including zero when none is approved.',
+        completionRule:'This data gap closes when approved EOT days are saved, or when a source establishes them.'},
+        target:{type:'inline',kind:'approved-eot-days',label:'Save approved EOT days'}};
     case 'notice-term-versions':
       return {category:'confirmation',resolution:{kind:'choose',requiresUserAction:true,instruction:'Review the original notice periods and dates, then confirm whether the amendment applies prospectively.',completionRule:'The choice is stored against the same contract documents.'},target:{type:'inline',kind:'review-notice',label:'Confirm notice provisions',reviewOptions:[{value:'confirm_versions',label:'Confirm the dated notice provisions'},{value:'refer_contracts',label:'Refer the interpretation to the Contracts Manager'}]}};
     case 'risk-rating-rule':

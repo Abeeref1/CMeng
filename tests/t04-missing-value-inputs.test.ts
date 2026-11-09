@@ -28,7 +28,8 @@ test('missing contract value and approved EOT days get inline inputs, close on s
   const eot=[...pending.actions,...(pending.information||[])].find((a:any)=>a.target.kind==='approved-eot-days');
   assert.ok(value,'missing contract value must offer an inline input action');assert.ok(eot,'missing approved EOT days must offer an inline input action');
   for(const action of [value,eot]){
-    assert.equal(action.category,'confirmation');assert.equal(action.target.type,'inline');assert.equal(action.resolution.requiresUserAction,true);
+    // Owner rule: a missing value is a data gap, not a required question, and it keeps its input.
+    assert.equal(action.dataGap,true);assert.equal(action.target.type,'inline');assert.equal(action.resolution.requiresUserAction,false);
     assert.ok(action.findings.length>0&&action.findings.every((f:any)=>f.kind==='missing_information'),'the input carries the missing-information findings it answers');
   }
   assert.ok(value.findings.some((f:any)=>/contractValue|contractCurrency/.test(f.field??'')));
