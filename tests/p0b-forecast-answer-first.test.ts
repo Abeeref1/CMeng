@@ -188,13 +188,14 @@ test('M13.2: a loop, a repeated ID or an external link gives exactly one forecas
     // The published Project Review (user decisions), not only the raw register.
     const review=projectActionRegisterForState(runtimeProjects.getOrCreate(id)).workflow;
     const items=[...review.actions,...review.information].filter(a=>a.id.startsWith('matter:forecast-'));
-    if(cause)assert.ok(review.actions.some(a=>a.id==='matter:forecast-qualifications'),id+': published as a Project Review action');
+    // Owner rule (3 Nov): a correctable programme cause is missing evidence (a corrected programme), listed once as a data gap, never a required decision.
+    if(cause)assert.ok(review.information.some(a=>a.id==='matter:forecast-qualifications'&&a.dataGap)&&!review.actions.some(a=>a.id==='matter:forecast-qualifications'),id+': listed once as a data gap, not a decision');
     if(!cause){assert.equal(items.length,0,id+': nothing to correct, no item');continue;}
     assert.equal(items.length,1,id+': exactly one forecast item: '+JSON.stringify(items.map(i=>i.id)));
     assert.match(items[0]!.reason,cause,id+': the cause is named: '+items[0]!.reason);
     const finish=(moduleForProject(id,'independent-forecast').data as any).forecastReconciliationGate.managementForecast.completionIso;
     assert.ok(items[0]!.title.includes(String(finish).slice(0,10)),'the item names the finish it qualifies');
-    assert.equal(items[0]!.resolution?.requiresUserAction,true);
+    assert.equal(items[0]!.resolution?.kind,'upload','a corrected programme clears it');
     void state;
   }
 });

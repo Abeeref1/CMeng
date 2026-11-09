@@ -29,7 +29,8 @@ test('A1: an uploaded candidate document goes to the page where it is reviewed a
  assert.ok(candidates.length>0,'the fixture holds candidate documents');
  const pages=candidateDocumentReviewPages(state);
  // The rule matches the decisions the Actions list really asks for: a page exactly when an action reviews that document.
- const reviewed=new Set([...programmeActions(state),...projectActions(state,summarizeControlIssues([])).actions].map(a=>a.target.documentId).filter(Boolean));
+ const listed=projectActions(state,summarizeControlIssues([]));
+ const reviewed=new Set([...programmeActions(state),...listed.actions,...listed.cmengAnswers].map(a=>a.target.documentId).filter(Boolean));
  for(const d of candidates)assert.equal(pages.get(d.documentId)??'documents',reviewed.has(d.documentId)?ACTIONS_REVIEW_PAGE:'documents',d.sourceFilename+' ('+d.category+')');
  const scheduleCandidates=candidates.filter(d=>d.category==='schedule');
  assert.ok(scheduleCandidates.length>0&&candidates.some(d=>d.category!=='schedule'),'the fixture holds a schedule update and a register update awaiting review');
@@ -64,7 +65,7 @@ test('W4: delivery register actions keep the real register name and count their 
  const root=mkdtempSync(join(tmpdir(),'c3-more-register-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
  const store=new RuntimeProjectStore({dataDir:root,durable:false}),state=store.getOrCreate('REGISTER');
  await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from('RFI ID,Subject,Status\nR1,Question,Open'),mediaType:'text/csv',sourceFilename:'RFI.csv',sourceRelativePath:'shared-folder/RFI.csv',documentType:'rfi_register',category:'engineering',uploadedAt:'2031-08-31',uploadIntent:'add_update'});
- const action=projectActions(state,summarizeControlIssues([])).actions.find(a=>a.id==='delivery-population:design');
+ const listed=projectActions(state,summarizeControlIssues([])),action=[...listed.actions,...listed.information].find(a=>a.id==='delivery-population:design');
  // M4.1: this register has no dates and no Data Date, so the item names that blocker instead of asking for completeness.
  assert.ok(action,'the RFI & design register has its one item');
  assert.equal(action!.title,'Add the missing dates and statuses in the RFI & design register','the register name is kept as written');

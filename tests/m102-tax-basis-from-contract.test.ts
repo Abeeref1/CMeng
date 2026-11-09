@@ -45,7 +45,7 @@ test('M10.2: the contract states "'+wording.slice(0,40)+'...": rows with no basi
   assert.ok(commercialCanonical(state).diagnostics.some(d=>d.startsWith('TAX_BASIS_FROM_CONTRACT:exclusive:')));
   assert.match(JSON.stringify(commercialPositionForState(state)),/TAX_BASIS_FROM_CONTRACT_ROWS_STATE_NONE/,'the certified total names its basis');
   const items=taxItem(state);
-  assert.equal(items.length,1,'asked once');assert.equal(items[0]!.category,'confirmation');
+  assert.equal(items.length,1,'listed once');assert.equal(items[0]!.category,'information');assert.ok(items[0]!.cmengAnswer,'the contract basis is CMeng\'s answer in use, not a required question');
   assert.equal(items[0]!.target.reviewChoice,'exclusive','pre-filled with the contract basis');
 });
 

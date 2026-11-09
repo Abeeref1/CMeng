@@ -56,6 +56,10 @@ export interface ProjectAction {
   correctionRecords?:Array<{source:string;locator:string;documentId?:string;sourceHash?:string}>;
   missingFields?:Array<{field:string;file:string;owner:string;fieldIdentity?:string;headings?:string[];supply?:MissingFieldSupply}>;
   evidenceSummary?:string[];reviewFingerprint?:string;reviewSourceRefs?:string[];
+  /** Universal review rule: CMeng's own answer is in use; shown with a change control, never a required question. */
+  cmengAnswer?:{statement:string;choice:string|null};
+  /** Universal review rule: missing evidence the project can supply; never a required decision. */
+  dataGap?:true;
 }
 const identity=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0,24);
 /** A finding's id is hashed from machine data only (kind, code, raw field,
@@ -703,13 +707,86 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
         completionRule:'This action closes when a Commencement Date is saved, or when a source establishes it.'},
       target:{type:'inline',kind:'commencement-date',label:'Save Commencement Date'}});
   }
-  const unique=[...new Map(actions.map(a=>[a.id,a])).values()];
+  const universal=applyUniversalReviewRule([...new Map(actions.map(a=>[a.id,a])).values()]);
+  const unique=universal.decisions;
   const programme=projectControlSchedule(state),model=programme?.revision.model;
   const ownedActions=unique.map(item=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)}));
-  const dataGaps=information.map(item=>({...item,owner:pmcRoleOwner(item.id,item.owner)}));
-  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,information:dataGaps,dataGaps,heldEvidence:{advanceBondCount:heldAdvanceBonds.length,datedCertificateCount:heldCertificates.length},
+  const owned=(item:ProjectAction)=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)});
+  const cmengAnswers=universal.answers.map(owned),missingEvidence=universal.gaps.map(owned);
+  const recorded=information.map(item=>({...item,owner:pmcRoleOwner(item.id,item.owner)}));
+  // Data gaps: missing evidence first, then the existing missing-field and recorded-decision items.
+  const dataGaps=[...missingEvidence,...recorded];
+  return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,
+    cmengAnswers,cmengAnswerCount:cmengAnswers.length,dataGapCount:missingEvidence.length,
+    information:[...cmengAnswers,...dataGaps],dataGaps,heldEvidence:{advanceBondCount:heldAdvanceBonds.length,datedCertificateCount:heldCertificates.length},
     analysis:{state:model?'analysed':state.schedules.length?'programme_selection_needed':'no_programme',activityCount:model?.activities.length??null,dataDateIso:model?.dataDateIso??null,sourceFilename:programme?.sourceFilename??null},
     systemCheckCount:systemItems.length,scope:'One matter per underlying information or decision group. Affected pages and all original findings are retained inside each matter. Missing optional domains are shown separately as coverage information. Decisions refresh from the current project records.'};
+}
+
+
+/** One rule for every Project review item (owner rule, 3 Nov): if CMeng has a
+ * defensible answer and is already using it, the item is not a required
+ * question; it is shown as CMeng's answer with a control to change it. Missing
+ * evidence is a data gap. Only genuine decisions CMeng cannot establish stay
+ * required: sources that disagree with no answer in use, a calendar working week
+ * the programme does not state, a tax basis no source states, how a competing
+ * document updates the project, the notice provisions of an amended contract and
+ * the procurement date basis. Bulk reviews of thousands of records are never
+ * required questions. */
+export type ReviewRole='decision'|'answer'|'gap';
+const optionLabel=(a:ProjectAction,choice:string|null|undefined)=>choice?(a.target.reviewOptions??[]).find(o=>o.value===choice)?.label??choice.replaceAll('_',' '):null;
+/** CMeng's answer already used by every page when the user has not chosen (the shared readers' default). */
+const DEFAULT_IN_USE:Record<string,{choice:string;statement:string}>={
+  'review-hse-rates':{choice:'keep_reported',statement:'CMeng uses the rates stated in the HSE report, with their qualifications.'},
+  'review-risk':{choice:'keep_source_ratings',statement:'CMeng uses the ratings entered in the risk register.'},
+  'review-locations':{choice:'keep_source_locations',statement:'CMeng uses the source locations and WBS groups shown on Location / Floor / Zone.'},
+  'review-milestones':{choice:'track_key_dates',statement:'CMeng tracks the milestones stated in the programme.'},
+};
+export function reviewRole(a:ProjectAction):{role:ReviewRole;choice?:string|null;statement?:string}{
+  if(a.category==='information'||a.category==='follow_up'||a.resolution?.requiresUserAction===false)return {role:'decision'};
+  const kind=a.target.kind??'';
+  // Missing evidence: a corrected or missing file, or a value no source holds.
+  if(a.resolution?.kind==='upload'||a.target.type==='upload'||a.id==='schedule-missing'||/-entry$/.test(a.id)||
+    a.id==='matter:contract-completion'||a.id==='matter:risk-status-snapshot'||a.id==='matter:undated-determinations'||kind==='commencement-date')return {role:'gap'};
+  // CMeng's own matcher or reader left these; reviewing thousands of records is not a question.
+  if(a.id==='delivery-activity-links'||a.id==='boq-numeric-review'||a.id==='boq-page-review')return {role:'gap'};
+  // Genuine decisions: values that disagree with none in use, and choices no source states.
+  const competingDocument=a.id.startsWith('document:')&&(!a.target.reviewChoice||/unselected documents/.test(a.reason));
+  const conflict=kind==='review-contract-fact'||competingDocument||a.id==='matter:notice-term-versions'||
+    a.id==='matter:procurement-date-basis'||a.id.startsWith('matter:calendar-pattern')||
+    (kind==='review-contract-value'&&(a.target.reviewOptions??[]).filter(o=>o.value.startsWith('value:')).length!==1);
+  if(conflict)return {role:'decision'};
+  if(a.id==='matter:tax-basis')return a.target.reviewChoice?{role:'answer',choice:a.target.reviewChoice,statement:'CMeng uses the contract basis: '+optionLabel(a,a.target.reviewChoice)+'.'}:{role:'decision'};
+  if(a.id==='matter:calendar-basis')return {role:'answer',choice:'working_days',statement:'CMeng calculates on the working days of the programme calendars as supplied.'};
+  const preset=DEFAULT_IN_USE[kind];
+  if(preset)return {role:'answer',choice:a.target.reviewChoice??preset.choice,statement:preset.statement};
+  // A register CMeng already counts as supplied: confirming completeness only adds percentages.
+  if(a.target.type==='delivery'&&a.target.population)return {role:'answer',choice:null,statement:'CMeng counts the '+a.recordCount.toLocaleString('en-US')+' records supplied. Confirm the register is complete only if you want percentages of the whole register.'};
+  if(a.id===('matter:'+RISK_COMPLETE_DECISION_KEY))return {role:'answer',choice:null,statement:'CMeng counts the risks supplied. Confirm the register is complete only if you want them reported as the confirmed total.'};
+  // An adopted record kept until you decide is CMeng's answer in use.
+  if(kind==='review-commercial-record'&&(a.target.reviewOptions??[]).some(o=>o.value==='keep_adopted'))return {role:'answer',choice:'keep_adopted',statement:'CMeng uses the adopted value.'};
+  if(a.id.startsWith('document:')&&a.target.reviewChoice)return {role:'answer',choice:a.target.reviewChoice,
+    statement:'CMeng applies this document as '+((a.target.relationshipOptions??[]).find(o=>o.value===a.target.reviewChoice)?.label??a.target.reviewChoice).toLowerCase()+'.'};
+  if(a.id.startsWith('classification:')&&a.target.reviewChoice)return {role:'answer',choice:a.target.reviewChoice,
+    statement:'CMeng files this document as '+optionLabel(a,a.target.reviewChoice)+(/file name/.test(a.reason)?', from its file name, because the content does not show its type.':'.')};
+  // Any other pre-filled answer is the one CMeng already uses.
+  if(a.target.reviewChoice)return {role:'answer',choice:a.target.reviewChoice,statement:'CMeng uses: '+optionLabel(a,a.target.reviewChoice)+'.'};
+  return {role:'decision'};
+}
+export function applyUniversalReviewRule(items:ProjectAction[]){
+  const decisions:ProjectAction[]=[],answers:ProjectAction[]=[],gaps:ProjectAction[]=[];
+  for(const a of items){
+    const r=reviewRole(a);
+    if(r.role==='decision'){decisions.push(a);continue;}
+    const base:ProjectAction={...a,category:'information'};
+    if(a.resolution)base.resolution={...a.resolution,requiresUserAction:false};
+    if(r.role==='answer'){
+      const choice=r.choice??a.target.reviewChoice??null;
+      answers.push({...base,cmengAnswer:{statement:r.statement??'CMeng uses its own reading.',choice},
+        target:{...a.target,...(choice!==null&&a.target.type==='inline'?{reviewChoice:choice}:{})}});
+    }else gaps.push({...base,dataGap:true});
+  }
+  return {decisions,answers,gaps};
 }
 
 const FORECAST_ACTIONABLE=new Set(['network_repaired','network_references','external_links','assumed_calendar','elapsed_day_pattern','constraints_not_applied','partial_coverage']);

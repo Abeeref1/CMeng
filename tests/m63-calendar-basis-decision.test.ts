@@ -93,9 +93,11 @@ test('M6.3: the duration basis is one planner decision read by every forecast co
   assert.ok(before.gate,'the finish stays visible');
   assert.ok(before.qualifications.includes('elapsed_day_pattern'));
   assert.equal(before.basis.source,'programme');
-  const ask=published(id).actions.filter(a=>a.id==='matter:calendar-basis');
-  assert.equal(ask.length,1,'asked once in the published Project Review');
-  assert.equal(ask[0]!.target.reviewChoice,null,'CMeng does not pre-fill a calendar basis');
+  // Owner rule (3 Nov): CMeng calculates on the programme calendars as supplied; that is its answer in use, shown with a control to change it.
+  const ask=published(id).information.filter(a=>a.id==='matter:calendar-basis'&&a.cmengAnswer);
+  assert.equal(ask.length,1,'listed once as CMeng\'s answer');
+  assert.ok(!published(id).actions.some(a=>a.id==='matter:calendar-basis'),'not a required question');
+  assert.equal(ask[0]!.target.reviewChoice,'working_days','CMeng\'s calculation basis is shown as its answer');
   // (2) Calendar days: every consumer shows the same recalculated finish and the planner basis.
   decide(id,'calendar-basis','calendar_days',ask[0]!.reviewFingerprint!);
   const calendarDays=finishesEverywhere(id);
@@ -118,7 +120,7 @@ test('M6.3: the duration basis is one planner decision read by every forecast co
   await ingest(runtimeProjects,id,changed,'Programme_2.xer','2033-03-23T09:00:00Z');
   const stale=finishesEverywhere(id);
   assert.equal(stale.basis.source,'programme','a decision on other calendars is not applied');
-  assert.ok(published(id).actions.some(a=>a.id==='matter:calendar-basis'),'asked again');
+  assert.ok(published(id).information.some(a=>a.id==='matter:calendar-basis'&&a.cmengAnswer),'CMeng\'s answer is shown again for the new calendars');
 });
 
 test('M6.3: a 6D-8H calendar: the known part is stated, the planner chooses the working week, every consumer recalculates',async()=>{

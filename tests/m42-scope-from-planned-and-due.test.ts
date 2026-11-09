@@ -46,12 +46,12 @@ test('M4.2: without a Data Date, dated rows wait for the Data Date and say so',t
 test('M4.1: an undated register gets an item naming the missing dates, not a completeness question; a dated register gets the question',async t=>{
   const {projectActionRegisterForState}=await import('../packages/runtime-api/src/project-projections');
   // The published Project Review (user decisions).
-  const item=(state:ProjectRuntimeState)=>projectActionRegisterForState(state).workflow.actions.find(a=>a.id==='delivery-population:submittal');
+  const item=(state:ProjectRuntimeState)=>{const w=projectActionRegisterForState(state).workflow;return [...w.actions,...w.information].find(a=>a.id==='delivery-population:submittal');};
   const undated=project(t,'2031-04-15','Submittal No,Title,Status\nS1,Shop drawings,Open\nS2,Method statement,Open');
   const blocked=item(undated);
-  assert.ok(blocked,'an item is published in Project Review');assert.equal(blocked!.category,'review');assert.match(blocked!.reason,/no date/);
+  assert.ok(blocked,'an item is published in Project Review');assert.ok(blocked!.dataGap,'missing dates are a data gap');assert.match(blocked!.reason,/no date/);
   assert.doesNotMatch(blocked!.reason,/so percentages can be reported/);
   const dated=project(t,'2031-04-15','Submittal No,Title,Submitted Date,Status\nS1,Shop drawings,2031-03-01,Open\nS2,Method statement,2031-05-01,Open');
   const ask=item(dated);
-  assert.ok(ask,'the completeness question is asked');assert.equal(ask!.category,'confirmation');
+  assert.ok(ask,'the completeness confirmation is offered');assert.ok(ask!.cmengAnswer,'CMeng counts the supplied records; confirming is optional, not a required question');
 });

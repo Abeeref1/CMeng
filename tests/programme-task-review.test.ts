@@ -55,7 +55,7 @@ test('task scope works without asset registers, survives gateway restart and reo
  const upload=(date:string)=>fetch(base+'/api/projects/TASK-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'replace_current_basis'},body:['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\tCONTROL\t'+date,'%T\tTASK','%F\ttask_id\tproj_id\ttask_code\ttask_name\ttarget_start_date\ttarget_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt','%R\t1\t1\tA1\tTesting plant\t2031-01-01\t2031-12-31\t80\t80','%R\t2\t1\tA2\tValidation plant\t2031-01-01\t2031-12-31\t80\t80','%E'].join('\n')});
  assert.equal((await upload('2031-08-31')).status,201);
  const get=async(path='/actions')=>{const r=await fetch(base+'/api/projects/TASK-REVIEW'+path);assert.equal(r.status,200);return await r.json() as any;};
- let workflow=await get(),action=workflow.actions.find((a:any)=>a.id==='matter:programme-tasks-testing');assert.deepEqual(action.target.reviewActivityIds,['A1']);
+ let workflow=await get(),action=workflow.cmengAnswers.find((a:any)=>a.id==='matter:programme-tasks-testing');assert.ok(!workflow.actions.some((a:any)=>a.id==='matter:programme-tasks-testing'),'CMeng\'s task scope is its answer in use, not a required question');assert.deepEqual(action.target.reviewActivityIds,['A1']);
  const request=(values:any)=>post('/api/projects/TASK-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'selected_tasks',activityIds:['A1','A2'],reference:'VALIDATION-INCLUDED',...values});
  for(const invalid of [{sourceFingerprint:'old'},{expectedVersion:workflow.projectVersion-1},{reference:''},{activityIds:['missing']}])assert.equal((await request(invalid)).status,409);
  assert.equal((await request({})).status,200);await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
@@ -64,7 +64,7 @@ test('task scope works without asset registers, survives gateway restart and reo
  const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String});assert.match(html,/A1\nA2/);assert.match(html,/VALIDATION-INCLUDED/);
  assert.equal((await request({activityIds:[],choice:'no_tasks',reference:'EMPTY-SCOPE'})).status,200);
  assert.equal((await get('/delivery/modules/delivery-commissioning')).data.programmeTaskScope.selectedCount,0);
- assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.id==='matter:programme-tasks-testing'));
+ assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.cmengAnswers.some((a:any)=>a.id==='matter:programme-tasks-testing'),'a new programme shows CMeng\'s new scope again');
 });
 test('task scope display explains the rule and its candidate list is fully pageable',()=>{
  const nodes:Record<string,any>={},p={basis:'Names containing testing; unconfirmed.',qualification:'No formal acceptance.',selectedCount:135,sourceFilename:'Current.xer',additionalCandidates:Array.from({length:134},(_,i)=>({activityId:'V'+i,name:'Validation '+i,status:'unknown',basis:'candidate'}))};

@@ -76,7 +76,7 @@ for(const c of cases)test('C9: '+c.name+': CMeng proposes the additional days, t
   // Asked exactly once, pre-filled; approved EOT days are not asked as a separate typed value.
   const items=overlapItems(state);
   assert.deepEqual(items.map(i=>i.id),['matter:eot-overlap'],'the overlap question is the one EOT question');
-  assert.equal(items[0]!.category,'confirmation');
+  assert.equal(items[0]!.category,'information');assert.ok(items[0]!.cmengAnswer,'the proposal in use is CMeng\'s answer, not a required question');
   assert.equal(items[0]!.target.reviewAdditionalDays,c.days,'pre-filled with the proposal');
   assert.ok(items[0]!.target.reviewOptions?.some(o=>o.value==='accept_proposal'));
   assert.ok(!openMissingValueInputs(state).has('approved-eot-days'),'the register holds the awards; no typed entry is asked');

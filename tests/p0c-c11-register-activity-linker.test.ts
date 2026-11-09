@@ -72,11 +72,12 @@ test('C11: every register type gets CMeng activity links with their basis; equal
 
   // One Project Review item: CMeng's links are listed with their basis; the unclear one asks a choice.
   const review=projectActions(state,summarizeControlIssues([],0));
-  const items=review.actions.filter(a=>a.id==='delivery-activity-links');
+  const items=[...review.actions,...review.information].filter(a=>a.id==='delivery-activity-links');
   assert.equal(items.length,1,'one Project Review item lists CMeng\'s activity links, once');
-  assert.equal(items[0]!.category,'confirmation','an unclear match asks the user to choose');
+  // Owner rule (3 Nov): no bulk review of records as a required question; unclear matches are a data gap the user can open.
+  assert.ok(items[0]!.dataGap&&!review.actions.some(a=>a.id==='delivery-activity-links'),'unclear matches are listed as a data gap, not a required question');
   assert.ok((items[0]!.evidenceSummary??[]).some(line=>line.startsWith('P2:')&&/ACT-104/.test(line)&&/ACT-105/.test(line)),'the unclear record shows both candidates');
-  assert.ok((projectActionRegisterForState(state) as any).actions.some((a:any)=>a.actionId==='delivery-activity-links'),'the same item is on the management action register');
+  assert.ok(!(projectActionRegisterForState(state) as any).actions.some((a:any)=>a.actionId==='delivery-activity-links'),'a data gap is not a management action');
 
   // A reviewed link stands: the user corrects P3 to ACT-100 and it is kept.
   const p3=byRef().get('P3')!;

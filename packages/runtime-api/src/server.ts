@@ -2223,10 +2223,13 @@ async function route(
           (!term||(action.title+' '+action.reason).toLowerCase().includes(term)));
         // Preserve ranking within each category and surface user decisions first.
         if(category==='all')relevant.sort((a,b)=>Number(b.category!=='follow_up')-Number(a.category!=='follow_up'));
-        const gaps=workflow.information??[];
+        const gaps=(workflow as {dataGaps?:typeof workflow.information}).dataGaps??workflow.information??[];
+        const answers=(workflow as {cmengAnswers?:typeof workflow.information}).cmengAnswers??[];
         const gapsPage=Math.min(100000,Math.max(0,Number.parseInt(url.searchParams.get('dataGapsPage')??'0',10)||0));
+        const gapRows=gaps.slice(gapsPage*pageSize,(gapsPage+1)*pageSize),answerRows=answers.slice(0,100);
         json(res,200,{...workflow,actions:relevant.slice(page*pageSize,(page+1)*pageSize),
-          information:gaps.slice(gapsPage*pageSize,(gapsPage+1)*pageSize),
+          cmengAnswers:answerRows,dataGaps:gapRows,
+          information:[...answerRows,...gapRows],
           page,pageSize,matchedActionCount:relevant.length,hasMoreActions:(page+1)*pageSize<relevant.length,
           dataGapsTotalCount:gaps.length,dataGapsPage:gapsPage,hasMoreDataGaps:(gapsPage+1)*pageSize<gaps.length});
         return;
