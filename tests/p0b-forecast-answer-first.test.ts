@@ -89,8 +89,13 @@ test('P0-B: every trigger alone and in every combination keeps the calculated fi
     const label=NAMES.filter(n=>t[n]).join('+'),id='P0B-'+mask;
     await project(id,t);
     const forecast:any=moduleForProject(id,'independent-forecast').data,gate=forecast.forecastReconciliationGate;
-    const finish=gate?.managementForecastCompletionIso??null,codes=new Set<string>((gate?.managementForecast?.qualifications??[]).map((q:any)=>q.code));
-    if(!finish){failures.push(label+': finish erased ('+gate?.reason+')');continue;}
+    // P0-B: the calculated finish is never erased. Owner rule (3 Nov): it leads the
+    // headline only when reliable; a finish 400 days from the contractor's does not.
+    const calculated=gate?.managementForecast?.completionIso??null,codes=new Set<string>((gate?.managementForecast?.qualifications??[]).map((q:any)=>q.code));
+    if(!calculated){failures.push(label+': finish erased ('+gate?.reason+')');continue;}
+    const finish=gate.managementForecastCompletionIso??null;
+    if(t.difference400){if(finish!==null||gate.managementForecast.headline?.source!=='contractor_programme')failures.push(label+': an unreliable finish leads the headline');}
+    else if(finish!==calculated)failures.push(label+': a reliable finish does not lead the headline');
     for(const code of expectedCodes(t))if(!codes.has(code))failures.push(label+': missing qualification '+code);
     for(const q of gate.managementForecast.qualifications)if(!q.text||!q.action)failures.push(label+': qualification '+q.code+' does not say what would reconcile it');
     // C4 and C5: an unused bad calendar and a completed task on a bad calendar change nothing.
@@ -104,12 +109,14 @@ test('P0-B: every trigger alone and in every combination keeps the calculated fi
       const page:any=moduleForProject(id,key);
       if(page.status==='blocked'){failures.push(label+': '+key+' blocked');continue;}
       const shown=finishesOn(page.data).filter(f=>f.value!==undefined);
-      for(const f of shown)if(f.value!==finish)failures.push(label+': '+key+' '+f.key+' = '+String(f.value)+' (expected '+finish+')');
+      // CMeng's calculation is one value on every page; it stays visible even when it does not lead.
+      for(const f of shown){const want=f.key==='managementForecastCompletionIso'?finish:calculated;if(f.value!==want)failures.push(label+': '+key+' '+f.key+' = '+String(f.value)+' (expected '+want+')');}
+      if(key==='master-dashboard'&&t.difference400&&page.data?.projectFacts?.time?.forecastHeadline?.source!=='contractor_programme')failures.push(label+': the Dashboard headline is not the contractor programme');
     }
     const director:any=moduleForProject(id,'pmo-analysis').data;
     const directorFinish=director?.schedule?.independentForecastCompletionIso;
-    if(directorFinish!==undefined&&directorFinish!==finish)failures.push(label+': Director shows '+directorFinish+' (expected '+finish+')');
-    if(forecast.completionPosition&&forecast.completionPosition.independentFinishIso!==finish)failures.push(label+': completion position (read by Ask) shows '+forecast.completionPosition.independentFinishIso);
+    if(directorFinish!==undefined&&directorFinish!==calculated&&directorFinish!==finish)failures.push(label+': Director shows '+directorFinish+' (expected '+calculated+')');
+    if(forecast.completionPosition&&forecast.completionPosition.independentFinishIso!==calculated)failures.push(label+': completion position (read by Ask) shows '+forecast.completionPosition.independentFinishIso);
   }
   assert.deepEqual(failures,[],failures.slice(0,40).join('\n'));
 });

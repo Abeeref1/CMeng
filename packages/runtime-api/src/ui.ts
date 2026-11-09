@@ -1963,9 +1963,12 @@ function renderForecastVisual(data){
     taxonomy.independentEvidenceBased||{label:"Independent evidence-based forecast",completionIso:null,state:"not_established"},
     taxonomy.scenarioRecovery||{label:"Scenario/recovery forecast",completionIso:null,state:"not_established"}
   ];
-  const managementForecast=calcFinish;
+  // Owner rule (3 Nov): the headline is CMeng's finish only when reliable; otherwise the contractor's programme finish leads.
+  const headline=(gate.managementForecast&&gate.managementForecast.headline)||null;
+  const contractorLeads=!!headline&&headline.source==="contractor_programme";
+  const managementForecast=contractorLeads?headline.completionIso:calcFinish;
   const kpis=planningKpis([
-    ["Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Not calculable",managementForecast?(gate.publishable?"CMeng CPM analysis; all reconciliation checks passed; not a contractual date":"CMeng CPM analysis with "+qualifications.length+" qualification"+(qualifications.length===1?"":"s")+" listed below; not a contractual date"):notCalculable,managementForecast&&gate.publishable?"success":"warning"],
+    [contractorLeads?"Forecast finish (contractor's programme)":"Management analytical forecast",managementForecast?planningShortDate(managementForecast):"Not calculable",contractorLeads?headline.statement:managementForecast?(gate.publishable?"CMeng CPM analysis; all reconciliation checks passed; not a contractual date":"CMeng CPM analysis with "+qualifications.length+" qualification"+(qualifications.length===1?"":"s")+" listed below; not a contractual date"):notCalculable,managementForecast&&gate.publishable?"success":"warning"],
     ["CPM activity coverage",p.activityCoveragePercent===null?"Not established":fmt(p.activityCoveragePercent)+"%",fmt(p.calculatedActivityCount)+" calculated · "+fmt(p.unresolvedActivityCount)+" unresolved",p.unresolvedActivityCount?"warning":""],
     ["Submitted vs CPM",!calcFinish?"Not calculable":calcVariance===null||calcVariance===undefined?"Not established":(calcVariance>0?"+":"")+fmt(calcVariance)+" d","CMeng finish minus the contractor's programme finish"],
     ["Required finish",planningShortDate(taxonomy.contractualCompletion?.completionIso||p.requiredFinishIso),"contractual/required authority if established"]

@@ -66,9 +66,12 @@ export function positionVerdict(result:ModuleRuntimeResult) {
       // produce a green CMeng management verdict while the independent
       // management forecast is withheld or unavailable.
       rag=submittedDays>0?'red':'amber';
+      // Owner rule (3 Nov): when CMeng's own finish is not reliable, the contractor's programme leads and the reason is said once.
+      const headline=canonicalTime?.forecastHeadline;
+      const why=headline?.source==='contractor_programme'&&headline.notReliableReasons?.length?' CMeng\'s own calculation is not used as the headline because '+headline.notReliableReasons.join('; ')+'.':' CMeng\'s own calculation is not available.';
       text=submittedDays>0
-        ?'Submitted completion is '+Math.round(submittedDays)+' calendar days late against the contract date. CMeng management forecast is not yet publishable.'
-        :'Submitted completion is within the contract date, but CMeng management forecast is not yet publishable. This is a submitted position, not a confirmed management forecast.';
+        ?'The contractor\'s programme finishes '+Math.round(submittedDays)+' calendar days after the contract date.'+why
+        :'The contractor\'s programme finishes within the contract date.'+why;
       nextAction=submittedDays>0
         ?'Review the submitted late completion; the packages driving it have not yet been established. Complete the CMeng forecast reconciliation before setting recovery actions.'
         :'Complete the CMeng forecast reconciliation before treating the submitted ahead position as the management forecast.';

@@ -204,15 +204,32 @@ export function buildForecastReconciliationGate(input: {
     (failed.filter(check => check.key !== "required_finish_authority" && check.key !== "material_activity_divergence").map(check => check.label + ": " + check.detail).join(" ") ||
       "CMeng could not calculate a finish from this programme network.");
   const managementState = !usable ? "not_calculable" as const : qualifications.length ? "calculated_with_qualifications" as const : "calculated" as const;
+  // Owner rule (3 Nov): CMeng's own finish stays visible, but it leads the management
+  // headline only when it is reliable: enough of the activities calculated, readable
+  // calendars, a sound network and a finish within a believable distance of the
+  // contractor's programme. Otherwise the contractor's programme finish leads and the
+  // reasons are stated once.
+  const credibility = forecastCredibility({forecast, model, calculatedFinish: usable ? calculatedFinish : null, graphProblemCount: graphDiagnostics.length + externalLinks.length});
+  const reliable = usable && credibility.reasons.length === 0;
   return {
     state: publishable ? "publishable" as const : "review_required" as const,
     publishable,
     usable,
     valueState: usable ? (qualifications.length ? 'calculated_with_stated_assumption' as const : 'calculated' as const) : 'missing' as const,
-    managementForecastCompletionIso: usable ? calculatedFinish : null,
+    // The headline finish: CMeng's calculation only when it is reliable.
+    managementForecastCompletionIso: reliable ? calculatedFinish : null,
+    reliable,
     managementForecast: {
       completionIso: usable ? calculatedFinish : null,
       state: managementState,
+      reliable,
+      notReliableReasons: credibility.reasons,
+      headline: reliable
+        ? {source: "cmeng_calculation" as const, completionIso: calculatedFinish, statement: "CMeng's calculated finish."}
+        : {source: "contractor_programme" as const, completionIso: forecast.sourceForecastCompletionIso ?? null,
+          statement: usable
+            ? "The contractor's programme finish leads. CMeng's own calculation (" + String(calculatedFinish).slice(0, 10) + ") is shown below but not used as the headline: " + credibility.reasons.join("; ") + "."
+            : "The contractor's programme finish leads. CMeng could not calculate a finish from this programme."},
       qualifications,
       notCalculableReason,
       // M6.3: the calendar basis the finish uses: the programme as supplied, or the planner's confirmed basis.
@@ -394,4 +411,34 @@ export function forecastControlForState(
       },
     },
   };
+}
+
+/** Owner rule (3 Nov): when CMeng's own finish is not reliable enough to lead the
+ * management headline. Shared by every consumer through the forecast gate. */
+export const FORECAST_MIN_COVERAGE_PERCENT=90;
+export const FORECAST_MAX_ASSUMED_CALENDAR_SHARE=0.1;
+export const FORECAST_MAX_GRAPH_PROBLEM_SHARE=0.01;
+export function forecastCredibility(input:{forecast:IndependentForecastProjection;model:CanonicalScheduleModel;calculatedFinish:string|null;graphProblemCount:number}){
+  const {forecast,model,calculatedFinish}=input;
+  const reasons:string[]=[];
+  if(!calculatedFinish)return {reasons:["CMeng could not calculate a finish"],divergenceDays:null as number|null};
+  const day=(iso:string|null|undefined)=>{const t=iso?Date.parse(String(iso).slice(0,10)+"T00:00:00Z"):NaN;return Number.isFinite(t)?t/86400000:null;};
+  const open=model.activities.filter(activity=>activity.status!=="completed").length;
+  const coverage=forecast.activityCoveragePercent;
+  if(typeof coverage==="number"&&coverage<FORECAST_MIN_COVERAGE_PERCENT)
+    reasons.push("it covers only "+Math.round(coverage*10)/10+"% of the activities");
+  const assumed=(forecast.assumedCalendarOpenActivityIds??[]).length;
+  if(open>0&&assumed/open>FORECAST_MAX_ASSUMED_CALENDAR_SHARE)
+    reasons.push(assumed.toLocaleString("en-US")+" of "+open.toLocaleString("en-US")+" open activities have no readable working calendar");
+  if(model.activities.length>0&&input.graphProblemCount/model.activities.length>FORECAST_MAX_GRAPH_PROBLEM_SHARE)
+    reasons.push("the programme has "+input.graphProblemCount.toLocaleString("en-US")+" logic problems");
+  const finish=day(calculatedFinish),submitted=day(forecast.sourceForecastCompletionIso),dataDate=day(model.dataDateIso);
+  const divergenceDays=finish!==null&&submitted!==null?Math.round(finish-submitted):null;
+  if(divergenceDays!==null){
+    const remaining=submitted!==null&&dataDate!==null?Math.max(0,submitted-dataDate):null;
+    const limit=Math.max(90,remaining!==null?remaining*0.25:0);
+    if(Math.abs(divergenceDays)>limit)
+      reasons.push("it differs from the contractor's programme finish by "+Math.abs(divergenceDays).toLocaleString("en-US")+" days, more than the "+Math.round(limit).toLocaleString("en-US")+"-day credibility limit");
+  }
+  return {reasons,divergenceDays};
 }

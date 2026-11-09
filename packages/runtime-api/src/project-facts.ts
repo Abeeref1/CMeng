@@ -103,6 +103,8 @@ export interface ProjectFactsSnapshot {
     submittedDaysAfterCurrentContract?:ProjectFact<number>;
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
     independentDaysAfterCurrentContract?:ProjectFact<number>;
+    /** Owner rule (3 Nov): which finish leads the management headline, and why. */
+    forecastHeadline?:{source:'cmeng_calculation'|'contractor_programme';completionIso:string|null;statement:string;notReliableReasons:string[]}|null;
     amendmentEotStatements?:Array<{documentId:string;statement:string;sourceRefs:string[];basis:string;sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string}>;
   };
   controls:{
@@ -530,6 +532,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     },
     time:{
       amendmentEotStatements,
+      forecastHeadline:forecastGate?{...forecastGate.managementForecast.headline,notReliableReasons:forecastGate.managementForecast.notReliableReasons}:null,
       submittedDaysAfterOriginalCompletion:fact(calendarDifference(submittedFinish?.dateIso,commercial.timeExposure.contractualCompletion.value),'Submitted programme finish minus the recorded original contractual completion, calendar-date comparison only. This is not the award-adjusted deadline or entitlement.','calculated_with_stated_basis'),
       submittedDaysAfterCurrentContract:fact(calendarDifference(submittedFinish?.dateIso,currentContractCompletion),'Submitted finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       independentDaysAfterCurrentContract:fact(calendarDifference(independentFinish,currentContractCompletion),'Calendar recalculation finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
