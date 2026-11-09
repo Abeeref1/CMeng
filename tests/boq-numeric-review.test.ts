@@ -92,7 +92,10 @@ test('partial review keeps other exceptions open, supports unpriced quantities a
  const remaining=boqNumericReview(state);assert.equal(remaining.pendingCount,3);assert.equal(remaining.confirmedCount,1);
  assert.deepEqual(resolveBoqSource(state,'S').quantities!.items.map(i=>i.contractQuantity),[3,null,null,null]);
  const figures=suppliedBoqFigures(resolveBoqSource(state,'S').boq,null);assert.equal(figures.rows[0]!.rate,null);
- const assessment={issues:[]} as any,actions=projectActions(state,assessment);assert.equal(actions.actions.filter(a=>a.id==='boq-numeric-review').length,1);
+ const assessment={issues:[]} as any,actions=projectActions(state,assessment);
+ // Owner rule: unconfirmed BOQ readings are a data gap listed once, never a bulk required question.
+ assert.equal([...actions.actions,...actions.information].filter(a=>a.id==='boq-numeric-review').length,1);
+ assert.equal(actions.actions.filter(a=>a.id==='boq-numeric-review').length,0);
 });
 
 test('a failed durable save cannot leave confirmed values live and the exact batch can be retried',async t=>{
