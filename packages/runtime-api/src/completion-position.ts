@@ -30,7 +30,9 @@ export function completionPosition(data:any, forecast:any=data, names:Map<string
     .map((r:any)=>({activityId:r.activityId,name:names.get(r.activityId)??r.name??r.activityId,submittedFinishIso:r.sourceFinishIso,calculatedFinishIso:r.independentEarlyFinishIso,differenceElapsedDays:r.finishVarianceDays}));
   const implication=difference===null?'The available completion dates are shown separately; a like-for-like finish comparison is not established.':Math.abs(difference)<.000001?'The submitted finish and calendar recalculation agree.':
     'The calendar recalculation finishes '+Math.abs(difference).toFixed(2)+' elapsed calendar days '+(difference>0?'later':'earlier')+' than the submitted programme. '+(scenario?'Use this as a comparison with stated assumptions; it is not an approved revised finish.':'The difference identifies programme dates to reconcile.');
-  return {submittedFinishIso:submitted,independentFinishIso:independent,contractualFinishIso:contract,differenceElapsedDays:difference,
+  // Owner rule (3 Nov): CMeng's finish stays visible here; the gate says whether it may lead a headline.
+  const reliableFlag=forecast.forecastReconciliationGate?.reliable??data.forecastReconciliationGate?.reliable;
+  return {submittedFinishIso:submitted,independentFinishIso:independent,independentReliable:reliableFlag===false?false:true,contractualFinishIso:contract,differenceElapsedDays:difference,
     calculationState:independent?(scenario?'scenario':'calculated'):'unavailable',complete,origin,
     activityCount:forecast.calculatedActivityCount??null,coveragePercent:forecast.activityCoveragePercent??data.forecast?.activityCoveragePercent??null,
     interpretation:implication,limitations,differenceRows,comparableActivityCount:comparable.length,

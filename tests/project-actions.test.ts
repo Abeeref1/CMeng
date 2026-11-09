@@ -21,7 +21,7 @@ test('uncertain document classification reaches Project Review and stays editabl
  assert.equal((await fetch(base+'/api/projects/TYPE-REVIEW/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Uncertain.txt'},body:'A source document awaiting a detailed content review.'})).status,201);
  const get=async(path='/actions')=>{const r=await fetch(base+'/api/projects/TYPE-REVIEW'+path);assert.equal(r.status,200);return await r.json() as any;};
  const original=(await get('/evidence/documents')).documents[0];assert.equal(original.identification.needsReview,true);assert.equal(original.classificationReview.reviewRequired,true);
- let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-document-classification');assert.ok(action);
+ let workflow=await get(),action=[...workflow.actions,...workflow.information].find((a:any)=>a.target.kind==='review-document-classification');assert.ok(action);
  const sourceUrl=base+'/api/projects/TYPE-REVIEW/evidence/documents/'+encodeURIComponent(original.documentId)+'/source?hash='+original.sourceHashSha256;
  const sourceResponse=await fetch(sourceUrl);assert.equal(sourceResponse.status,200);assert.equal(await sourceResponse.text(),'A source document awaiting a detailed content review.');assert.match(sourceResponse.headers.get('content-disposition')??'',/attachment/);
  assert.equal((await fetch(sourceUrl+'wrong')).status,409);
@@ -98,7 +98,7 @@ test('missing contractual completion is a data gap and never blocks programme an
 test('missing contract date stays a review state and single-revision change limitation uses business wording',async()=>{
   const {positionVerdict}=await import('../packages/runtime-api/src/position-review');
   const verdict=positionVerdict({key:'master-dashboard',status:'ready',reason:null,dependencies:[],data:{metrics:[{key:'submitted-programme-finish',value:'2031-12-31T00:00:00.000Z'},{key:'contract-finish',value:null}]}} as any);
-  assert.equal(verdict.rag,'amber');assert.match(verdict.text,/Programme analysis remains available/);assert.match(verdict.nextAction,/Actions required/);
+  assert.equal(verdict.rag,'amber');assert.match(verdict.text,/No contract completion date is in the documents/);assert.match(verdict.nextAction,/Add the contract/);
 
   const {projectActions}=await import('../packages/runtime-api/src/project-actions');
   const {summarizeControlIssues}=await import('../packages/truth-kernel/src');
@@ -133,9 +133,9 @@ test('unrelated missing commercial inputs remain visible together without creati
   const state=runtimeProjects.getOrCreate('GROUPED-ACTION-REVIEW');
   const items=['currency','retention','paymentPeriod'].map(field=>({code:'MISSING_SOURCE_VALUE',kind:'missing_information' as const,summary:field,detail:'Missing '+field,action:'Provide '+field,owner:'Project evidence owner' as const,moduleKeys:['contract-particulars-bonds'],sourceRefs:[],checkIds:[],evidencePaths:['contract.'+field]}));
   const result=projectActions(state,summarizeControlIssues(items));
-  assert.equal(result.information.reduce((n,a)=>n+(a.requestCount??0),0),3);
-  assert.ok(result.information.every(a=>a.target.type==='inline'));
-  assert.equal(result.information.flatMap(a=>a.findings??[]).length,3);
+  assert.equal(result.information.filter((a:any)=>!a.dataGap&&!a.cmengAnswer).reduce((n,a)=>n+(a.requestCount??0),0),3);
+  assert.ok(result.information.filter((a:any)=>!a.dataGap&&!a.cmengAnswer).every(a=>a.target.type==='inline'));
+  assert.equal(result.information.filter((a:any)=>!a.dataGap&&!a.cmengAnswer).flatMap(a=>a.findings??[]).length,3);
   assert.ok(!result.actions.some(a=>a.target.type==='module'));
 });
 
@@ -160,7 +160,8 @@ test('one payment conflict does not turn unrelated missing fields into one corre
     {code:'MISSING_SOURCE_VALUE',kind:'missing_information',summary:'amounts · application Amount · information missing',detail:'Application amount is not supplied.',action:'Supply only if required.',owner:'Project evidence owner',moduleKeys:['payments'],sourceRefs:['evidence-document:IPC:row:3'],checkIds:[],evidencePaths:['data.focus.paymentRegister.rows[*].amounts.applicationAmount']}
   ];
   const result=projectActions(state,summarizeControlIssues(issues));
-  const correction=result.actions.find((a:any)=>a.id==='matter:payments:correction');
+  // Owner rule (9 Nov): a record that needs a corrected file is missing evidence, a data gap.
+  const correction=[...result.actions,...result.information].find((a:any)=>a.id==='matter:payments:correction');assert.ok(correction?.dataGap&&!result.actions.some((a:any)=>a.id==='matter:payments:correction'));
   const information=result.information.find((a:any)=>a.id==='matter:payments:information');
   assert.ok(correction);assert.equal(correction!.requestCount,1);assert.equal(correction!.findings?.[0]?.kind,'source_conflict');
   assert.equal(correction!.correctionRecords?.[0]?.locator,'Row 3');
@@ -233,13 +234,13 @@ test('risk review rejects stale evidence, updates shared reporting and remains e
  assert.equal((await post('/api/projects',{projectId:'RISK-REVIEW'})).status,201);
  assert.equal((await fetch(base+'/api/projects/RISK-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'add_update','x-schedule-role':'update','x-schedule-role-confirmed':'1'},body:xer('2031-08-31','Current')})).status,201);
  assert.equal((await fetch(base+'/api/projects/RISK-REVIEW/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'Risk Register.csv'},body:'Risk ID,Description,Status,Probability,Impact,Score,Rating,Owner\nR1,Access,Open,2,3,6,High,Owner\nR2,Design,Closed,2,3,6,Low,Owner'})).status,201);
- let workflow=await get();let action=workflow.actions.find((a:any)=>a.target.kind==='review-risk-snapshot');assert.ok(action);
+ let workflow=await get();let action=[...workflow.actions,...workflow.information].find((a:any)=>a.target.kind==='review-risk-snapshot');assert.ok(action);
  const request=(values:any)=>post('/api/projects/RISK-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,...values});
  assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-02-30'})).status,409);
  assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-08-20',sourceFingerprint:'stale'})).status,409);
  assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-08-20',expectedVersion:workflow.projectVersion-1})).status,409);
  assert.equal((await request({choice:'confirm_snapshot',asOfIso:'2031-08-20'})).status,200);
- workflow=await get();action=workflow.actions.find((a:any)=>a.target.kind==='review-risk');assert.ok(action);
+ workflow=await get();action=[...workflow.actions,...workflow.information].find((a:any)=>a.target.kind==='review-risk');assert.ok(action);
  assert.equal((await request({choice:'enter_matrix',matrixText:'7=Moderate'})).status,409);
  assert.equal((await request({choice:'enter_matrix',matrixText:'6=Moderate'})).status,200);
  let risk=await get('/schedule/modules/risk-register');
@@ -250,7 +251,7 @@ test('risk review rejects stale evidence, updates shared reporting and remains e
  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
  workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-risk');assert.ok(action);
  assert.equal(action.resolution.requiresUserAction,false);assert.equal(action.target.reviewMatrixText,'6=Moderate');
- const script=countHelpers+projectActionsScript+'\nprojectActionState={projectId:"RISK-REVIEW",status:"ready",data:'+JSON.stringify({...workflow,actions:[],information:[action]})+'};renderProjectActionList()';
+ const script=countHelpers+projectActionsScript+'\nprojectActionState={projectId:"RISK-REVIEW",status:"ready",data:'+JSON.stringify({...workflow,actions:[],cmengAnswers:[],dataGaps:[action],information:[action]})+'};renderProjectActionList()';
  const html=runInNewContext(script,{project:()=> 'RISK-REVIEW',fmt:String,escapeHtml:String,formatDocumentTime:()=> 'now',planningShortDate:String,renderActionFindings:()=>''});
  assert.match(html,/action-information action-review-recorded/);assert.match(html,/6=Moderate<\/textarea>/);
  assert.match(projectActionsStyles,/\.action-information\.action-review-recorded \.action-resolution\{display:grid\}/);
@@ -267,7 +268,7 @@ test('EOT review validates additional days and reference and retains a manual co
  const basis={contractualCompletionIso:'2031-12-31',contractualCompletionState:'official',officialApprovedEotDays:20,officialApprovedEotState:'official',eotDayBasis:'calendar_days',eotDayBasisState:'official',incorporatedEotDays:90,additionalApprovedEotDays:null,overlapResolution:'unresolved',registerDeterminationDays:20,registerDeterminationCount:2,sourceRefs:['governed:Engineer determination and amendment']};
  assert.equal((await fetch(base+'/api/projects/EOT-REVIEW/controls',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({contractTimeBasis:basis})})).status,200);
  const get=async()=>await (await fetch(base+'/api/projects/EOT-REVIEW/actions')).json() as any;
- let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-eot-overlap');assert.ok(action);
+ let workflow=await get(),action=[...workflow.actions,...workflow.information].find((a:any)=>a.target.kind==='review-eot-overlap');assert.ok(action);
  const request=(values:any)=>post('/api/projects/EOT-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'confirm_additional_days',...values});
  for(const additionalDays of ['',-1,21,'bad'])assert.equal((await request({additionalDays,reference:'Engineer decision'})).status,409);
  // C9 / R2: a supporting reference is kept when given, not required.
@@ -286,7 +287,7 @@ test('HSE rate review is editable after gateway restart and preserves reported v
  assert.equal((await fetch(base+'/api/projects/HSE-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Update.xer','x-upload-intent':'replace_current_basis'},body:xer('2031-08-31','Current work')})).status,201);
  assert.equal((await fetch(base+'/api/projects/HSE-REVIEW/evidence/uploads',{method:'POST',headers:{'content-type':'text/csv','x-source-filename':'HSE Statistics.csv'},body:'Report Date,Man Hours,LTI,MTC,Restricted Work Cases,First Aid Cases,Near Misses,TRIR,LTIFR\n2031-08-31,10250000,1,5,0,21,74,0.29,0.1'})).status,201);
  const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/HSE-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
- let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-hse-rates');assert.ok(action);
+ let workflow=await get(),action=[...workflow.actions,...workflow.information].find((a:any)=>a.target.kind==='review-hse-rates');assert.ok(action);
  const request=(values:any)=>post('/api/projects/HSE-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'confirm_rates',reference:'HSE-CHECK-1',...values});
  assert.equal((await request({reviewedRates:{trir:0.59}})).status,409);
  assert.equal((await request({sourceFingerprint:'stale'})).status,409);
@@ -311,7 +312,7 @@ test('programme milestone review persists without editing source types and expir
  const upload=(date:string)=>fetch(base+'/api/projects/MILESTONE-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'replace_current_basis'},body:xer(date,'Construction work')});
  assert.equal((await upload('2031-08-31')).status,201);
  const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/MILESTONE-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
- let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-milestones');assert.ok(action);
+ let workflow=await get(),action=[...workflow.actions,...workflow.information].find((a:any)=>a.target.kind==='review-milestones');assert.ok(action);
  const before=(await get('/schedule/modules/milestones')).data;assert.equal(before.populationState,'partial');assert.equal(before.milestoneCount,0);
  assert.equal(before.exposure.value,null);assert.equal(before.challenge.items.find((r:any)=>r.metric==='milestone_count').independent.value,null);
  const request=(values:any)=>post('/api/projects/MILESTONE-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'track_key_dates',activityIds:['A1'],reference:'PLANNER-CHECK-1',...values});
@@ -334,7 +335,7 @@ test('programme milestone review persists without editing source types and expir
  assert.equal((await upload('2031-09-30')).status,201);
  const changed=(await get('/schedule/modules/milestones')).data;assert.equal(changed.populationState,'partial');assert.equal(changed.review.choice,null);assert.equal(changed.reviewedKeyDateCount,0);
  assert.equal((await get('/schedule/modules/delay-claims')).data.delayEotEvidenceChain.programmeContext.pressuredMilestoneCount,null);
- workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-milestones'));
+ workflow=await get();assert.ok([...workflow.actions,...workflow.information].some((a:any)=>a.target.kind==='review-milestones'));
 });
 
 test('location review persists through restart and source replacement reopens the same candidate decision',async t=>{
@@ -347,7 +348,7 @@ test('location review persists through restart and source replacement reopens th
  const upload=(date:string)=>fetch(base+'/api/projects/LOC-REVIEW/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'Current.xer','x-upload-intent':'replace_current_basis'},body:schedule(date)});
  assert.equal((await upload('2031-08-31')).status,201);
  const get=async(suffix='/actions')=>{const r=await fetch(base+'/api/projects/LOC-REVIEW'+suffix);assert.equal(r.status,200);return await r.json() as any;};
- let workflow=await get(),action=workflow.actions.find((a:any)=>a.target.kind==='review-locations');assert.ok(action);
+ let workflow=await get(),action=[...workflow.actions,...workflow.information].find((a:any)=>a.target.kind==='review-locations');assert.ok(action);
  const request=(values:any)=>post('/api/projects/LOC-REVIEW/actions/confirm-review',{expectedVersion:workflow.projectVersion,actionId:action.id,sourceFingerprint:action.reviewFingerprint,choice:'confirm_wbs_locations',locationAssignmentsText:'W1',reference:'LOC-CHECK',...values});
  for(const invalid of [{expectedVersion:workflow.projectVersion-1},{sourceFingerprint:'old'},{locationAssignmentsText:'INVALID'},{reference:''}])assert.equal((await request(invalid)).status,409);
  assert.equal((await request({})).status,200);
@@ -355,7 +356,7 @@ test('location review persists through restart and source replacement reopens th
  await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();workflow=await get();action=workflow.information.find((a:any)=>a.target.kind==='review-locations');assert.ok(action);assert.equal(action.target.reviewLocationsText,'W1 | Manufacturing North');
  const html=runInNewContext(projectActionsScript+';actionResolutionHtml(action)',{action,escapeHtml:String});assert.match(html,/review-location-assignments/);assert.match(html,/LOC-CHECK/);
  projection=(await get('/schedule/modules/scope-classification')).data;assert.equal(projection.rows[0].location,'Manufacturing North');
- assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok(workflow.actions.some((a:any)=>a.target.kind==='review-locations'));
+ assert.equal((await upload('2031-09-30')).status,201);workflow=await get();assert.ok([...workflow.actions,...workflow.information].some((a:any)=>a.target.kind==='review-locations'));
  projection=(await get('/schedule/modules/scope-classification')).data;assert.equal(projection.rows[0].location,null);
 });
 

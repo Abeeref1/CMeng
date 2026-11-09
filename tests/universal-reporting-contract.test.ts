@@ -317,7 +317,8 @@ test('portfolio retains the shared current contract, separate further adjustment
   const response=await fetch('http://127.0.0.1:'+port+'/api/portfolio');assert.equal(response.status,200,response.status===200?'':await response.clone().text());
   const body=await response.json() as any, item=body.projects.find((p:any)=>p.projectId===state.projectId);
   assert.equal(item.officialCompletionIso,'2031-12-31');assert.equal(item.furtherAdjustedCompletionIso,null);
-  assert.equal(item.forecastAuthority,director.schedule.independentForecastCompletionIso?'calculated_with_assumptions':'source');assert.equal(item.forecastCompletionIso,director.schedule.independentForecastCompletionIso??director.schedule.submittedProgrammeCompletionIso);assert.match(item.forecastLabel,/programme finish/);assert.equal(item.calendarRecalculationIso,director.schedule.independentForecastCompletionIso);
+  assert.equal(item.forecastAuthority,director.schedule.independentForecastCompletionIso?'calculated_with_assumptions':'source');assert.equal(item.forecastCompletionIso,director.schedule.independentForecastCompletionIso??director.schedule.submittedProgrammeCompletionIso);assert.match(item.forecastLabel,/programme finish/);// Owner rule (3 Nov): the recalculation stays visible on the card; it leads only when reliable.
+  const gateNow=(moduleForProject(state.projectId,'independent-forecast').data as any)?.forecastReconciliationGate;assert.equal(item.calendarRecalculationIso,gateNow?.managementForecast?.completionIso??director.schedule.independentForecastCompletionIso);
   assert.equal(item.approvedEotDays,null);assert.match(item.approvedEotBasis,/overlap.*reconciliation/);
   const facts=projectFactsForState(state);
   assert.equal(item.submittedProgrammeCompletionIso,facts.schedule.submittedProgrammeCompletionIso.value);

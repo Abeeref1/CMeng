@@ -737,10 +737,10 @@ export type ReviewRole='decision'|'answer'|'gap';
 const optionLabel=(a:ProjectAction,choice:string|null|undefined)=>choice?(a.target.reviewOptions??[]).find(o=>o.value===choice)?.label??choice.replaceAll('_',' '):null;
 /** CMeng's answer already used by every page when the user has not chosen (the shared readers' default). */
 const DEFAULT_IN_USE:Record<string,{choice:string;statement:string}>={
-  'review-hse-rates':{choice:'keep_reported',statement:'CMeng uses the rates stated in the HSE report, with their qualifications.'},
-  'review-risk':{choice:'keep_source_ratings',statement:'CMeng uses the ratings entered in the risk register.'},
-  'review-locations':{choice:'keep_source_locations',statement:'CMeng uses the source locations and WBS groups shown on Location / Floor / Zone.'},
-  'review-milestones':{choice:'track_key_dates',statement:'CMeng tracks the milestones stated in the programme.'},
+  'matter:hse-rate-basis':{choice:'keep_reported',statement:'CMeng uses the rates stated in the HSE report, with their qualifications.'},
+  'matter:risk-rating-rule':{choice:'keep_source_ratings',statement:'CMeng uses the ratings entered in the risk register.'},
+  'matter:location-grouping':{choice:'keep_source_locations',statement:'CMeng uses the source locations and WBS groups shown on Location / Floor / Zone.'},
+  'matter:milestone-selection':{choice:'track_key_dates',statement:'CMeng tracks the milestones stated in the programme.'},
 };
 export function reviewRole(a:ProjectAction):{role:ReviewRole;choice?:string|null;statement?:string}{
   if(a.category==='information'||a.category==='follow_up'||a.resolution?.requiresUserAction===false)return {role:'decision'};
@@ -758,7 +758,7 @@ export function reviewRole(a:ProjectAction):{role:ReviewRole;choice?:string|null
   if(conflict)return {role:'decision'};
   if(a.id==='matter:tax-basis')return a.target.reviewChoice?{role:'answer',choice:a.target.reviewChoice,statement:'CMeng uses the contract basis: '+optionLabel(a,a.target.reviewChoice)+'.'}:{role:'decision'};
   if(a.id==='matter:calendar-basis')return {role:'answer',choice:'working_days',statement:'CMeng calculates on the working days of the programme calendars as supplied.'};
-  const preset=DEFAULT_IN_USE[kind];
+  const preset=DEFAULT_IN_USE[a.id];
   if(preset)return {role:'answer',choice:a.target.reviewChoice??preset.choice,statement:preset.statement};
   // A register CMeng already counts as supplied: confirming completeness only adds percentages.
   if(a.target.type==='delivery'&&a.target.population)return {role:'answer',choice:null,statement:'CMeng counts the '+a.recordCount.toLocaleString('en-US')+' records supplied. Confirm the register is complete only if you want percentages of the whole register.'};

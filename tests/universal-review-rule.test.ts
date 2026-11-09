@@ -35,6 +35,7 @@ const cases:Array<[string,ProjectAction,'decision'|'answer'|'gap']>=[
   ['thousands of unclear activity links',item('delivery-activity-links',{recordCount:10000,target:{type:'module'}}),'gap'],
   ['721 BOQ source pages',item('boq-page-review',{recordCount:721,target:{kind:'boq-numeric-review'}}),'gap'],
   ['locations for 9,322 activities',item('matter:location-grouping',{recordCount:9322,target:{kind:'review-locations',reviewChoice:null}}),'answer'],
+  ['risk records that disagree between sources',item('matter:risks',{target:{kind:'review-risk',reviewChoice:null}}),'decision'],
   ['testing scope by name',item('matter:programme-tasks-testing',{recordCount:1368,target:{kind:'review-programme-tasks',reviewChoice:'selected_tasks'}}),'answer'],
   ['adopted record kept until decided',item('matter:payment:IPC1',{target:{kind:'review-commercial-record',reviewChoice:null,reviewOptions:[{value:'keep_adopted',label:'Keep the adopted value'},{value:'use_source:X',label:'Use X'}]}}),'answer'],
   ['procurement date basis',item('matter:procurement-date-basis',{target:{kind:'review-procurement-date',reviewChoice:null}}),'decision'],

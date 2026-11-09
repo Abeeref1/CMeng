@@ -82,7 +82,14 @@ export function positionVerdict(result:ModuleRuntimeResult) {
       const contractHeld=typeof (canonicalTime?.contractualCompletionIso?.value??contract)==='string';
       const governing=canonicalTime?.governingContractCompletionIso;
       const finishHeld=typeof independent==='string'||typeof submitted==='string'||typeof canonicalTime?.independentFinishIso?.value==='string';
-      if(!contractHeld&&typeof governing?.value!=='string'){text='Contract comparison is not established because no contractual completion date has been confirmed. Programme analysis remains available.';nextAction='Confirm the contractual completion date in Actions required.';}
+      if(!contractHeld&&typeof governing?.value!=='string'){
+        // Owner rule (3 Nov): answer first. The forecast finish leads; the missing contract date is said once after it.
+        const headline=canonicalTime?.forecastHeadline,day=(iso:string)=>new Date(iso.slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+        const finishText=headline?.completionIso
+          ?(headline.source==='cmeng_calculation'?'CMeng forecasts completion on '+day(headline.completionIso)+'.':'The contractor\'s programme finishes on '+day(headline.completionIso)+'.'+(headline.notReliableReasons?.length?' CMeng\'s own calculation is not used as the headline because '+headline.notReliableReasons.join('; ')+'.':''))
+          :'';
+        text=(finishText?finishText+' ':'')+'No contract completion date is in the documents, so the finish is not compared with the contract.';
+        nextAction='Add the contract, or its completion date, in Documents to compare the finish with the contract.';}
       else if(typeof governing?.value!=='string'&&canonicalTime?.governingContractCompletionIso!==undefined){text='The contract completion date is held, but the completion date that governs after awarded extensions of time is not established'+(governing?.basis?': '+String(governing.basis).replace(/\.$/,''):'')+'. Programme analysis remains available.';nextAction='Settle the extension of time position in Project Review.';}
       else if(!finishHeld){text='Contract comparison is not established because no programme finish is available yet. The contract completion date is held.';nextAction='Upload the current programme so CMeng can calculate the finish.';}
       else {text='Contract comparison is not established: '+String(canonicalTime?.independentDaysAfterCurrentContract?.basis??canonicalTime?.submittedDaysAfterCurrentContract?.basis??'the day difference could not be calculated from the held dates')+'.';nextAction='Check the contract and programme dates in Project Review.';}

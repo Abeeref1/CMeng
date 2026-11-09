@@ -32,12 +32,12 @@ const dashboard=(time:Record<string,unknown>,metrics:Array<{key:string;value:unk
 test('M14.1: the contract comparison reason is the input that is missing',()=>{
   // A confirmed contract date with an unresolved EOT position: never "no date confirmed".
   const eot=dashboard({contractualCompletionIso:{value:'2030-01-31'},governingContractCompletionIso:{value:null,basis:'The awarded extension of time is not established.'},independentDaysAfterCurrentContract:{value:null},submittedDaysAfterCurrentContract:{value:null}},[{key:'submitted-programme-finish',value:'2030-06-01'}]);
-  assert.doesNotMatch(eot.text,/no contractual completion date has been confirmed/);
+  assert.doesNotMatch(eot.text,/No contract completion date is in the documents/);
   assert.match(eot.text,/governs after awarded extensions of time is not established/);
   assert.match(String(eot.nextAction),/extension of time/);
   // No contract date at all: that is the reason.
   const none=dashboard({contractualCompletionIso:{value:null},independentDaysAfterCurrentContract:{value:null},submittedDaysAfterCurrentContract:{value:null}},[{key:'submitted-programme-finish',value:'2030-06-01'}]);
-  assert.match(none.text,/no contractual completion date has been confirmed/);
+  assert.match(none.text,/No contract completion date is in the documents/);
   // A governing date but no programme finish: the programme is the reason.
   const noFinish=dashboard({contractualCompletionIso:{value:'2030-01-31'},governingContractCompletionIso:{value:'2030-02-28'},independentDaysAfterCurrentContract:{value:null},submittedDaysAfterCurrentContract:{value:null}});
   assert.match(noFinish.text,/no programme finish is available/);

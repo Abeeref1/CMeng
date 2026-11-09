@@ -32,14 +32,16 @@ test('completion distinguishes an available scenario from missing contract and u
 test('one missing contract date across six pages is one coverage matter with all findings retained',()=>{
  const state=runtimeProjects.getOrCreate('UX-GROUPS');const findings=['pmo-analysis','milestones','independent-forecast','eot-assessment','master-dashboard','contract-particulars-bonds'].map(k=>issue(k));
  const result=projectActions(state,summarizeControlIssues(findings));
- const matter=result.actions.find(a=>a.id==='matter:contract-completion')!;assert.equal(matter.requestCount,1);assert.equal(matter.findings?.length,1);assert.equal(matter.affectedPages?.length,6);assert.equal(matter.target.type,'inline');assert.equal(matter.target.kind,'contract-completion');
- assert.ok(!result.information.some(a=>a.id==='matter:contract-completion'),'missing contractual completion is one direct confirmation action, not passive information or six page jobs');
+ // Owner rule (6 and 9 Nov): missing evidence is one data gap, never a required decision or six page jobs.
+ const matter=result.information.find(a=>a.id==='matter:contract-completion')!;assert.equal(matter.requestCount,1);assert.equal(matter.findings?.length,1);assert.equal(matter.affectedPages?.length,6);
+ assert.ok(!result.actions.some(a=>a.id==='matter:contract-completion'),'missing contractual completion is one data gap, not a required decision');
  assert.equal(result.actionCount,result.actions.length);assert.ok(!JSON.stringify(result).includes('Open relevant page'));
  const isolated=projectActions(runtimeProjects.getOrCreate('UX-OTHER'),summarizeControlIssues([]));assert.ok(!JSON.stringify(isolated).includes('contract-completion'));
  const baseline=projectActions(state,summarizeControlIssues([{...issue('schedule-analytics','data.result.completionBases[basis=programme]'),summary:'Programme completion basis missing',detail:'The source completion basis is unavailable.'}]));
  assert.ok(baseline.information.some(a=>a.id==='matter:programme-comparison'));
  const conflict=projectActions(state,summarizeControlIssues([{...issue('delivery-risks','risk.reportingDate'),summary:'Risk reporting date missing'}, {...issue('delivery-risks','risk.rating'),kind:'source_conflict',summary:'Risk ratings disagree',detail:'The supplied register has conflicting ratings.'}]));
- assert.ok(conflict.actions.some(a=>a.id==='matter:risks'),'a genuine record conflict remains actionable even without a specifically typed risk document');
+ // Owner rule (9 Nov): a conflict cleared by a corrected register is missing evidence, kept visible as a data gap.
+ assert.ok(conflict.information.some(a=>a.id==='matter:risks'&&a.dataGap),'a genuine record conflict stays visible even without a specifically typed risk document');
 });
 
 test('Management Brief cannot promote an unrelated first finding into its answer',()=>{
