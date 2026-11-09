@@ -5592,8 +5592,12 @@ function renderPmcControlRoom(data){
  const cpmReady=data.projectFacts?.time?.independentDaysAfterCurrentContract?.value!=null;
  const independent=cpmReady?pmcMetric(data,"independent-forecast-finish"):null;
  const submittedVar=data.projectFacts?.time?.submittedDaysAfterExtendedCompletion?.value??pmcMetric(data,"submitted-vs-contract")?.value,independentVar=cpmReady?pmcMetric(data,"independent-vs-contract")?.value:null,progressGap=pmcMetric(data,"progress-position")?.value;
- const scheduleTone=pmcDefined(submittedVar)?Number(submittedVar)>0?"danger":"good":submitted?.value?"source":"unresolved";
- const scheduleValue=pmcDefined(submittedVar)?pmcDays(submittedVar)+" vs extended contract date":submitted?.value?planningShortDate(submitted.value)+" submitted programme":"Not established";
+ // P2 owner rule: the Time card shows the same headline finish as the Dashboard verdict.
+ // CMeng's own finish leads only when the shared forecast gate finds it reliable.
+ const headline=data.projectFacts?.time?.forecastHeadline,cmengLeads=headline?.source==="cmeng_calculation"&&!!headline.completionIso;
+ const scheduleTone=cmengLeads?(pmcDefined(independentVar)?Number(independentVar)>0?"danger":"good":"source"):pmcDefined(submittedVar)?Number(submittedVar)>0?"danger":"good":submitted?.value?"source":"unresolved";
+ const scheduleValue=cmengLeads?(pmcDefined(independentVar)?pmcDays(independentVar)+" vs extended contract date (CMeng forecast)":planningShortDate(headline.completionIso)+" CMeng forecast"):
+   pmcDefined(submittedVar)?pmcDays(submittedVar)+" vs extended contract date":submitted?.value?planningShortDate(submitted.value)+" submitted programme":"Not established";
  const progress=vc.progress||{},scope=progress.scopeComparison||{},progressTone=pmcDefined(progressGap)?Number(progressGap)<0?"warning":"good":progress.progressBases?"source":"unresolved";
  const progressValue=pmcDefined(progressGap)?(Math.abs(Number(progressGap)).toFixed(2)+" pp "+(Number(progressGap)<0?"behind":Number(progressGap)>0?"ahead":"level")):
    pmcDefined(scope.snapshotPercent)?fmt(scope.snapshotPercent)+"% schedule snapshot":"Not established";

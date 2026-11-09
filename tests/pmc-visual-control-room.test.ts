@@ -332,3 +332,15 @@ test('Task 10 groups repeated completion-driving activities by WBS and milestone
   assert.deepEqual(group.milestoneIds,['M1']);
   assert.equal(group.lowestFloatHours,-8);
 });
+
+test('P2: the Time card shows the same headline finish as the Dashboard verdict',()=>{
+  const code=functions(['pmcDefined','pmcFirst','pmcMetric','pmcSource','pmcMoney','pmcDays','pmcCard','pmcSourceValue','renderPmcControlRoom']);
+  const render=(headline:any)=>runInNewContext(code+';renderPmcControlRoom(data)',{
+    data:{metrics:[{key:'submitted-programme-finish',value:'2049-08-23'}],visualControl:{},delivery:{},operationalReporting:{counts:{}},sourceInterpretation:{hse:{metrics:{}}},
+      projectFacts:{time:{forecastHeadline:headline}},reportingContract:{dataDateIso:'2039-03-04'}},
+    fmtExecutive:(v:any)=>String(v),fmt:(v:any)=>v==null?'Unresolved':String(v),planningShortDate:(v:any)=>v==null?'Unresolved':String(v).slice(0,10),
+    managementModuleLink:(k:string,l:string)=>'<button data-module="'+k+'">'+l+'</button>',escapeHtml:(v:any)=>String(v??''),overview:{latestDataDateIso:'2039-03-04'}}) as string;
+  const time=(html:string)=>/<b>Time<\/b>[\s\S]*?pmc-domain-value">([^<]*)</.exec(html)?.[1];
+  assert.equal(time(render({source:'cmeng_calculation',completionIso:'2049-08-20T17:00:00.000Z'})),'2049-08-20 CMeng forecast');
+  assert.equal(time(render({source:'contractor_programme',completionIso:'2049-08-23',notReliableReasons:['it covers only 88.1% of the activities']})),'2049-08-23 submitted programme');
+});
