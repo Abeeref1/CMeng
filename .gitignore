@@ -1,4 +1,8 @@
 node_modules/
+# A node_modules symlink in a worktree (not a directory, so the line above does not match it).
+node_modules
+# OCR language models the OCR tests cache in the working directory.
+*.traineddata
 dist/
 .env
 .env.*
