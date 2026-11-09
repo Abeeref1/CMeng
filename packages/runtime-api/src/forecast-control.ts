@@ -2,6 +2,7 @@ import type {CanonicalScheduleModel} from "../../schedule-analysis-core/src";
 import type {IndependentForecastProjection} from "../../independent-forecast/src";
 import type {ProjectRuntimeState} from "./project-state-types";
 import {canonicalTimeClaims} from "./canonical-time-claims";
+import {managementDate} from "./management-values";
 import {isScenarioRevision} from "./schedule-authority";
 import {sourceProductivityForecastEvidence} from "./source-productivity-forecast";
 import {commercialPositionForState} from './commercial-runtime';
@@ -228,7 +229,7 @@ export function buildForecastReconciliationGate(input: {
         ? {source: "cmeng_calculation" as const, completionIso: calculatedFinish, statement: "CMeng's calculated finish."}
         : {source: "contractor_programme" as const, completionIso: forecast.sourceForecastCompletionIso ?? null,
           statement: usable
-            ? "The contractor's programme finish leads. CMeng's own calculation (" + String(calculatedFinish).slice(0, 10) + ") is shown below but not used as the headline: " + credibility.reasons.join("; ") + "."
+            ? "The contractor's programme finish leads. CMeng's own calculation (" + managementDate(calculatedFinish) + ") is shown below but not used as the headline: " + credibility.reasons.join("; ") + "."
             : "The contractor's programme finish leads. CMeng could not calculate a finish from this programme."},
       qualifications,
       notCalculableReason,

@@ -1,3 +1,4 @@
+import {managementDate} from './management-values';
 import {programmeTaskReviewBasis} from './programme-task-review';
 import {overlapProposalFor} from './eot-overlap-proposal';
 import {countText} from './count-text';
@@ -802,7 +803,7 @@ export function forecastReviewItem(state:ProjectRuntimeState):ProjectAction|null
     target:{type:'upload',label:'Upload the corrected programme',uploadHint:'Corrected programme (XER or XML)',uploadMode:'schedule'}};
   const fixable=managed.qualifications.filter(q=>FORECAST_ACTIONABLE.has(q.code));
   if(!fixable.length)return null;
-  return {id:'matter:forecast-qualifications',category:'review',title:'Firm up the CMeng finish ('+(managed.completionIso??'').slice(0,10)+')',owner:'Planning Manager',recordCount:fixable.length,
+  return {id:'matter:forecast-qualifications',category:'review',title:'Firm up the CMeng finish ('+managementDate(managed.completionIso)+')',owner:'Planning Manager',recordCount:fixable.length,
     reason:'The finish is calculated and shown with '+countText(fixable.length,'qualification','qualifications')+' you can correct: '+fixable.map(q=>q.text.replace(/\.$/,'')).join('; ')+'.',
     resolution:{kind:'upload',requiresUserAction:true,instruction:fixable.map(q=>q.action).join(' '),completionRule:'Each qualification clears when the corrected programme or input removes its cause; the finish is recalculated at once.'},
     target:{type:'upload',label:'Upload the corrected programme',uploadHint:'Corrected programme (XER or XML)',uploadMode:'schedule'}};

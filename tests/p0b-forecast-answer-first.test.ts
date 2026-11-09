@@ -1,3 +1,4 @@
+import {managementDate} from '../packages/runtime-api/src/management-values';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runtimeProjects} from '../packages/runtime-api/src/project-state';
@@ -201,7 +202,7 @@ test('M13.2: a loop, a repeated ID or an external link gives exactly one forecas
     assert.equal(items.length,1,id+': exactly one forecast item: '+JSON.stringify(items.map(i=>i.id)));
     assert.match(items[0]!.reason,cause,id+': the cause is named: '+items[0]!.reason);
     const finish=(moduleForProject(id,'independent-forecast').data as any).forecastReconciliationGate.managementForecast.completionIso;
-    assert.ok(items[0]!.title.includes(String(finish).slice(0,10)),'the item names the finish it qualifies');
+    assert.ok(items[0]!.title.includes(managementDate(finish)),'the item names the finish it qualifies, as a readable date');
     assert.equal(items[0]!.resolution?.kind,'upload','a corrected programme clears it');
     void state;
   }
