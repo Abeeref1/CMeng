@@ -35,3 +35,16 @@ test('Forecast credibility: a network with many logic problems does not lead',()
   const c=forecastCredibility({model:model(1000,500),forecast:forecast({finish:'2029-01-20T17:00:00Z',coverage:100,assumed:0}),calculatedFinish:'2029-01-20T17:00:00Z',graphProblemCount:40});
   assert.match(c.reasons.join(' '),/40 logic problems/);
 });
+
+test('when the contractor\'s programme leads, the next step names what makes CMeng\'s own finish unusable',async()=>{
+  const {positionVerdict}=await import('../packages/runtime-api/src/position-review');
+  const verdict=(reasons:string[])=>positionVerdict({key:'master-dashboard',status:'available',data:{metrics:[],projectFacts:{time:{
+    independentDaysAfterCurrentContract:{value:null},submittedDaysAfterCurrentContract:{value:-137},
+    forecastHeadline:{source:'contractor_programme',completionIso:'2043-04-14',statement:'',notReliableReasons:reasons}}}}} as any);
+  const divergence=verdict(['it differs from the contractor\'s programme finish by 443 days, more than the 90-day credibility limit']);
+  assert.match(divergence.text,/within the contract date\. CMeng's own calculation is not used as the headline because it differs/);
+  assert.match(divergence.nextAction??'',/^Ask the planner to explain why CMeng's calculation of the same programme finishes so far from the contractor's date/);
+  const coverage=verdict(['it covers only 88.1% of the activities']);
+  assert.match(coverage.nextAction??'',/^Correct the programme gaps named in the finding/);
+  assert.doesNotMatch(divergence.nextAction+' '+coverage.nextAction,/forecast reconciliation/,'no internal process name as the next step');
+});

@@ -72,9 +72,14 @@ export function positionVerdict(result:ModuleRuntimeResult) {
       text=submittedDays>0
         ?'The contractor\'s programme finishes '+Math.round(submittedDays)+' calendar days after the contract date.'+why
         :'The contractor\'s programme finishes within the contract date.'+why;
+      // The next step names what makes CMeng's own finish unusable, so the owner knows what to fix.
+      const reasons=headline?.source==='contractor_programme'?headline.notReliableReasons??[]:[];
+      const fixNext=reasons.some((r:string)=>/differs from the contractor/.test(r))
+        ?'Ask the planner to explain why CMeng\'s calculation of the same programme finishes so far from the contractor\'s date, and correct the logic or calendars that cause it.'
+        :reasons.length?'Correct the programme gaps named in the finding (calendars, coverage or logic) so CMeng\'s own finish can be used.':null;
       nextAction=submittedDays>0
-        ?'Review the submitted late completion; the packages driving it have not yet been established. Complete the CMeng forecast reconciliation before setting recovery actions.'
-        :'Complete the CMeng forecast reconciliation before treating the submitted ahead position as the management forecast.';
+        ?(fixNext?'Review the submitted late completion. '+fixNext:'Review the submitted late completion; the packages driving it have not yet been established. Complete the CMeng forecast reconciliation before setting recovery actions.')
+        :(fixNext??'Complete the CMeng forecast reconciliation before treating the submitted ahead position as the management forecast.');
       assignTo='Project Director';
     }else {
       // M14.1: the reason is the input that is actually missing, not a fixed fallback.
