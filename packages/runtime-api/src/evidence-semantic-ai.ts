@@ -5,6 +5,7 @@ import {
   inferTableSemanticRoute,
 
   tableSemanticSchemas,
+  unusedColumnKind,
   type EvidenceSemanticColumnMeaning,
   type EvidenceTableSemantic,
 } from '../../truth-kernel/src';
@@ -99,6 +100,12 @@ export function tableNeedsSemanticReading(interpretation:{recognized:boolean;unc
   return !interpretation.recognized||interpretation.unconsumed.length>0;
 }
 
+/** P4: the columns no reader consumed that AI may read. A placeholder heading or
+ * a free-text comment has no field meaning (unusedColumnKind), so it is never sent. */
+export function aiEligibleColumns<T extends {rawHeader:string}>(unconsumed:ReadonlyArray<T>):T[]{
+  return unconsumed.filter(column=>unusedColumnKind(column.rawHeader)==='unread');
+}
+
 export class GroundedTableSemanticAiResolver implements TableSemanticAiResolver {
   readonly name='cmeng-grounded-table-semantics-v1';
   constructor(private model:StructuredModel){}
@@ -142,21 +149,31 @@ const awaitingAi=new Set(['disabled','provider_unavailable','call_limit','stoppe
 /** R5 / M16.1: when reading is incomplete, say so on screen and name the real
  * next step: AI not set up (the columns stay unread), AI can finish the rest
  * (the Finish AI reading action, with its upper-bound cost shown before any paid
- * call), or AI already read the rest and it needs review. */
+ * call), or AI already read the rest and it needs review.
+ * P4: documents read before AI steps were recorded have no step. Those with
+ * columns no reader consumed (backfill.eligibleDocuments, one CSV step each) are
+ * counted as awaiting AI, so the screen offers Finish AI reading for them too. */
 export function aiReadingCoverage(documents:ReadonlyArray<{sourceHashSha256:string;semanticAiSteps?:ReadonlyArray<AiReadingStep>}>,
-  provider:{providerConfigured:boolean;estimatedMaxUsdPerCall:number|null}){
+  provider:{providerConfigured:boolean;estimatedMaxUsdPerCall:number|null},backfill:{eligibleDocuments:number}={eligibleDocuments:0}){
   const steps=documents.flatMap(document=>(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256));
-  const awaiting=steps.filter(step=>awaitingAi.has(step.status)).length;
-  const incomplete=awaiting+steps.filter(step=>step.status==='unresolved').length;
+  const stepAwaiting=steps.filter(step=>awaitingAi.has(step.status)).length;
+  const incomplete=stepAwaiting+steps.filter(step=>step.status==='unresolved').length;
+  const eligible=Math.max(0,backfill.eligibleDocuments);
+  const awaiting=stepAwaiting+eligible;
   const perCall=provider.providerConfigured?provider.estimatedMaxUsdPerCall:null;
   const toFinish=perCall===null?null:Math.round(perCall*awaiting*1e6)/1e6;
-  const statement=incomplete===0?null:
-    'Reading is incomplete: '+incomplete+' source step'+(incomplete===1?' is':'s are')+' not fully read. '+
-    (!provider.providerConfigured?'AI is not set up. These columns stay unread; their source values are kept.':
-      'AI is set up. '+(awaiting===0?'AI has already read the rest; they need review.':
-        (toFinish===null?'The cost cannot be estimated because no price is set for this model.':
-          'Reading the remaining '+awaiting+' with AI would cost at most USD '+toFinish.toFixed(4)+' (upper bound at published rates).')+
-        ' Use Finish AI reading to read them. Owner permission is required before any paid call.'));
-  return {incompleteSteps:incomplete,stepsAwaitingAi:awaiting,aiSetUp:provider.providerConfigured,estimatedMaxUsdPerCall:perCall,estimatedMaxUsdToFinish:toFinish,statement,
+  const unreadDocuments=eligible===0?'':eligible+' document'+(eligible===1?' has':'s have')+' columns CMeng\'s rules could not read. ';
+  const statement=incomplete===0&&eligible===0?null:
+    (incomplete===0?'':'Reading is incomplete: '+incomplete+' source step'+(incomplete===1?' is':'s are')+' not fully read. ')+
+    (!provider.providerConfigured?unreadDocuments+'AI is not set up. These columns stay unread; their source values are kept.':
+      incomplete===0
+        ?'AI is set up. '+unreadDocuments+'Finish AI reading reads '+(eligible===1?'it':'them')+', '+
+          (toFinish===null?'but the cost cannot be estimated because no price is set for this model.':'up to USD '+toFinish.toFixed(4)+' (upper bound at published rates).')+
+          ' Owner permission is required before any paid call.'
+        :'AI is set up. '+unreadDocuments+(awaiting===0?'AI has already read the rest; they need review.':
+          (toFinish===null?'The cost cannot be estimated because no price is set for this model.':
+            'Reading the remaining '+awaiting+' with AI would cost at most USD '+toFinish.toFixed(4)+' (upper bound at published rates).')+
+          ' Use Finish AI reading to read them. Owner permission is required before any paid call.'));
+  return {incompleteSteps:incomplete,stepsAwaitingAi:awaiting,documentsEligibleForAi:eligible,aiSetUp:provider.providerConfigured,estimatedMaxUsdPerCall:perCall,estimatedMaxUsdToFinish:toFinish,statement,
     realProviderTest:realProviderTestStatus(provider.providerConfigured).statement};
 }
