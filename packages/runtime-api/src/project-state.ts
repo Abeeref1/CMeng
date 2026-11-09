@@ -5277,6 +5277,9 @@ export class RuntimeProjectStore {
         lineage,
         assertions,
         uploadIntent,
+        // P4: a contract uploaded with the other documents gets the same AI permission
+        // as they do, so its unresolved headings reach AI reading at upload.
+        ...(input.allowSemanticAi===true?{allowSemanticAi:true}:{}),
       });
       const hash =
         hashBytes(input.bytes);

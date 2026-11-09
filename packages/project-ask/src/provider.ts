@@ -57,8 +57,9 @@ export class OpenAiAskModel implements AskModel, StructuredModel {
     if(this.budgetEnvironment&&!this.budgetEnvironment.CMENG_AI_USAGE_DIR?.trim())throw new Error('MODEL_BUDGET_DIRECTORY_NOT_CONFIGURED');
     const reservation=reserveModelUsage(this.model,this.limits.contextTokens,this.limits.outputTokens,this.budgetEnvironment??process.env);
     if(telemetry)telemetry.aiInvoked=true;
-    try{response=await this.request(endpoint.toString(),{method:'POST',redirect:'error',headers:{...(this.key?{authorization:'Bearer '+this.key}:{}),'content-type':'application/json'},signal:AbortSignal.timeout(45000),body:JSON.stringify(payload)});}catch{throw new Error('MODEL_PROVIDER_UNAVAILABLE');}
-    if(!response.ok)throw new Error('MODEL_PROVIDER_UNAVAILABLE');
+    try{response=await this.request(endpoint.toString(),{method:'POST',redirect:'error',headers:{...(this.key?{authorization:'Bearer '+this.key}:{}),'content-type':'application/json'},signal:AbortSignal.timeout(45000),body:JSON.stringify(payload)});}catch(error){console.warn(JSON.stringify({event:'ai_provider_call_failed',stage:name,reason:error instanceof Error?error.name:'unknown'}));throw new Error('MODEL_PROVIDER_UNAVAILABLE');}
+    // The HTTP status only (never the key, prompt or reply), so a refused call can be diagnosed.
+    if(!response.ok){console.warn(JSON.stringify({event:'ai_provider_call_failed',stage:name,httpStatus:response.status}));throw new Error('MODEL_PROVIDER_UNAVAILABLE');}
     if(Number(response.headers.get('content-length'))>2_000_000)throw new Error('MODEL_RESPONSE_TOO_LARGE');
     const reader=response.body?.getReader();if(!reader)throw new Error('MODEL_RESPONSE_INVALID');const chunks:Uint8Array[]=[];let bytes=0;
     for(;;){const next=await reader.read();if(next.done)break;bytes+=next.value.length;if(bytes>2_000_000){await reader.cancel();throw new Error('MODEL_RESPONSE_TOO_LARGE');}chunks.push(next.value);}

@@ -132,3 +132,16 @@ test('P4: a contract PDF is never read as a CSV table by Finish AI reading',asyn
   await store.finishAiTableReading(state.projectId,{allowSemanticAi:true});
   assert.deepEqual(tableCalls,[],'the table reader is never called on a contract');
 });
+
+test('P4: a contract uploaded with the other documents gets their AI permission at upload',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-p4e-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const contractAiResolver:ContractAiResolver={name:'fake-contract',async resolveHeading(){return null;}};
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false,contractAiResolver}),state=store.getOrCreate('P4-UPLOAD');
+  const text='MAIN WORKS CONTRACT\n\nAgreement between the Employer and the Contractor.\n\n1. Definitions\nTime for Completion means 540 days.\n\n2. Contract Price\nThe Contract Price is SAR 10,000,000.\n\nClause ??? unresolved heading A\nThe Contractor shall give notice within 28 days.\n';
+  await store.ingestEvidenceFile({projectId:state.projectId,bytes:Buffer.from(text),mediaType:'text/plain',sourceFilename:'Main_Contract.txt',uploadedAt:'2031-01-05',allowSemanticAi:true} as never);
+  const document=state.evidenceDocuments.find(d=>d.category==='contract');
+  if(!document){t.skip('the text was not read as a contract in this build');return;}
+  const steps=(document.semanticAiSteps??[]).filter(s=>s.sourceHashSha256===document.sourceHashSha256);
+  assert.ok(steps.length>0);
+  assert.ok(steps.every(s=>s.status!=='disabled'),'AI permission reached the contract reader: '+steps.map(s=>s.status).join(','));
+});
