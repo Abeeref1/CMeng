@@ -220,7 +220,8 @@ test('F34 no Commencement Date stated: dates stay unknown with the reason; a use
   assert.match(s1.completionReason,/no Commencement Date is stated/);
   // The user confirms the Commencement Date in Actions required.
   const actions=(await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/actions')).body;
-  const action=actions.actions.find((a:any)=>a.target?.kind==='commencement-date');
+  // Owner rule: a missing Commencement Date is a data gap with its own input.
+  const action=[...actions.actions,...(actions.information||[])].find((a:any)=>a.target?.kind==='commencement-date');
   assert.ok(action,'Actions required offers the Commencement Date input');
   const saved=await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/actions/confirm-missing-value',{method:'POST',headers:{'content-type':'application/json'},
    body:JSON.stringify({actionId:action.id,expectedVersion:actions.projectVersion??actions.version,dateIso:COMMENCEMENT})});
@@ -234,7 +235,7 @@ test('F34 no Commencement Date stated: dates stay unknown with the reason; a use
   assert.match(a1.completionBasis,/confirmed by the user/);
   // The input is no longer offered once the date is held.
   const reopened=(await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/actions')).body;
-  assert.equal(reopened.actions.some((a:any)=>a.target?.kind==='commencement-date'),false);
+  assert.equal([...reopened.actions,...(reopened.information||[])].some((a:any)=>a.target?.kind==='commencement-date'),false);
  }finally{
   await gateway.close();
   await rm(root,{recursive:true,force:true});
@@ -258,7 +259,7 @@ test('F34 the Commencement Date stated in an Engineer\'s notice of commencement 
   assert.equal(s1.governingCompletionIso,SECTION1_EXTENDED);
   // No Commencement Date input is asked for once a source states it.
   const actions=(await request(base,'/api/projects/'+encodeURIComponent(projectId)+'/actions')).body;
-  assert.equal(actions.actions.some((a:any)=>a.target?.kind==='commencement-date'),false);
+  assert.equal([...actions.actions,...(actions.information||[])].some((a:any)=>a.target?.kind==='commencement-date'),false);
  }finally{
   await gateway.close();
   await rm(root,{recursive:true,force:true});

@@ -205,7 +205,9 @@ export function pageProjectResponse(
    // These values populate editable controls. Paging an ID list or clipping a
    // saved mapping/reference can turn a later save into an unintended partial
    // replacement. Keep the complete decision input; findings remain pageable.
-   if(key==='target'&&/\/(?:actions|information|dataGaps)\/\d+\/target$/.test(pointer)&&value.type==='inline'&&typeof value.kind==='string'&&value.kind.startsWith('review-'))return value;
+   // Owner rule: a CMeng answer or a data gap keeps its own input (for example the
+   // contract value or the Commencement Date), so every inline target is kept whole.
+   if(key==='target'&&/\/(?:actions|information|dataGaps|cmengAnswers)\/\d+\/target$/.test(pointer)&&value.type==='inline'&&typeof value.kind==='string')return value;
    if(key==='sourceLabels'){changed=true;return {};}
    if(seen.has(value))return {detailAvailable:true};
    if(depth>budget.depth){

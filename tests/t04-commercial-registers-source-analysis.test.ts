@@ -82,7 +82,8 @@ test('T04 an adopted record is never overridden or erased by a candidate; the di
   assert.equal(conflicts.length,1);
   assert.equal(conflicts[0]!.documentId,unadopted.documentId,'names the unadopted source');
   assert.equal(conflicts[0]!.against,'adopted');assert.deepEqual(conflicts[0]!.againstDocumentIds,[adopted.documentId]);
-  const action=projectActions(state,{issues:[]} as any).actions.find((a:any)=>a.id==='document:'+unadopted.documentId);
+  // Owner rule: CMeng's answer (keep the adopted record) is shown with its change control.
+  const action=(r=>[...r.actions,...r.information])(projectActions(state,{issues:[]} as any)).find((a:any)=>a.id==='document:'+unadopted.documentId);
   assert.ok(action,'the existing document decision is the one decision place');
   assert.ok((action.evidenceSummary??[]).some((line:string)=>/Differs from adopted variations record VO-1 \(vo-adopted\.csv\); unadopted source vo-site-copy\.csv/.test(line)),
     'decision names the record, the adopted source and the unadopted source');
@@ -145,7 +146,7 @@ test('T04 no approval request for a clear unique candidate used in analysis; com
   const clear=doc(p,'vo-clear','variation_register','commercial:variations');
   withVariations(state,clear,250000);
   rebuildDerivedControls(state);
-  const ids=()=>projectActions(state,summarizeControlIssues([])).actions.map((a:any)=>a.id);
+  const ids=()=>(r=>[...r.actions,...r.information])(projectActions(state,summarizeControlIssues([]))).map((a:any)=>a.id);
   assert.equal(state.controls.variations[0].sourceAnalyticalUse,LABEL,'used in analysis');
   assert.ok(!ids().includes('document:'+clear.documentId),'a clear fact asks for no approval');
   assert.equal(clear.basisState,'candidate','and is not shown as adopted');
@@ -180,7 +181,9 @@ test('T04 a commercial adopted-vs-unadopted conflict is choosable: pick, type ow
     // A saved decision is listed under information (where confirm-review finds it for change and undo).
     const action=()=>{const r=projectActions(state,summarizeControlIssues([]));return [...r.actions,...r.information].find((a:any)=>a.id==='matter:commercial-record:variations:VO-1') as any;};
     const open=action();
-    assert.ok(open,'one decision for the record');assert.equal(open.category,'confirmation');
+    assert.ok(open,'one decision for the record');
+    // Owner rule: the adopted value is CMeng's answer in use; it is shown with its change control.
+    assert.equal(open.cmengAnswer?.choice,'keep_adopted');
     assert.deepEqual(open.target.reviewOptions.map((o:any)=>o.value),['keep_adopted','use_source:'+unadopted.documentId,'enter_value']);
     assert.match(open.reason,/vo-site-copy\.csv, a source that is not formally adopted/);
     const decide=(choice:string,enteredValue?:number)=>{
@@ -205,7 +208,7 @@ test('T04 a commercial adopted-vs-unadopted conflict is choosable: pick, type ow
     assert.equal(state.controls.variations[0].amount,100000);assert.equal(state.controls.variations[0].sourceAnalyticalUse,undefined);
     decide('undo');
     assert.equal(state.controls.variations[0].amount,100000,'undo returns to the adopted value');
-    assert.equal(action().category,'confirmation','undo reopens the decision');
+    assert.equal(action().cmengAnswer?.choice,'keep_adopted','undo returns to CMeng\'s answer in use');
     assert.ok(state.evidenceDocuments.every((d:any)=>d.basisState===(d.documentId===adopted.documentId?'active':'candidate')),'stored basisState unchanged');
   }finally{rmSync(root,{recursive:true,force:true});}
 });
@@ -221,7 +224,7 @@ test('T04 a saved commercial decision stays reachable in the register that confi
   // The same lists the confirm-review route searches.
   const reachable=()=>{const w=projectActionRegisterForState(store.get(p)!).workflow as any;return [...w.actions,...w.information].find((a:any)=>a.id==='matter:commercial-record:variations:VO-1');};
   const open=reachable();
-  assert.ok(open,'the open decision is in the register');assert.equal(open.category,'confirmation');
+  assert.ok(open,'the open decision is in the register');assert.equal(open.cmengAnswer?.choice,'keep_adopted');
   const decisions={...(state.controls.reviewDecisions??{}),'commercial-record:variations:VO-1':{sourceFingerprint:open.reviewFingerprint,choice:'use_source:'+unadopted.documentId,confirmedAt:'2031-05-01T00:00:00Z',sourceRefs:[]}};
   store.updateControls(p,{reviewDecisions:decisions});rebuildDerivedControls(store.get(p)!);store.touch(store.get(p)!);
   const saved=reachable();

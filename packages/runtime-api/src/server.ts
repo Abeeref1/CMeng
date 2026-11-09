@@ -2348,7 +2348,9 @@ async function route(
       const rawDate=String(input.dateIso??'').trim();
       if(!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)||!Number.isFinite(Date.parse(rawDate+'T00:00:00Z')))throw new Error('Enter a valid contractual completion date.');
       const surfaces=managementSurfacesForProject(projectId)!;
-      const action=projectActions(state,surfaces.sourceQuality.issueAssessment,{completionPosition:(surfaces.masterDashboard as any).completionPosition}).actions.find(a=>a.id===input.actionId);
+      // Owner rule: a CMeng answer or a data gap keeps its own input, so it is found in both lists.
+      const listed=projectActions(state,surfaces.sourceQuality.issueAssessment,{completionPosition:(surfaces.masterDashboard as any).completionPosition});
+      const action=[...listed.actions,...listed.information].find(a=>a.id===input.actionId);
       if(!action||action.target.type!=='inline'||action.target.kind!=='contract-completion')throw new Error('The contractual completion date is no longer awaiting confirmation. Refresh Actions required.');
       const current=state.controls.contractTimeBasis;
       runtimeProjects.updateControls(projectId,{contractTimeBasis:{
@@ -2372,7 +2374,8 @@ async function route(
       const input=JSON.parse(Buffer.from(await readBody(req)).toString('utf8'));
       if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before saving.');
       const {isMissingValueInputKind,missingValueInputPatch,heldMissingValue}=await import('./missing-value-inputs');
-      const action=projectActionRegisterForState(state).workflow.actions.find(a=>a.id===input.actionId);
+      const listed=projectActionRegisterForState(state).workflow;
+      const action=[...listed.actions,...listed.information].find(a=>a.id===input.actionId);
       const kind=action?.target.type==='inline'?action.target.kind:undefined;
       if(!action||!isMissingValueInputKind(kind))throw new Error('This value is no longer awaiting input. Refresh Actions required.');
       runtimeProjects.updateControls(projectId,missingValueInputPatch(state,kind,input));
@@ -2387,7 +2390,7 @@ async function route(
       if(input.expectedVersion!==state.version)throw new Error('The project changed. Refresh Actions required before saving.');
       const decision=actionAssignmentInput(input);
       const workflow=projectActionRegisterForState(state).workflow;
-      if(decision.state==='assigned'&&!workflow.actions.some(a=>a.id===decision.actionId))throw new Error('This action is no longer open. Refresh Actions required.');
+      if(decision.state==='assigned'&&![...workflow.actions,...workflow.information].some(a=>a.id===decision.actionId))throw new Error('This action is no longer open. Refresh Actions required.');
       runtimeProjects.updateControls(projectId,actionAssignmentPatch(state.controls,decision));
       invalidateProject(projectId);
       const updated=runtimeProjects.get(projectId)!;

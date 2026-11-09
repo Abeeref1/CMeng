@@ -24,8 +24,8 @@ test('missing contract value and approved EOT days get inline inputs, close on s
   const route='/api/projects/INPUT-A/actions/confirm-missing-value';
 
   let pending=await get('/api/projects/INPUT-A/actions');
-  const value=pending.actions.find((a:any)=>a.target.kind==='contract-value');
-  const eot=pending.actions.find((a:any)=>a.target.kind==='approved-eot-days');
+  const value=[...pending.actions,...(pending.information||[])].find((a:any)=>a.target.kind==='contract-value');
+  const eot=[...pending.actions,...(pending.information||[])].find((a:any)=>a.target.kind==='approved-eot-days');
   assert.ok(value,'missing contract value must offer an inline input action');assert.ok(eot,'missing approved EOT days must offer an inline input action');
   for(const action of [value,eot]){
     assert.equal(action.category,'confirmation');assert.equal(action.target.type,'inline');assert.equal(action.resolution.requiresUserAction,true);
@@ -48,28 +48,28 @@ test('missing contract value and approved EOT days get inline inputs, close on s
   assert.equal((await send(eot,{days:'-3'})).status,409);
   assert.equal((await send(eot,{days:'2.5'})).status,409);
   assert.equal((await post(route,{actionId:'matter:commercial',expectedVersion:pending.projectVersion,amount:'1',currency:'SAR'})).status,409,'only an open input action accepts a value');
-  assert.ok((await get('/api/projects/INPUT-A/actions')).actions.some((a:any)=>a.id===value.id));
+  assert.ok((r=>[...r.actions,...(r.information||[])])(await get('/api/projects/INPUT-A/actions')).some((a:any)=>a.id===value.id));
 
   const saved=await send(value,{amount:'1,250,000',currency:'sar'});assert.equal(saved.status,200);
   const receipt=await saved.json() as any;
   assert.deepEqual(receipt.value,{amount:1250000,currency:'SAR',sourceRefs:['user-confirmation:contract-value:SAR:1250000']});
   pending=await get('/api/projects/INPUT-A/actions');
-  assert.ok(!pending.actions.some((a:any)=>a.target.kind==='contract-value'),'the contract value input closes once saved');
-  assert.ok(pending.actions.some((a:any)=>a.target.kind==='approved-eot-days'),'the other input stays open');
+  assert.ok(![...pending.actions,...(pending.information||[])].some((a:any)=>a.target.kind==='contract-value'),'the contract value input closes once saved');
+  assert.ok([...pending.actions,...(pending.information||[])].some((a:any)=>a.target.kind==='approved-eot-days'),'the other input stays open');
   // A held value is never replaced through the input route.
   assert.equal((await send(value,{amount:'999',currency:'USD'},pending.projectVersion)).status,409);
 
-  const eotNow=pending.actions.find((a:any)=>a.target.kind==='approved-eot-days');
+  const eotNow=[...pending.actions,...(pending.information||[])].find((a:any)=>a.target.kind==='approved-eot-days');
   const savedEot=await send(eotNow,{days:'0'},pending.projectVersion);assert.equal(savedEot.status,200);
   const eotReceipt=await savedEot.json() as any;
   assert.equal(eotReceipt.value,0,'a confirmed zero award is a known zero');assert.ok(eotReceipt.sourceRefs.includes('user-confirmation:approved-eot-days:0'));
   pending=await get('/api/projects/INPUT-A/actions');
-  assert.ok(!pending.actions.some((a:any)=>a.target.kind==='approved-eot-days'),'the EOT input closes once saved');
+  assert.ok(![...pending.actions,...(pending.information||[])].some((a:any)=>a.target.kind==='approved-eot-days'),'the EOT input closes once saved');
 
   // Kept after restart, still user-confirmed, and still closed.
   await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});await listen();
   const restored=await get('/api/projects/INPUT-A/actions');
-  assert.ok(!restored.actions.some((a:any)=>['contract-value','approved-eot-days'].includes(a.target.kind)));
+  assert.ok(![...restored.actions,...(restored.information||[])].some((a:any)=>['contract-value','approved-eot-days'].includes(a.target.kind)));
   assert.equal((await post(route,{actionId:eotNow.id,expectedVersion:restored.projectVersion,days:'40'})).status,409);
 });
 

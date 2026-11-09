@@ -65,7 +65,7 @@ test('T09 assignment API: assign, survives restart, stale and invalid input refu
   assert.equal((await upload('2031-08-01')).status,201);
   const actions=async()=>{const r=await fetch(base+path+'/actions');assert.equal(r.status,200);return await r.json() as any;};
   let view=await actions();
-  const target=view.actions[0];assert.ok(target,'an open action exists');
+  const target=[...view.actions,...(view.information||[])][0];assert.ok(target,'an open action exists');
   const assign=(body:any)=>post(path+'/actions/assign',{expectedVersion:view.projectVersion,actionId:target.id,...body});
   for(const invalid of [{owner:'',dueIso:''},{dueIso:'2031-13-01'},{owner:pmcRoleOwner('schedule',null)},{actionId:'not-an-action',owner:'Jane Smith'},{expectedVersion:view.projectVersion-1,owner:'Jane Smith'},{action:'clear'}])
     assert.equal((await assign(invalid)).status,409,JSON.stringify(invalid));
