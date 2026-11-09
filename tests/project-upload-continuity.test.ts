@@ -163,7 +163,9 @@ test('HTTP gateway persists phase review/adoption, refreshes project versions an
  const listen=async()=>{await new Promise<void>(r=>gateway.server.listen(0,'127.0.0.1',r));return 'http://127.0.0.1:'+(gateway.server.address() as any).port;};let base=await listen();
  const path='/api/projects/PHASE-HTTP',jsonHeaders={'content-type':'application/json'};
  assert.equal((await fetch(base+'/api/projects',{method:'POST',headers:jsonHeaders,body:JSON.stringify({projectId:'PHASE-HTTP'})})).status,201);
- const upload=await fetch(base+path+'/phases/NEXT/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'same.xer','x-schedule-role':'baseline','x-schedule-role-confirmed':'1'},body:xer('2037-03-31')});assert.equal(upload.status,201);const stored:any=await upload.json();assert.equal(stored.position.programme,null);
+ const upload=await fetch(base+path+'/phases/NEXT/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'same.xer','x-schedule-role':'baseline','x-schedule-role-confirmed':'1'},body:xer('2037-03-31')});assert.equal(upload.status,201);const stored:any=await upload.json();
+ // Owner rule (6 Nov): the only programme is analysed provisionally; adopting it still needs the approval reference below.
+ assert.equal(stored.position.programme?.dataDate,'2037-03-31');
  const revision=stored.position.revisions[0],purpose={expectedVersion:stored.position.projectVersion,sourceHash:revision.sourceHash,role:'baseline',approvalReference:'Engineer E-12'};
  assert.equal((await fetch(base+path+'/phases/NEXT/schedule/revisions/'+revision.revisionId+'/purpose',{method:'POST',headers:jsonHeaders,body:JSON.stringify(purpose)})).status,200);
  assert.equal((await fetch(base+path+'/phases/NEXT/schedule/revisions/'+revision.revisionId+'/purpose',{method:'POST',headers:jsonHeaders,body:JSON.stringify(purpose)})).status,409);

@@ -204,7 +204,7 @@ function renderProjectActionList(){
    (a.cmengAnswer?'<p class="cmeng-answer"><b>CMeng\'s answer:</b> '+escapeHtml(a.cmengAnswer.statement)+'</p>':'')+
    (!information?'<span class="action-type">'+(team?'PROJECT-TEAM FOLLOW-UP':a.category==='review'?'REVIEW EXISTING DOCUMENTS':'CONFIRMATION / DECISION')+'</span>':'')+
    '<h4>'+escapeHtml(a.title)+'</h4><p>'+escapeHtml(a.reason)+'</p>'+reviewEvidenceHtml(a)+reviewFindingPreview(a)+
-   '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+(a.assignedOwner?escapeHtml(a.assignedOwner)+' <small>Assigned in CMeng</small>':ownerMissingHtml(a.owner,a.accountableRole))+'</p>'+records+(information?'':actionAssignEditor(a))+
+   '<p><b>'+(team?'Responsible project-team owner:':a.category==='review'?'Review owner:':'Decision owner:')+'</b> '+(a.assignedOwner?escapeHtml(a.assignedOwner)+' <small>Assigned in CMeng</small>':ownerMissingHtml(a.owner,a.accountableRole))+'</p>'+records+(information&&!a.dataGap?'':actionAssignEditor(a))+
    (team&&a.dueIso?'<p><b>'+(a.recordCount>1?'Earliest due date in this group:':'Due date:')+'</b> '+escapeHtml(planningShortDate(a.dueIso))+'</p>':'')+
    actionGapsHtml(a)+
    (!information&&a.resolution?.instruction&&a.category!=='confirmation'?'<p><b>'+(team?'Project-team follow-up:':'What the owner should check:')+'</b> '+escapeHtml(a.resolution.instruction)+'</p>':'')+
@@ -253,9 +253,12 @@ async function saveActionAssignment(id,clear=false,from=null){
 function actionNode(id,from){const node=from&&typeof from.closest==='function'?from.closest('[data-action-id]'):null;if(!node)return null;if(typeof node.getAttribute==='function'&&node.getAttribute('data-action-id')!==String(id))return null;return node;}
 function actionMessage(id,from,text){const node=actionNode(id,from)?.querySelector('.action-inline-message');if(node)node.textContent=text;}
 function setActionBusy(id,from,busy){actionNode(id,from)?.querySelectorAll('button,input,select').forEach(node=>node.disabled=busy);}
+// Owner rule: a decision, a CMeng answer and a data gap each keep their own control, so a
+// save finds the item in every list the screen shows.
+function reviewItem(id){const d=projectActionState.data||{};return [...(d.actions||[]),...(d.information||[]),...(d.cmengAnswers||[]),...(d.dataGaps||[])].find(x=>x.id===id)||null;}
 async function resolveScheduleAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
- const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=reviewItem(id);if(!a)return;
  const t=a.target,node=actionNode(id,from);setActionBusy(id,from,true);actionMessage(id,from,'Saving programme selection…');
  try{
   if(t.needsPurpose){
@@ -273,7 +276,7 @@ async function resolveScheduleAction(id,from=null){
 }
 async function resolveDocumentAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
- const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=reviewItem(id);if(!a)return;
  const t=a.target,node=actionNode(id,from),kind=node.querySelector('.action-document-kind').value,target=node.querySelector('.action-document-target')?.value||'';
  if(kind!=='new_record'&&!target){actionMessage(id,from,'Choose the current document this replaces or amends.');return;}
  setActionBusy(id,from,true);actionMessage(id,from,'Saving document relationship…');
@@ -321,7 +324,7 @@ async function resolveUploadAction(id,gapIndex=null,from=null){
 }
 async function resolveContractCompletionAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
- const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=reviewItem(id);if(!a)return;
  const node=actionNode(id,from),date=node?.querySelector('.action-contract-completion-date')?.value||'';
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){actionMessage(id,from,'Enter the contractual completion date.');return;}
  setActionBusy(id,from,true);actionMessage(id,from,'Saving contractual completion date…');
@@ -332,7 +335,7 @@ async function resolveContractCompletionAction(id,from=null){
 }
 async function resolveMissingValueAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
- const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=reviewItem(id);if(!a)return;
  const node=actionNode(id,from),value=cls=>(node?.querySelector(cls)?.value||'').trim();
  const body=a.target.kind==='contract-value'?{amount:value('.action-missing-amount'),currency:value('.action-missing-currency')}:a.target.kind==='commencement-date'?{dateIso:value('.action-missing-date')}:{days:value('.action-missing-days')};
  if(Object.values(body).some(v=>v==='')){actionMessage(id,from,'Enter every field before saving.');return;}
@@ -344,7 +347,7 @@ async function resolveMissingValueAction(id,from=null){
 }
 async function resolvePopulationAction(id,from=null){
  if(!actionStateCurrent()||projectActionState.status!=='ready')return;
- const owner=project(),version=projectActionState.data.projectVersion,a=projectActionState.data.actions.find(x=>x.id===id);if(!a)return;
+ const owner=project(),version=projectActionState.data.projectVersion,a=reviewItem(id);if(!a)return;
  setActionBusy(id,from,true);actionMessage(id,from,'Saving confirmation…');
  try{
   await api('/api/projects/'+encodeURIComponent(owner)+'/delivery/records',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:version,action:'confirm_population',kind:a.target.kind,note:'Confirmed complete register in Actions required.'})});

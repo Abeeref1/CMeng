@@ -56,7 +56,8 @@ async function allActions(base:string){
   for(let page=0;page<20;page++){
     const r=await fetch(base+'/api/projects/'+PROJECT_ID+'/actions?page='+page+'&pageSize=25&dataGapsPage=0&query=&category=all');
     assert.equal(r.status,200,'actions page failed');const data=await r.json() as any;
-    out.push(...(data.actions||[]));if((page+1)*25>=(data.totalActionCount??data.actionCount??0)||!(data.actions||[]).length)break;
+    // Owner rule: CMeng answers and data gaps keep their inputs, so they are listed with the decisions.
+    out.push(...(data.actions||[]));if(page===0)out.push(...(data.information||[]));if((page+1)*25>=(data.totalActionCount??data.actionCount??0)||!(data.actions||[]).length)break;
   }
   return out;
 }
@@ -90,7 +91,7 @@ test('C1 real browser: each save stores the copy the user edited, from the page 
     // The project must offer the action kinds this test exercises.
     const before=await allActions(base);
     const valueAction=before.find(a=>a.target?.kind==='contract-value'),daysAction=before.find(a=>a.target?.kind==='approved-eot-days');
-    const assignAction=before.find(a=>a.category!=='information'&&a.id!==valueAction?.id&&a.id!==daysAction?.id);
+    const assignAction=before.find(a=>(a.category!=='information'||a.dataGap)&&a.id!==valueAction?.id&&a.id!==daysAction?.id);
     assert.ok(valueAction,'no contract-value input action: '+before.map(a=>a.target?.kind).join(','));
     assert.ok(daysAction,'no approved-EOT-days input action');
     assert.ok(assignAction,'no other open action to assign');
@@ -162,12 +163,12 @@ test('C1 real browser: each save stores the copy the user edited, from the page 
     assert.ok(await setValue('projectActionPanel',assignAction.id,'.action-assign-owner','Page Owner C1'));
     assert.ok(await setValue('projectReviewPanel',assignAction.id,'.action-assign-owner','Drawer Owner C1'));
     assert.ok(await click('projectActionPanel',assignAction.id,'[data-assign-save]'));
-    await settle(block('projectActionPanel',assignAction.id)+'&&/Page Owner C1/.test('+block('projectActionPanel',assignAction.id)+'.innerText)','first owner saved');
+    await settle(block('projectActionPanel',assignAction.id)+'&&/Page Owner C1/.test('+block('projectActionPanel',assignAction.id)+'.textContent)','first owner saved');
     await bothCopies(assignAction.id);
     assert.ok(await setValue('projectActionPanel',assignAction.id,'.action-assign-owner','Page Owner Two'));
     assert.ok(await setValue('projectReviewPanel',assignAction.id,'.action-assign-owner','Drawer Owner Two'));
     assert.ok(await click('projectReviewPanel',assignAction.id,'[data-assign-save]'));
-    await settle(block('projectReviewPanel',assignAction.id)+'&&/Drawer Owner Two/.test('+block('projectReviewPanel',assignAction.id)+'.innerText)','second owner saved');
+    await settle(block('projectReviewPanel',assignAction.id)+'&&/Drawer Owner Two/.test('+block('projectReviewPanel',assignAction.id)+'.textContent)','second owner saved');
 
     assert.deepEqual(pageErrors,[],'page errors: '+pageErrors.join(' | '));
     const bodyOf=(suffix:string,id:string)=>posts.filter(p=>p.path.endsWith(suffix)&&p.body?.actionId===id).map(p=>p.body);

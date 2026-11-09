@@ -36,8 +36,9 @@ test('M4.3: risk counts are shown at once, qualified; confirmed in Project Revie
   assert.equal(before.summary.completenessState,'not_established');
   assert.equal(before.summary.currentCount,null,'no confirmed register total yet');
   const review=projectActions(state,summarizeControlIssues([],0));
-  const item=review.actions.find(a=>a.id==='matter:risk-register-complete');
-  assert.ok(item&&item.category==='confirmation'&&item.resolution?.requiresUserAction,'one confirmation item asks for it');
+  // Owner rule: CMeng counts the supplied risks (its answer in use); confirming completeness is offered, not required.
+  const item=[...review.actions,...review.information].find(a=>a.id==='matter:risk-register-complete');
+  assert.ok(item&&item.cmengAnswer&&!review.actions.some(a=>a.id==='matter:risk-register-complete'),'CMeng\'s answer is shown once with its change control');
   // Confirm it the way the server stores a review-commercial-record decision.
   store.updateControls(state.projectId,{reviewDecisions:{...(state.controls.reviewDecisions??{}),'risk-register-complete':{sourceFingerprint:item!.reviewFingerprint!,choice:'confirm_complete',confirmedAt:'2031-05-02',sourceRefs:[]}}} as any);
   for(const [label,s] of [['after confirming',state],['after a restart',new RuntimeProjectStore({dataDir:dir,durable:true}).getOrCreate('M43-RISK')]] as const){

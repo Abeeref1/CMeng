@@ -133,9 +133,12 @@ test('unrelated missing commercial inputs remain visible together without creati
   const state=runtimeProjects.getOrCreate('GROUPED-ACTION-REVIEW');
   const items=['currency','retention','paymentPeriod'].map(field=>({code:'MISSING_SOURCE_VALUE',kind:'missing_information' as const,summary:field,detail:'Missing '+field,action:'Provide '+field,owner:'Project evidence owner' as const,moduleKeys:['contract-particulars-bonds'],sourceRefs:[],checkIds:[],evidencePaths:['contract.'+field]}));
   const result=projectActions(state,summarizeControlIssues(items));
-  assert.equal(result.information.filter((a:any)=>!a.dataGap&&!a.cmengAnswer).reduce((n,a)=>n+(a.requestCount??0),0),3);
-  assert.ok(result.information.filter((a:any)=>!a.dataGap&&!a.cmengAnswer).every(a=>a.target.type==='inline'));
-  assert.equal(result.information.filter((a:any)=>!a.dataGap&&!a.cmengAnswer).flatMap(a=>a.findings??[]).length,3);
+  // Owner rule: missing inputs are data gaps (listed once, with an owner and due date), never required questions.
+  const missing=result.information.filter((a:any)=>a.dataGap&&(a.findings??[]).some((f:any)=>f.code==='MISSING_SOURCE_VALUE'));
+  assert.equal(missing.reduce((n:number,a:any)=>n+(a.requestCount??0),0),3);
+  assert.ok(missing.every((a:any)=>a.target.type==='inline'));
+  assert.equal(missing.flatMap((a:any)=>a.findings??[]).length,3);
+  assert.ok(!result.actions.some((a:any)=>(a.findings??[]).some((f:any)=>f.code==='MISSING_SOURCE_VALUE')),'not a required question');
   assert.ok(!result.actions.some(a=>a.target.type==='module'));
 });
 

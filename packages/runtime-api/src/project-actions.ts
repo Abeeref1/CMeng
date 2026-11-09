@@ -722,7 +722,10 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   const ownedActions=unique.map(item=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)}));
   const owned=(item:ProjectAction)=>({...item,owner:pmcRoleOwner(item.target.kind??item.target.moduleKey??item.id,item.owner)});
   const cmengAnswers=universal.answers.map(owned),missingEvidence=universal.gaps.map(owned);
-  const recorded=information.map(item=>({...item,owner:pmcRoleOwner(item.id,item.owner)}));
+  // Owner rule: an item that only says evidence is missing is a data gap. It can be given an
+  // owner and due date (someone has to supply the evidence); it is never a required question.
+  const missingOnly=(item:ProjectAction)=>(item.findings??[]).length>0&&(item.findings??[]).every(f=>f.kind==='missing_information');
+  const recorded=information.map(item=>({...item,owner:pmcRoleOwner(item.id,item.owner),...(missingOnly(item)?{dataGap:true as const}:{})}));
   // Data gaps: missing evidence first, then the existing missing-field and recorded-decision items.
   const dataGaps=[...missingEvidence,...recorded];
   return {projectId:state.projectId,projectVersion:state.version,checkedAt:new Date().toISOString(),actionCount:ownedActions.length,actions:ownedActions,

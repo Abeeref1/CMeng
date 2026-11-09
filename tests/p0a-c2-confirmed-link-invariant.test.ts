@@ -67,7 +67,9 @@ test('C2 real server: confirmed links survive unrelated writes and a restart, an
     await expectCurrent('after confirming',true,true);
 
     // Unrelated writes. Each raises the project version; none touches the two linked records.
-    const actions=(await json(await fetch(base+'/actions?page=0&pageSize=25&dataGapsPage=0&query=&category=all'))).actions as any[];
+    const listed=await json(await fetch(base+'/actions?page=0&pageSize=25&dataGapsPage=0&query=&category=all')) as any;
+    // Owner rule: CMeng answers and data gaps keep their controls and can be assigned too.
+    const actions=[...(listed.actions||[]),...(listed.information||[])] as any[];
     const open=actions.find(a=>a.category!==undefined&&a.target?.kind!=='approved-eot-days');
     assert.ok(open,'no open action to assign');
     let r=await fetch(base+'/actions/assign',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({expectedVersion:await version(),actionId:open.id,owner:'Planning lead',dueIso:'2033-04-01'})});

@@ -343,8 +343,14 @@ export function projectControlSchedule(state:ProjectRuntimeState) {
   // If governed programme evidence exists but no active programme basis resolves,
   // fail closed. Legacy/misclassified schedule-control support documents must not
   // suppress an otherwise valid programme model.
-  if(hasProgrammeEvidence) return null;
-  const eligible=state.schedules.filter(s=>!isScenarioRevision(s)&&dateValue(s.revision.model.dataDateIso??''));
+  // Owner rule (6 Nov provisional analysis): when no programme is active yet, the one
+  // newest programme still held as a candidate (for example a baseline uploaded on its
+  // own) is analysed provisionally. Its authority stays a candidate and the governed
+  // Data Date stays unset until it is adopted. A historical or superseded programme,
+  // or two programmes with the same newest Data Date, are never picked.
+  const candidateIds=new Set(state.evidenceDocuments.filter(document=>document.category==='schedule'&&document.linkedArtifactId&&
+    !document.supersededByDocumentId&&(document.basisState==='candidate'||document.basisState==='active')).map(document=>document.linkedArtifactId!));
+  const eligible=state.schedules.filter(s=>!isScenarioRevision(s)&&dateValue(s.revision.model.dataDateIso??'')&&(!hasProgrammeEvidence||candidateIds.has(s.revision.revisionId)));
   const latest=eligible.map(s=>dateValue(s.revision.model.dataDateIso!)!).sort().at(-1);
   const newest=eligible.filter(s=>dateValue(s.revision.model.dataDateIso!)===latest);
   return newest.length===1?applyCalendarBasis(state,newest[0]!):null;

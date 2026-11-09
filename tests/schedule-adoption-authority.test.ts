@@ -28,11 +28,12 @@ test('active evidence basis does not make an unadopted programme current',()=>{
   const review=scheduleAuthorityReview(project);
   assert.equal(review.state,'pending_review');
   assert.equal(review.method,null);
-  assert.equal(projectControlSchedule(project),null);
+  // Owner rule (6 Nov): the programme is analysed provisionally; it is not adopted and sets no governed Data Date.
+  assert.equal(projectControlSchedule(project)?.revision.revisionId,'S-CURRENT');
   assert.equal(projectDataDate(project),null);
   const actions=programmeActions(project);
   assert.equal(actions.length,1);
-  assert.equal(actions[0]?.category,'confirmation');
+  assert.equal(actions[0]?.category,'information','confirming the programme is offered, not a required question');
   assert.equal(actions[0]?.target.type,'schedule');
   assert.match(actions[0]?.title??'',/Confirm the schedule used for reporting/);
 });
@@ -52,6 +53,8 @@ test('stale adoption for a different source hash cannot authorize the programme'
   project.evidenceDocuments[0].scheduleAdoption={
     method:'explicit',sourceHashSha256:'old-hash',recordedAt:'2042-08-21',note:'Stale decision',
   };
-  assert.equal(projectControlSchedule(project),null);
+  // The stale decision authorizes nothing: the programme stays a provisional candidate.
+  assert.notEqual(scheduleAuthorityReview(project).state,'established');
+  assert.equal(projectControlSchedule(project)?.revision.revisionId,'S-CURRENT');
   assert.equal(projectDataDate(project),null);
 });
