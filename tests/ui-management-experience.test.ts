@@ -722,3 +722,12 @@ test('P3: the verdict states the page answer; an open request is the next step, 
  assert.match(html,/Next step:<\/b> Confirm the contractual completion date\./);
  assert.doesNotMatch(html,/Current finding:<\/b> Contract comparison is not established/);
 });
+
+test('the forecast page states CMeng\'s calculated finish from the same shared gate as every other page',()=>{
+ // Before: the page read the raw projector field (null at partial coverage) while Command Center showed the gate's finish.
+ const data={contractualCompletionIso:null,sourceForecastCompletionIso:'2049-08-23',independentForecastCompletionIso:null,
+   forecastReconciliationGate:{managementForecast:{completionIso:'2049-08-20T17:00:00.000Z'}}};
+ const brief=runInNewContext(briefFunctions+';experienceBrief("independent-forecast",data)',{...common,data});
+ const fact=Array.from(brief.facts as any[]).find((f:any)=>f.label==='Programme calendar recalculation') as any;
+ assert.equal(String(fact.value).slice(0,10),'2049-08-20');
+});

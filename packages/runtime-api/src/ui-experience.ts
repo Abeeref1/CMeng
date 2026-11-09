@@ -167,7 +167,8 @@ function experienceBrief(key,data){
     note='Read each point on its own revision and reporting date. Added or removed activities can change the comparison.';
   }else if(key==='independent-forecast'){
     add('Contract completion',d.contractualCompletionIso,'Contract authority','date');add('Submitted completion',d.sourceForecastCompletionIso,'Current programme','date');
-    add('Productivity forecast',d.sourceProductivityForecastCompletionIso,'Reported productivity model; does not change the contract','date');add('Programme calendar recalculation',d.independentForecastCompletionIso,'Submitted logic on its own calendars; not delay','date');
+    add('Productivity forecast',d.sourceProductivityForecastCompletionIso,'Reported productivity model; does not change the contract','date');// One source for CMeng's own calculated finish: the shared forecast gate every page reads.
+    add('Programme calendar recalculation',d.forecastReconciliationGate?.managementForecast?.completionIso??d.independentForecastCompletionIso,'Submitted logic on its own calendars; not delay','date');
     note='Keep the source productivity outlook separate from calendar recalculation. Neither establishes attributable delay or EOT.';
     if(d.managementReviewState==='review_required')review=d.managementReviewReason||'Review calculation assumptions before adopting the independent date.';
   }else if(['notices-claims','delay-claims','windows-analysis','eot-assessment'].includes(key)){
