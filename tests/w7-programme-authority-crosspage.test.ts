@@ -47,7 +47,9 @@ function pages(project:any){
 test('F08 unadopted programme is a candidate on every page, including the project catalog and Documents',()=>{
   const p=pages(state());
   assert.equal(p.review.programmeState,'candidate');
-  assert.equal(p.control,null,'calculation pages do not treat it as current');
+  // 6 Nov owner rule (DMCC hotfix): the only programme is analysed provisionally, CMeng's answer in use,
+  // while its authority stays a candidate until it is adopted.
+  assert.equal(p.control?.revision.revisionId,'S-U2','the only programme is analysed provisionally');
   // Before: the catalog took the evidence-selected revision as current and showed its Data Date.
   assert.equal(p.metadata.revisionCount,1,'the catalog sees the programme revision');
   assert.equal(p.metadata.latestDataDateIso,null);
