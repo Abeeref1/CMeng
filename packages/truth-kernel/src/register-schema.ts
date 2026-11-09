@@ -260,12 +260,21 @@ export function sourceColumnAuditEntry<K extends string>(sourceHeader:string,can
  * has no field meaning; a comment or note column is free text; any other
  * column is one no CMeng reader uses for this kind of register. */
 export function unusedColumnReason(rawHeader:string):string{
-  const name=normalizeHeader(rawHeader??'');
-  if(!name||/^(?:extra|misc|miscellaneous|unnamed|untitled|blank|column|col|field)(?: ?\d+)?$|^x ?\d+$|^unlabelled column \d+$/.test(name))
+  const kind=unusedColumnKind(rawHeader);
+  if(kind==='placeholder')
     return 'Placeholder heading with no field meaning. Its values are kept in the source file and not used in any figure.';
-  if(/^(?:comments?|notes?|remarks?|memo|ملاحظات|ملاحظة|تعليق|تعليقات)(?: ?\d+)?$/u.test(name))
+  if(kind==='comment')
     return 'Free-text comment. It is kept in the source file and not used in any figure.';
   return 'No CMeng reader uses this column for this kind of register. Its values are kept in the source file and never treated as zero.';
+}
+/** P4: the kind of a column no reader uses. Only an 'unread' column can carry a
+ * field meaning, so only it is eligible for AI reading; a placeholder heading
+ * or a free-text comment is never sent. */
+export function unusedColumnKind(rawHeader:string):'placeholder'|'comment'|'unread'{
+  const name=normalizeHeader(rawHeader??'');
+  if(!name||/^(?:extra|misc|miscellaneous|unnamed|untitled|blank|column|col|field)(?: ?\d+)?$|^x ?\d+$|^unlabelled column \d+$/.test(name))return 'placeholder';
+  if(/^(?:comments?|notes?|remarks?|memo|ملاحظات|ملاحظة|تعليق|تعليقات)(?: ?\d+)?$/u.test(name))return 'comment';
+  return 'unread';
 }
 
 /** Cover-sheet title reason: a one-column sheet that is not a table. */

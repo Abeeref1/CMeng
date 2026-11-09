@@ -137,7 +137,7 @@ import {
   evidenceFamily,
   rebuildEvidenceFamily,
 } from "./evidence-control";
-import {configuredTableSemanticAiResolver,tableNeedsSemanticReading,configuredContractHeadingAiResolver,type TableSemanticAiResolver} from './evidence-semantic-ai';
+import {aiEligibleColumns,aiReadingCoverage,configuredTableSemanticAiResolver,tableNeedsSemanticReading,configuredContractHeadingAiResolver,type TableSemanticAiResolver} from './evidence-semantic-ai';
 import {
   deriveReadinessFromCsv,
   rebuildReadinessEvidence,
@@ -195,6 +195,53 @@ const sheetSemanticExcludedTypes=new Set([
 /** M2.1: the canonical reader interpretation of a table being read (the shared
  * readers run on a scratch copy of the project holding only this table). Loaded
  * lazily: the readers depend on modules that depend on this file. */
+/** P4: the AI step states that mean AI has not read the step yet. */
+const AI_AWAITING_STEP=new Set(['disabled','provider_unavailable','call_limit','stopped_at_cap','provider_error','invalid_response','failed']);
+const aiBackfillCsvCache=new Map<string,boolean>();
+function isCsvEvidence(document:StoredEvidenceDocument){return /csv/.test(document.mediaType)||(/^text\//.test(document.mediaType)&&/\.csv$/i.test(document.sourceFilename));}
+/** P4: a CSV read before AI reading steps were recorded (no step for its current
+ * source) that still has columns no reader consumed, or no recognised table at all,
+ * is eligible for AI reading. A placeholder or comment column is never a reason. */
+function csvNeedsAiBackfill(state:ProjectRuntimeState,document:StoredEvidenceDocument):boolean{
+  const key=state.projectId+'|'+document.documentId+'|'+document.sourceHashSha256+'|'+document.documentType;
+  const cached=aiBackfillCsvCache.get(key);if(cached!==undefined)return cached;
+  let eligible=false;
+  try{
+    const bytes=readFileSync(document.storedPath);
+    if(hashBytes(bytes)===document.sourceHashSha256){
+      const rows=truthCsv(Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/,''));
+      if(rows.length>1&&(rows[0]?.length??0)>1){
+        const route=inferTableSemanticRoute(rows,document.documentType);
+        if(!route)eligible=true;
+        else{const interpretation=readerInterpretation(state,rows,route.documentType,route.category,'CSV',[]);eligible=tableNeedsSemanticReading(interpretation)&&aiEligibleColumns(interpretation.unconsumed).length>0;}
+      }
+    }
+  }catch{eligible=false;}
+  aiBackfillCsvCache.set(key,eligible);
+  return eligible;
+}
+/** P4: every current document AI can still finish: a step that AI has not read
+ * (AI off, no provider, a failed call, the cap), a CSV read before AI steps were
+ * recorded that has unread columns, and a contract document read before AI steps
+ * were recorded. Discovery never calls AI. */
+export function aiBackfillCandidates(state:ProjectRuntimeState):{tables:StoredEvidenceDocument[];contracts:StoredEvidenceDocument[];withoutHistory:number}{
+  const tables:StoredEvidenceDocument[]=[],contracts:StoredEvidenceDocument[]=[];let withoutHistory=0;
+  for(const document of state.evidenceDocuments){
+    if(document.supersededByDocumentId)continue;
+    const current=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256);
+    const pending=current.some(step=>AI_AWAITING_STEP.has(step.status));
+    if(document.category==='contract'&&state.contractDocuments.some(item=>item.documentId===document.documentId&&item.sourceHashSha256===document.sourceHashSha256)){
+      if(pending||!current.length){contracts.push(document);if(!current.length)withoutHistory++;}
+      continue;
+    }
+    if(document.category==='schedule')continue;
+    const workbook=/spreadsheetml|ms-excel|macroEnabled/.test(document.mediaType),csv=isCsvEvidence(document);
+    if(!workbook&&!csv)continue;
+    if(pending){tables.push(document);continue;}
+    if(csv&&!current.length&&!document.csvSemantic&&csvNeedsAiBackfill(state,document)){tables.push(document);withoutHistory++;}
+  }
+  return {tables,contracts,withoutHistory};
+}
 function readerInterpretation(project:ProjectRuntimeState|null,rows:readonly string[][],documentType:string,category:string,sheetName:string,meanings:ReadonlyArray<{columnIndex:number}>){
   const {uploadReaderInterpretation}=require('./reader-consumption') as typeof import('./reader-consumption');
   const base=project??({projectId:'UPLOAD-READING',version:0,schedules:[],evidenceDocuments:[],contractDocuments:[],controls:{},phaseProgrammes:[]} as unknown as ProjectRuntimeState);
@@ -2519,34 +2566,46 @@ export class RuntimeProjectStore {
    * allowed to make paid AI calls, uses the same reading steps as upload (a sheet
    * AI already read is never called again) and keeps every source value. Refresh
    * never calls AI on its own; this route is the explicit way to finish. */
-  async finishAiTableReading(projectId:string,input:{allowSemanticAi:boolean}):Promise<{state:'not_allowed'|'not_set_up'|'nothing_to_read'|'read';documentsRead:number;steps:Array<{documentId:string;sheetName:string;status:string}>}>{
+  async finishAiTableReading(projectId:string,input:{allowSemanticAi:boolean}):Promise<{state:'not_allowed'|'not_set_up'|'nothing_to_read'|'read';documentsRead:number;stoppedAtCap?:boolean;steps:Array<{documentId:string;sheetName:string;status:string}>}>{
     const state=this.projects.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
-    const awaiting=new Set(['disabled','provider_unavailable','call_limit','stopped_at_cap','provider_error','invalid_response','failed']);
-    const pending=state.evidenceDocuments.filter(document=>!document.supersededByDocumentId&&(document.semanticAiSteps??[]).some(step=>step.sourceHashSha256===document.sourceHashSha256&&awaiting.has(step.status)));
-    if(!pending.length)return {state:'nothing_to_read',documentsRead:0,steps:[]};
+    // P4: also the documents read before AI steps were recorded (no step at all).
+    const candidates=aiBackfillCandidates(state),pending=candidates.tables;
+    if(!pending.length&&!candidates.contracts.length)return {state:'nothing_to_read',documentsRead:0,steps:[]};
     if(!input.allowSemanticAi)return {state:'not_allowed',documentsRead:0,steps:[]};
     const resolver=this.semanticAiResolver??configuredTableSemanticAiResolver();
-    if(!resolver)return {state:'not_set_up',documentsRead:0,steps:[]};
-    const out:Array<{documentId:string;sheetName:string;status:string}>=[];let documentsRead=0;
-    for(const document of pending){
+    const contractResolver=this.contractAiResolver??configuredContractHeadingAiResolver();
+    if(!resolver&&!contractResolver)return {state:'not_set_up',documentsRead:0,steps:[]};
+    const out:Array<{documentId:string;sheetName:string;status:string}>=[];let documentsRead=0,capped=false;
+    for(const document of resolver?pending:[]){
+      // At the monthly cap no further call is made; a CSV still waiting records that.
+      if(capped&&!isCsvEvidence(document))continue;
       const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)continue;
       const current=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256===document.sourceHashSha256);
       const kept=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256!==document.sourceHashSha256);
       const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];const diagnostics:string[]=[];
       if(/spreadsheetml|ms-excel|macroEnabled/.test(document.mediaType)){
         document.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,document.sourceHashSha256,document.documentType),
-          {project:state,resolver,requested:true,steps,cached:document.tabularRead,priorSteps:current,diagnostics});
-      }else{
+          {project:state,resolver:resolver!,requested:true,steps,cached:document.tabularRead,priorSteps:current,diagnostics});
+      }else if(isCsvEvidence(document)){
         const rows=truthCsv(Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/,''));
         const route=inferTableSemanticRoute(rows,document.documentType);
         const interpretation=route?readerInterpretation(state,rows,route.documentType,route.category,'CSV',[]):null;
         let status:NonNullable<StoredEvidenceDocument['semanticAiSteps']>[number]['status']='not_required',attempted=false;
-        if(!document.csvSemantic&&(!route||tableNeedsSemanticReading(interpretation!))){
+        if(!document.csvSemantic&&(!route||tableNeedsSemanticReading(interpretation!))&&capped)status='stopped_at_cap';
+        else if(!document.csvSemantic&&(!route||tableNeedsSemanticReading(interpretation!))){
           attempted=true;
           try{
-            const proposed=await resolver.resolveTable({sourceHashSha256:document.sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??document.documentType,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})});
-            if(proposed){document.csvSemantic=proposed;status='validated';}else status='unresolved';
-          }catch(error){const code=classifyAiCallError(error);status=code==='stopped_at_cap'?'stopped_at_cap':code??'failed';if(code==='stopped_at_cap')attempted=false;}
+            // P4: only columns that can carry a field meaning are sent (no placeholder or comment column).
+            const proposed=await resolver!.resolveTable({sourceHashSha256:document.sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??document.documentType,...(interpretation?{unconsumedColumns:aiEligibleColumns(interpretation.unconsumed)}:{})});
+            if(proposed){
+              document.csvSemantic=proposed;status='validated';
+              // Applied as upload applies it: the grounded reading establishes the register role.
+              const previous=document.documentType;document.category=proposed.category as EvidenceCategory;document.documentType=proposed.documentType;
+              document.identification={...document.identification,detectedCategory:document.category,detectedDocumentType:document.documentType,method:'tabular_content',confidence:proposed.confidence,needsReview:false,
+                signals:[...document.identification.signals,...(proposed.signals?.length?proposed.signals:['Generic table semantics'])],
+                diagnostics:[...document.identification.diagnostics,'CSV_REGISTER_ROLE_ESTABLISHED_FROM_GROUNDED_AI:'+previous+'->'+document.documentType]};
+            }else status='unresolved';
+          }catch(error){const code=classifyAiCallError(error);status=code==='stopped_at_cap'?'stopped_at_cap':code??'failed';if(code==='stopped_at_cap'){attempted=false;capped=true;}}
         }else if(document.csvSemantic?.method==='ai_grounded')status='reused';
         steps.push({sheetName:'CSV',sourceHashSha256:document.sourceHashSha256,status,attempted,
           note:status==='validated'?'Validated against original CSV headers and content.':status==='unresolved'?'AI call did not validate the unmatched source columns.':status==='reused'?'Previously grounded source reading reused without another call.':status==='not_required'?'Rule-based CSV column reading is sufficient.':aiErrorNote(status as Parameters<typeof aiErrorNote>[0],'original CSV retained.')});
@@ -2554,8 +2613,46 @@ export class RuntimeProjectStore {
       document.semanticAiSteps=[...kept,...steps];documentsRead++;
       for(const step of steps)out.push({documentId:document.documentId,sheetName:step.sheetName,status:step.status});
     }
+    // P4: a contract read without AI (AI off, no provider, or read before AI steps were
+    // recorded) is read again with the same contract reader and AI heading reading.
+    // Only headings the rules could not resolve are sent; every page stays retained.
+    for(const document of contractResolver&&!capped?candidates.contracts:[]){
+      const index=state.contractDocuments.findIndex(item=>item.documentId===document.documentId);if(index<0)continue;
+      const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)continue;
+      const kept=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256!==document.sourceHashSha256);
+      const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
+      const configured=Number(process.env.CMENG_CONTRACT_AI_MAX_CALLS_PER_FILE??8),aiMaxCalls=Number.isFinite(configured)?Math.max(0,Math.floor(configured)):8;
+      const onAiStep=(step:import("../../contract-parser/src").ContractAiStepReceipt)=>{
+        const where=step.sourceSpan.page!==null?'page '+step.sourceSpan.page:step.sourceSpan.sourceKind.replace(/_/g,' ')+' '+step.sourceSpan.sourceIndex;
+        steps.push({sheetName:'Contract heading · '+where,sourceHashSha256:document.sourceHashSha256,status:step.status,attempted:step.attempted,
+          note:step.status==='validated'?'AI heading reading was validated against the exact retained source span.':
+            step.status==='call_limit'?'Per-file contract AI call limit reached; the original heading remains unresolved for review.':
+            step.status==='failed'||step.status==='stopped_at_cap'||step.status==='provider_error'||step.status==='invalid_response'?aiErrorNote(step.status,'the original contract text remains retained.'):
+            'AI heading proposal did not pass source-span and confidence validation; original text remains retained.'});
+      };
+      const media=document.mediaType.toLowerCase(),options={aiResolver:contractResolver!,aiMaxCalls,onAiStep};
+      const textFormat=!/pdf/.test(media)&&!/wordprocessingml/.test(media)?contractTextFormat(document.mediaType,document.sourceFilename):null;
+      let parsed;
+      try{
+        parsed=/pdf/.test(media)?await parseContractPdf(bytes,{...(process.env.CMENG_OCR_ENABLED?.trim()==='0'?{}:{ocrProvider:this.createOcrProvider()}),...options}):
+          /wordprocessingml/.test(media)?await parseContractDocx(bytes,options):
+          textFormat?await parseContractText(bytes,{format:textFormat,...options}):null;
+      }catch(error){steps.push({sheetName:'Contract headings',sourceHashSha256:document.sourceHashSha256,status:'failed',attempted:false,note:aiErrorNote('failed','the original contract reading stays in use.')});parsed=null;}
+      if(parsed){
+        if(!steps.length)steps.push({sheetName:'Contract headings',sourceHashSha256:document.sourceHashSha256,status:'not_required',attempted:false,
+          note:'Rule-based contract heading reading found no unresolved heading that required an AI call.'});
+        state.contractDocuments[index]={...state.contractDocuments[index]!,result:parsed};
+      }
+      document.semanticAiSteps=[...kept,...steps];documentsRead++;
+      for(const step of steps)out.push({documentId:document.documentId,sheetName:step.sheetName,status:step.status});
+    }
     if(documentsRead){this.touch(state);}
-    return {state:'read',documentsRead,steps:out};
+    return {state:'read',documentsRead,...(capped?{stoppedAtCap:true}:{}),steps:out};
+  }
+  /** P4: the document screen's AI reading line, counting documents read before AI steps were recorded. */
+  aiReadingCoverage(projectId:string,provider:{providerConfigured:boolean;estimatedMaxUsdPerCall:number|null}){
+    const state=this.projects.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+    return aiReadingCoverage(state.evidenceDocuments,provider,{eligibleDocuments:aiBackfillCandidates(state).withoutHistory});
   }
 
   async refreshSpreadsheetRegisters(projectId?:string){

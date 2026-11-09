@@ -58,7 +58,7 @@ import {
   type BoardReadyReport,
   type BoardReportPublicationInput,
 } from "../../board-report/src";
-import {
+import {aiBackfillCandidates,
   isProgrammeScheduleRevision,
   normalizeProjectCode,
   runtimeProjects,
@@ -415,7 +415,7 @@ export function projectDocumentRegister(projectId:string){
     return {
       projectId,
       projectVersion:state.version,
-      aiReading:aiReadingCoverage(state.evidenceDocuments,configuredProviderState()),
+      aiReading:aiReadingCoverage(state.evidenceDocuments,configuredProviderState(),{eligibleDocuments:aiBackfillCandidates(state).withoutHistory}),
       documentReading:reading.summary,
       documentCount:
         state.evidenceDocuments
@@ -1303,7 +1303,7 @@ async function route(
       :result.state==='nothing_to_read'?'Every table is already read; there is nothing left for AI to read.'
       :'AI read '+result.documentsRead+' document'+(result.documentsRead===1?'':'s')+'. Review the reading on each document.';
     const state=runtimeProjects.get(projectId)!;
-    json(res,result.state==='not_allowed'?403:result.state==='not_set_up'?409:200,{...result,message,aiReading:aiReadingCoverage(state.evidenceDocuments,configuredProviderState())});
+    json(res,result.state==='not_allowed'?403:result.state==='not_set_up'?409:200,{...result,message,aiReading:aiReadingCoverage(state.evidenceDocuments,configuredProviderState(),{eligibleDocuments:aiBackfillCandidates(state).withoutHistory})});
     return;
   }
 
