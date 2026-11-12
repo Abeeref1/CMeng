@@ -1,3 +1,4 @@
+import {readableAmount,readableSourceLocations} from './source-locations';
 import {managementDate} from './management-values';
 import {programmeTaskReviewBasis} from './programme-task-review';
 import {overlapProposalFor} from './eot-overlap-proposal';
@@ -457,7 +458,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const item:ProjectAction={id:'matter:notice-term-versions',category:saved?'information':'confirmation',title:'Review claim notice provisions',owner:'Contracts Manager',recordCount:noticeVersions.length,
       reason:saved?.choice==='refer_contracts'?'Interpretation remains unresolved for Contracts review. The saved choice can be revised here.':'Compare the source periods and their effective intervals before choosing the reporting provisions.',
       findings:noticeFindings,reviewFingerprint:noticeBasis.sourceFingerprint,reviewSourceRefs:noticeBasis.sourceRefs,
-      evidenceSummary:noticeVersions.map(v=>v.value+' '+v.unit+' · '+v.sourceFilename+' · '+v.sourceRefs.map(ref=>ref.split(':').slice(-2).join(' ')).join('; ')+(v.effectiveFromIso?' · from '+v.effectiveFromIso:' · original provision')+(v.effectiveToIso?' · replaced from '+v.effectiveToIso:'')+(v.sourceAnalyticalUse==='qualified_source_read'?' · read from source; not formally adopted':'')),
+      evidenceSummary:noticeVersions.map(v=>v.value+' '+v.unit+' · '+v.sourceFilename+' · '+readableSourceLocations(v.sourceRefs)+(v.effectiveFromIso?' · from '+v.effectiveFromIso:' · original provision')+(v.effectiveToIso?' · replaced from '+v.effectiveToIso:'')+(v.sourceAnalyticalUse==='qualified_source_read'?' · read from source; not formally adopted':'')),
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Confirm the source intervals, choose the applicable retained provisions, or retain the unresolved interpretation. Original periods, triggers and source dates remain unchanged; this is not an entitlement decision.',completionRule:'Saved against these source files and editable after saving. Source changes reopen review.'},
       target:{type:'inline',kind:'review-notice',label:'Record notice review',reviewChoice:saved?.choice??'confirm_versions',reviewReference:saved?.reference??null,noticeCandidates:noticeVersions,noticeSourceKeys:saved?.noticeSourceKeys??noticeVersions.map(v=>v.sourceKey),
         reviewOptions:[{value:'confirm_versions',label:'Confirm all dated source provisions'},{value:'choose_provisions',label:'Use selected source provisions'},{value:'refer_contracts',label:'Keep interpretation unresolved'}]}};
@@ -636,12 +637,12 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const saved=valueReview.decision;
     const item:ProjectAction={id:'matter:contract-value',category:saved?'information':'confirmation',title:'Confirm the contract value already read',owner:'Commercial Manager',recordCount:valueReview.candidates.length,
       reason:'Select the contract value to use for reporting from the retained source candidates.',reviewFingerprint:valueReview.sourceFingerprint,reviewSourceRefs:valueReview.candidates.flatMap(c=>c.sourceRefs),
-      evidenceSummary:valueReview.candidates.map(c=>c.currency+' '+c.amount+' · '+c.sourceRefs.join('; ')),
+      evidenceSummary:valueReview.candidates.map(c=>c.currency+' '+readableAmount(c.amount)+' · '+readableSourceLocations(c.sourceRefs)),
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the value against the cited contract and amendment, then confirm the applicable value. Original source candidates are retained.',completionRule:'The selected amount and currency become the shared reporting value for these contract sources.'},
       // M13.1: a single read value is pre-filled; the user confirms or changes it.
       target:{type:'inline',kind:'review-contract-value',label:'Confirm contract value',reviewChoice:saved?.choice??(valueReview.candidates.length===1?'value:'+valueReview.candidates[0]!.currency+':'+valueReview.candidates[0]!.amount:null),reviewOptions:[...valueReview.candidates.map(c=>({value:'value:'+c.currency+':'+c.amount,label:c.currency+' '+c.amount.toLocaleString('en-US')})),
         {value:'enter_value',label:'Enter my own contract value and currency'},...(saved?[{value:'undo',label:'Undo my decision'}]:[])]}};
-    if(saved?.choice==='enter_value')item.evidenceSummary=[...(item.evidenceSummary??[]),'Saved decision: your own value '+saved.enteredCurrency+' '+saved.enteredValue+'. Not formally adopted.'];
+    if(saved?.choice==='enter_value')item.evidenceSummary=[...(item.evidenceSummary??[]),'Saved decision: your own value '+saved.enteredCurrency+' '+readableAmount(saved.enteredValue)+'. Not formally adopted.'];
     (saved?information:actions).push(item);
   }
 

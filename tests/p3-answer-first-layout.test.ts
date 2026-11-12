@@ -99,3 +99,10 @@ test('the same unknown sentence in several blocks is shown once',async t=>{
    return Array.from(c.querySelectorAll('p,.notice')).filter(n=>n.checkVisibility()&&n.textContent.trim()===${JSON.stringify(note)}).length+'|'+c.innerText.includes('Cost is 4% over budget.');})()`);
   assert.equal(shown,'1|true');
 });
+
+test('a line that only says a figure is not calculable never opens the page; the answer and actions come first',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const unknown='<p class="boq-coverage"><b>BOQ programme coverage:</b> Not calculable, because no BOQ quantities are linked. <button class="btn small">Review scope links</button></p>';
+  const order=await run(chromium,BASIS+VERDICT+unknown+TILES+ACTION,ORDER);
+  assert.deepEqual(order,['position-verdict','module-basis','planning-kpi-grid','action-notification','boq-coverage']);
+});

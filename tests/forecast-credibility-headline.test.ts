@@ -48,3 +48,13 @@ test('when the contractor\'s programme leads, the next step names what makes CMe
   assert.match(coverage.nextAction??'',/^Correct the programme gaps named in the finding/);
   assert.doesNotMatch(divergence.nextAction+' '+coverage.nextAction,/forecast reconciliation/,'no internal process name as the next step');
 });
+
+test('the verdict label states the position, never a task',async()=>{
+  const {positionVerdict}=await import('../packages/runtime-api/src/position-review');
+  const verdict=(submitted:number)=>positionVerdict({key:'master-dashboard',status:'available',data:{metrics:[],projectFacts:{time:{
+    independentDaysAfterCurrentContract:{value:null},submittedDaysAfterCurrentContract:{value:submitted},
+    forecastHeadline:{source:'contractor_programme',completionIso:'2043-04-14',statement:'',notReliableReasons:['it covers only 21.6% of the activities']}}}}} as any);
+  assert.equal(verdict(-137).label,'Not fully confirmed');
+  assert.equal(verdict(91).label,'Off target');
+  for(const v of [verdict(-137),verdict(91)])assert.doesNotMatch(v.label,/required|review needed/i,'no task word in the label: '+v.label);
+});

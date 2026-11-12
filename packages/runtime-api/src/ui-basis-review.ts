@@ -67,7 +67,7 @@ function renderCommercialExceptions(position,key,data){
     const review=position.foundation?.commercialTerms?.noticeReview;
     let noticeHtml='';
     if(review?.sourceTerms?.length)noticeHtml+=basisPanel('Retained initial notice provisions','Original source values and intervals stay visible after a reporting selection.',
-      basisTable(['Days','Unit','From','Replaced from','Source references'],review.sourceTerms.map(t=>[t.value,t.unit,t.effectiveFromIso||'Original provision',t.effectiveToIso||'No later source date',t.sourceRefs.join('; ')]))+
+      basisTable(['Days','Unit','From','Replaced from','Source references'],review.sourceTerms.map(t=>[t.value,t.unit,t.effectiveFromIso||'Original provision',t.effectiveToIso||'No later source date',readableSourceLocations(t.sourceRefs)]))+
       (review.reference?'<p>Saved notice review: '+escapeHtml(review.reference)+'</p>':'')+
       (review.treatment||new Set(review.sourceTerms.map(t=>t.value+'|'+t.unit)).size>1||review.sourceTerms.some(t=>t.applicability==='unresolved')?'<button class="btn" onclick="openProjectActions()">Review notice provisions</button>':''));
     const rules=position.contractNoticeRules||[];

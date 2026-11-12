@@ -164,9 +164,10 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   // W8: no generic 'review the figures' line; the page lists its own actions.
   if(!nextAction&&blockedBy==='missing_input')nextAction='Provide the missing inputs listed in Information & Actions.';
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
-  return {schemaVersion:'1.0',facts,specific,rag,label:rag==='red'?'Action required':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Review needed',text,
+  return {schemaVersion:'1.0',facts,specific,rag,// The label states the position, never a task: a review decision is shown only where one waits (Project Review).
+    label:rag==='red'?'Off target':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Not fully confirmed',text,
     nextAction:nextAction??'',owner:assignTo,assignTo,
-    basis:'Red: a reported target is exceeded or a calculation check failed. Amber: information or review is incomplete. Green: the stated target and listed checks pass. These colours do not represent an overall project risk score.'};
+    basis:'Red (off target): a reported target is exceeded or a calculation check failed. Amber (not fully confirmed): some information is missing or not yet confirmed. Green: the stated target and listed checks pass. These colours do not represent an overall project risk score.'};
 }
 export function withPositionVerdict(result:ModuleRuntimeResult):ModuleRuntimeResult {
   return {...result,data:{...(result.data as object??{}),positionVerdict:positionVerdict(result)}};

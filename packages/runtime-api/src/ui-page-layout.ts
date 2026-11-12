@@ -122,7 +122,7 @@ function pageIsAction(node){
 }
 function pageAnswerRank(node,seen){
  if(node.matches(PAGE_FIXED)&&node.tagName!=='DETAILS')return 0;
- if(node.matches(PAGE_EVIDENCE))return -1;
+ if(node.matches(PAGE_EVIDENCE)||pageIsUnknownOnly(node))return -1;
  if(node.tagName==='DETAILS'||node.matches('.owner-link-panel'))return -1;
  if(pageVisibleTableRows(node)>PAGE_LONG_TABLE_ROWS)return -1;
  if(node.matches('.experience-management-reading'))return 1;
@@ -140,12 +140,22 @@ function pageAnswerRank(node,seen){
 // Within each group of sibling blocks: the verdict (the answer), the one-line
 // programme and Data Date context, a system alert, the page's own content, its
 // actions, then qualifications and system evidence. Blocks are only moved.
+// A short line that only says a figure is unknown (for example "BOQ coverage: Not
+// calculable, because ...") is a qualification. It never opens a page: it follows
+// the page's answer and its actions, and moves to More detail on a long page.
+function pageIsUnknownOnly(node){
+ if(node.matches('.position-verdict,.module-basis,[role="alert"]'))return false;
+ if(node.querySelector('table,svg,canvas,.planning-kpi,.experience-fact,.pmc-domain-card'))return false;
+ const copy=node.cloneNode(true);for(const button of Array.from(copy.querySelectorAll('button,a.btn')))button.remove();
+ const text=String(copy.textContent||'').replace(/\s+/g,' ').trim();
+ return text.length>0&&text.length<=320&&/\b(?:not calculable|not established|not available|not assessable|cannot (?:yet )?be (?:calculated|established|assessed))\b/i.test(text);
+}
 function pageOrderKey(node,hasVerdict){
  if(node.matches('.position-verdict'))return 0;
  if(node.matches('.view-state-bar'))return hasVerdict?2:0;
  if(node.matches('.module-basis')&&node.tagName!=='DETAILS')return 1;
  if(node.matches('[role="alert"],.experience-notes.error'))return 2;
- if(node.matches(PAGE_EVIDENCE))return 5;
+ if(node.matches(PAGE_EVIDENCE)||pageIsUnknownOnly(node))return 5;
  if(node.tagName!=='DETAILS'&&pageIsAction(node))return 4;
  return 3;
 }
