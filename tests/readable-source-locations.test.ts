@@ -20,3 +20,8 @@ test('the review screen embeds the shared reader and no raw span split remains',
   assert.match(html,/function readableSourceLocations\(/);
   assert.doesNotMatch(html,/split\(':'\)\.slice\(-2\)\.join\(' '\)/,'no page prints the last two parts of a span code');
 });
+
+test('locations keep the document they belong to when its name is known',()=>{
+  const names:Record<string,string>={AMD:'Amendment 2.pdf',MAIN:'Main contract.pdf'};
+  assert.equal(readableSourceLocations(['evidence-document:AMD:page:9','evidence-document:MAIN:page:2','evidence-document:MAIN:page:3'],id=>names[id]??null),'Amendment 2.pdf page 9; Main contract.pdf pages 2, 3');
+});

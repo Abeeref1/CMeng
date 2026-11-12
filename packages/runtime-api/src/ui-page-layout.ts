@@ -124,8 +124,9 @@ function pageAnswerRank(node,seen){
  if(node.matches(PAGE_FIXED)&&node.tagName!=='DETAILS')return 0;
  if(node.matches(PAGE_EVIDENCE)||pageIsUnknownOnly(node))return -1;
  if(node.tagName==='DETAILS'||node.matches('.owner-link-panel'))return -1;
- // A chart is the page's answer even when a long table sits under it in the same block.
- if(!seen.chart&&pageShows(node,PAGE_CHART)&&!node.matches('[data-page-answer]')){seen.chart=true;return 3;}
+ // On a page without a verdict, a chart is the page's answer even when a long table
+ // sits under it in the same block (a page with a verdict already leads with its answer).
+ if(seen.noVerdict&&!seen.chart&&pageShows(node,PAGE_CHART)&&!node.matches('[data-page-answer]')){seen.chart=true;return 3;}
  if(pageVisibleTableRows(node)>PAGE_LONG_TABLE_ROWS)return -1;
  if(node.matches('.experience-management-reading'))return 1;
  const tiles=pageShows(node,PAGE_TILE);
@@ -358,7 +359,8 @@ function pageUnknownReasons(node){
   for(let next=line.nextElementSibling;next&&next.tagName==='P'&&PAGE_REASON_FOLLOW.test(String(next.textContent||'').trim());next=next.nextElementSibling)if(!lines.includes(next))lines.push(next);
  };
  // A tile's own reason is part of its tile row; the verdict and the reading box always stay.
- const outside=el=>!el.closest('td,th,summary,.position-verdict,.experience-management-reading,'+PAGE_TILE);
+ // The one-line summary of unknown tiles (page-unknown-once) is a qualification, not a reason line to keep open.
+ const outside=el=>!el.closest('td,th,summary,.position-verdict,.experience-management-reading,.page-unknown-once,.page-said-once,'+PAGE_TILE);
  for(const lead of Array.from(node.querySelectorAll('b,strong'))){
   if(!pageNodeShown(lead)||!outside(lead)||!PAGE_UNKNOWN_LEAD.test(String(lead.textContent||'').trim()))continue;
   let line=lead.parentElement;
@@ -430,7 +432,7 @@ function arrangePageDetail(container){
  if(container.scrollHeight<=limitHeight&&pageClosedTotal(container)<=PAGE_MAX_CLOSED_SECTIONS)return null;
  const blocks=pageBlocks(container);
  if(blocks.length<2)return null;
- const seen={},ranked=[];
+ const seen={noVerdict:!container.querySelector('.position-verdict')},ranked=[];
  for(const block of blocks){
   const rank=pageAnswerRank(block.node,seen),height=pageBlockHeight(block.node);
   const lines=rank===0||block.node.tagName==='DETAILS'?[]:pageUnknownReasons(block.node);

@@ -103,7 +103,7 @@ test('notice readiness and rendered source comparison retain unresolved interpre
  assert.equal(noticeComplianceAssessable(projection()),false,'an uncovered source interval cannot be reported assessed');
  const position={foundation:{commercialTerms:{noticeReview:{sourceTerms:basis.candidates,reference:'SOURCE-REVIEW',treatment:'choose_provisions'}}},contractNoticeRules:contractNoticeRules(state)};
  const html=runInNewContext(basisReviewScript+';renderCommercialExceptions(position,"contract-particulars-bonds",{})',{position,escapeHtml:String,readerText:String,humanizeKey:String,fmt:String,fmtForField:(_:string,v:any)=>String(v),planningShortDate:String,currentModuleResult:{key:'contract-particulars-bonds'}});
- assert.match(html,/Retained initial notice provisions/);assert.match(html,/evidence-document:AMD:page:9/);assert.match(html,/>14</);assert.match(html,/SOURCE-REVIEW/);assert.match(html,/Review notice provisions/);
+ assert.match(html,/Retained initial notice provisions/);assert.match(html,/page 9/);assert.doesNotMatch(html,/evidence-document:AMD:page:9/,'the location reads as a page, not an internal code');assert.match(html,/>14</);assert.match(html,/SOURCE-REVIEW/);assert.match(html,/Review notice provisions/);
 });
 
 test('notice provision selection survives a real gateway restart and retains both source files',async t=>{
