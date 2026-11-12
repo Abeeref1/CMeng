@@ -145,3 +145,13 @@ test('unknown tiles next to a known tile: the known tile stays, the unknown ones
   assert.equal(result.line,'Not established (Needs an interface register): Interfaces from registers, Blocked / overdue.');
   assert.deepEqual(result.order,['planning-kpi-grid','page-unknown-once']);
 });
+
+test('the unknown-tile rule applies to every tile layout (delivery cards too)',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const card=(label:string,value:string)=>'<div class="card kpi-card"><div class="kpi-label">'+label+'</div><div class="kpi-value">'+value+'</div><div class="kpi-sub">Confirm the Procurement packages register is complete · basis</div></div>';
+  const grid='<div class="grid kpi">'+card('BOQ mapped to procurement','Not established')+card('Packages from register','0')+card('Source-marked long lead','Not established')+'</div>';
+  const result=await run(chromium,grid,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+   return {line:c.querySelector('.page-unknown-once')?.textContent,shown:Array.from(c.querySelectorAll('.kpi-card')).filter(n=>n.checkVisibility()).map(n=>n.querySelector('.kpi-label').textContent)};})()`);
+  assert.deepEqual(result.shown,['Packages from register']);
+  assert.equal(result.line,'Not established (Confirm the Procurement packages register is complete): BOQ mapped to procurement, Source-marked long lead.');
+});

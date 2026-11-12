@@ -236,12 +236,14 @@ function pageSayUnknownOnce(container){
  }
  // (4) A row of tiles where every tile is unknown is one line, not one tile per measure:
  // "Not established (Needs an interface register): Interfaces from registers, Blocked / overdue".
- for(const grid of Array.from(container.querySelectorAll('.planning-kpi-grid,.experience-facts,.kpi-grid'))){
-  if(grid.dataset.pageUnknownOnce||grid.closest('.position-verdict'))continue;
+ // Every tile layout counts: any element that holds two or more tiles side by side.
+ const grids=new Set();for(const tile of Array.from(container.querySelectorAll(PAGE_TILE)))if(tile.parentElement)grids.add(tile.parentElement);
+ for(const grid of grids){
+  if(grid.dataset.pageUnknownOnce||grid.closest('.position-verdict,.pmc-control-room'))continue;
   const tiles=Array.from(grid.children).filter(tile=>tile.matches(PAGE_TILE));
   if(tiles.length<2)continue;
-  const read=tile=>({label:pageNormal(tile.querySelector('span,b,.label')?.textContent),value:pageNormal(tile.querySelector('strong,.value')?.textContent),
-    note:pageNormal(tile.querySelector('small,.sub')?.textContent)});
+  const read=tile=>({label:pageNormal(tile.querySelector('.kpi-label,.label,span,b')?.textContent),value:pageNormal(tile.querySelector('.kpi-value,.value,strong')?.textContent),
+    note:pageNormal(tile.querySelector('.kpi-sub,.sub,small')?.textContent)});
   const unknown=tiles.map(tile=>({tile,...read(tile)})).filter(v=>v.label&&/^(?:not established|not available|not calculable|not assessable|unknown|not recorded|not supplied)\b/i.test(v.value));
   if(unknown.length<2)continue;
   grid.dataset.pageUnknownOnce='1';
