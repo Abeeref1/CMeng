@@ -283,6 +283,9 @@ export interface StoredEvidenceDocument {
     status:'not_required'|'disabled'|'provider_unavailable'|'call_limit'|'stopped_at_cap'|'provider_error'|'invalid_response'|'validated'|'unresolved'|'failed'|'reused'|'source_read_failed';
     attempted:boolean; note:string;
   }>;
+  /** Contract heading answers already returned by AI for this exact source, so a
+   * later reading reuses them and continues with headings not yet read. */
+  contractAiAnswers?: Array<{sourceHashSha256:string;key:string;text:string;proposal:import("../../contract-parser/src").ContractAiHeadingProposal|null}>;
 
   tableConfirmations?: import("../../truth-kernel/src").EvidenceColumnConfirmation[];
   documentId: string;

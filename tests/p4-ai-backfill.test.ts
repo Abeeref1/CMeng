@@ -145,3 +145,25 @@ test('P4: a contract uploaded with the other documents gets their AI permission 
   assert.ok(steps.length>0);
   assert.ok(steps.every(s=>s.status!=='disabled'),'AI permission reached the contract reader: '+steps.map(s=>s.status).join(','));
 });
+
+test('Contract AI reading continues past the per-file limit: a second reading reuses earlier answers and reads only the rest',async t=>{
+  const dir=mkdtempSync(join(tmpdir(),'cmeng-p4f-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const asked:string[]=[];
+  const contractAiResolver:ContractAiResolver={name:'fake-contract',async resolveHeading(input){asked.push(input.sourceSpan.text);return null;}};
+  const store=new RuntimeProjectStore({dataDir:dir,durable:false,contractAiResolver}),state=store.getOrCreate('P4-LIMIT');
+  const headings=Array.from({length:12},(_,i)=>'Clause ??? unclear heading '+String.fromCharCode(65+i)+'\nThe Contractor shall comply with item '+(i+1)+'.\n').join('\n');
+  await store.ingestContract({projectId:state.projectId,bytes:Buffer.from('MAIN WORKS CONTRACT\n\n1. Definitions\nTerms.\n\n'+headings),mediaType:'text/plain',sourceFilename:'Main_Contract.txt',role:'main',uploadedAt:'2031-01-05'});
+  const document=state.evidenceDocuments.find(d=>d.category==='contract')!;
+  const first=await store.finishAiTableReading(state.projectId,{allowSemanticAi:true});
+  assert.equal(first.state,'read');
+  assert.equal(asked.length,8,'the first reading stops at the 8-call limit');
+  assert.equal((document.semanticAiSteps??[]).filter(s=>s.status==='call_limit').length,4);
+  const second=await store.finishAiTableReading(state.projectId,{allowSemanticAi:true});
+  assert.equal(second.state,'read');
+  assert.equal(asked.length,12,'the second reading asks only the 4 headings not read before');
+  assert.equal(new Set(asked).size,12,'no heading is asked twice');
+  const steps=(document.semanticAiSteps??[]).filter(s=>s.sourceHashSha256===document.sourceHashSha256);
+  assert.equal(steps.filter(s=>s.status==='call_limit').length,0,'nothing is left at the limit');
+  assert.equal(steps.filter(s=>/reused/.test(s.note)).length,8,'the 8 earlier answers are reused without a call');
+  assert.equal((await store.finishAiTableReading(state.projectId,{allowSemanticAi:true})).state,'nothing_to_read');
+});

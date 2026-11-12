@@ -153,6 +153,17 @@ export interface ContractAiStepReceipt {
   status: ContractAiStepStatus;
   attempted: boolean;
   diagnostics: string[];
+  /** The provider's answer for this span (kept so a later reading of the same source does not ask again). */
+  proposal?: ContractAiHeadingProposal | null;
+  /** True when the answer came from an earlier reading of the same source span, so no call was made. */
+  reused?: boolean;
+}
+
+/** An earlier AI answer for one exact source span of the same document. */
+export interface ContractAiPriorAnswer {
+  key: string;
+  text: string;
+  proposal: ContractAiHeadingProposal | null;
 }
 
 export interface ContractDocxBlock {
@@ -206,6 +217,8 @@ export interface ContractParseOptions {
   aiResolver?: ContractAiResolver;
   aiMaxCalls?: number;
   onAiStep?: (step: ContractAiStepReceipt) => void;
+  /** Answers from an earlier AI reading of the same source; reused without a call or a count against the limit. */
+  aiPriorAnswers?: readonly ContractAiPriorAnswer[];
 }
 
 export interface ContractDocumentResult {

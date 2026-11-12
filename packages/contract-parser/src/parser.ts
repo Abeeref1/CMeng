@@ -79,6 +79,9 @@ async function readContractTextBlocks(
         ...(options.onAiStep
           ? { onStep: options.onAiStep }
           : {}),
+        ...(options.aiPriorAnswers
+          ? { priorAnswers: options.aiPriorAnswers }
+          : {}),
       },
     );
     headingOverrides = ai.overrides;

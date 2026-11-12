@@ -6,6 +6,7 @@ import type {
   ContractAiHeadingInput,
   ContractAiHeadingProposal,
   ContractAiResolver,
+  ContractAiPriorAnswer,
   ContractAiStepReceipt,
   ContractSourceSpan,
   ContractTextBlock,
@@ -116,6 +117,11 @@ function linesFromBlock(
   return spans;
 }
 
+/** The identity of one source span; an earlier AI answer is reused only for the same key and text. */
+export function contractAiSpanKey(span: ContractSourceSpan): string {
+  return lineKey(span);
+}
+
 function lineKey(span: ContractSourceSpan): string {
   return [
     span.sourceKind,
@@ -158,6 +164,7 @@ export async function collectAiHeadingOverrides(
   options: {
     maxCalls?: number;
     onStep?: (step: ContractAiStepReceipt) => void;
+    priorAnswers?: readonly ContractAiPriorAnswer[];
   } = {},
 ): Promise<{
   overrides: Map<string, ContractHeading>;
@@ -175,6 +182,11 @@ export async function collectAiHeadingOverrides(
     null;
 
   const spans = blocks.flatMap(linesFromBlock);
+  // An earlier answer is reused only for the exact same span and text, so a
+  // second reading continues with the headings the first reading could not reach.
+  const prior = new Map(
+    (options.priorAnswers ?? []).map((answer) => [answer.key + "|" + answer.text, answer.proposal] as const),
+  );
 
   for (let index = 0; index < spans.length; index += 1) {
     const span = spans[index]!;
@@ -186,13 +198,13 @@ export async function collectAiHeadingOverrides(
         .find((candidate) => candidate.text.trim())
         ?.text ?? null;
 
-    if (stoppedAtCap) {
+    if (stoppedAtCap && !prior.has(lineKey(span) + "|" + span.text)) {
       const code = "CONTRACT_AI_SPENDING_CAP_REACHED:" + span.sourceKind + ":" + span.sourceIndex + ":" + span.start;
       diagnostics.push(code);
       options.onStep?.({sourceSpan: span, status: "stopped_at_cap", attempted: false, diagnostics: [code]});
       continue;
     }
-    if (aiCalls >= maxCalls) {
+    if (aiCalls >= maxCalls && !prior.has(lineKey(span) + "|" + span.text)) {
       const code = "CONTRACT_AI_CALL_LIMIT_REACHED";
       diagnostics.push(
         code +
@@ -213,13 +225,17 @@ export async function collectAiHeadingOverrides(
     }
 
     let proposal: ContractAiHeadingProposal | null = null;
-    aiCalls += 1;
+    const priorKey = lineKey(span) + "|" + span.text;
+    const reused = prior.has(priorKey);
+    if (!reused) aiCalls += 1;
     try {
-      proposal = await resolver.resolveHeading({
-        sourceSpan: span,
-        previousSection,
-        nextText,
-      });
+      proposal = reused
+        ? prior.get(priorKey) ?? null
+        : await resolver.resolveHeading({
+            sourceSpan: span,
+            previousSection,
+            nextText,
+          });
     } catch (error) {
       const code =
         "CONTRACT_AI_RESOLVER_ERROR:" +
@@ -267,8 +283,10 @@ export async function collectAiHeadingOverrides(
       options.onStep?.({
         sourceSpan: span,
         status: "unresolved",
-        attempted: true,
+        attempted: !reused,
         diagnostics: [...assessment.diagnostics],
+        proposal,
+        ...(reused ? { reused: true } : {}),
       });
       continue;
     }
@@ -277,8 +295,10 @@ export async function collectAiHeadingOverrides(
     options.onStep?.({
       sourceSpan: span,
       status: "validated",
-      attempted: true,
+      attempted: !reused,
       diagnostics: [],
+      proposal,
+      ...(reused ? { reused: true } : {}),
     });
     previousSection = {
       kind: assessment.heading.kind,

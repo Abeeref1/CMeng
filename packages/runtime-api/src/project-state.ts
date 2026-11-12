@@ -48,6 +48,7 @@ import {
   type BoqIngestionResult,
 } from "../../boq-ingestion/src";
 import {
+  contractAiSpanKey,
   linkContractFamily,
   parseContractDocx,
   parseContractPdf,
@@ -2622,15 +2623,21 @@ export class RuntimeProjectStore {
       const kept=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256!==document.sourceHashSha256);
       const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
       const configured=Number(process.env.CMENG_CONTRACT_AI_MAX_CALLS_PER_FILE??8),aiMaxCalls=Number.isFinite(configured)?Math.max(0,Math.floor(configured)):8;
+      // An earlier answer for the same text is reused without a call, so this reading continues
+      // with the headings the earlier reading could not reach (for example past the per-file limit).
+      const priorAnswers=(document.contractAiAnswers??[]).filter(answer=>answer.sourceHashSha256===document.sourceHashSha256);
+      const answers=new Map(priorAnswers.map(answer=>[answer.key+'|'+answer.text,answer] as const));
       const onAiStep=(step:import("../../contract-parser/src").ContractAiStepReceipt)=>{
+        if(step.proposal!==undefined&&!step.reused){const key=contractAiSpanKey(step.sourceSpan);answers.set(key+'|'+step.sourceSpan.text,{sourceHashSha256:document.sourceHashSha256,key,text:step.sourceSpan.text,proposal:step.proposal});}
         const where=step.sourceSpan.page!==null?'page '+step.sourceSpan.page:step.sourceSpan.sourceKind.replace(/_/g,' ')+' '+step.sourceSpan.sourceIndex;
         steps.push({sheetName:'Contract heading · '+where,sourceHashSha256:document.sourceHashSha256,status:step.status,attempted:step.attempted,
-          note:step.status==='validated'?'AI heading reading was validated against the exact retained source span.':
+          note:step.reused?'The earlier AI answer for this exact heading text was reused; no new call was made.':
+            step.status==='validated'?'AI heading reading was validated against the exact retained source span.':
             step.status==='call_limit'?'Per-file contract AI call limit reached; the original heading remains unresolved for review.':
             step.status==='failed'||step.status==='stopped_at_cap'||step.status==='provider_error'||step.status==='invalid_response'?aiErrorNote(step.status,'the original contract text remains retained.'):
             'AI heading proposal did not pass source-span and confidence validation; original text remains retained.'});
       };
-      const media=document.mediaType.toLowerCase(),options={aiResolver:contractResolver!,aiMaxCalls,onAiStep};
+      const media=document.mediaType.toLowerCase(),options={aiResolver:contractResolver!,aiMaxCalls,onAiStep,aiPriorAnswers:priorAnswers.map(({key,text,proposal})=>({key,text,proposal}))};
       const textFormat=!/pdf/.test(media)&&!/wordprocessingml/.test(media)?contractTextFormat(document.mediaType,document.sourceFilename):null;
       let parsed;
       try{
@@ -2643,7 +2650,7 @@ export class RuntimeProjectStore {
           note:'Rule-based contract heading reading found no unresolved heading that required an AI call.'});
         state.contractDocuments[index]={...state.contractDocuments[index]!,result:parsed};
       }
-      document.semanticAiSteps=[...kept,...steps];documentsRead++;
+      document.semanticAiSteps=[...kept,...steps];document.contractAiAnswers=[...answers.values()];documentsRead++;
       for(const step of steps)out.push({documentId:document.documentId,sheetName:step.sheetName,status:step.status});
     }
     if(documentsRead){this.touch(state);}
@@ -6625,7 +6632,9 @@ export class RuntimeProjectStore {
     const contractAiMaxCalls=Number.isFinite(configuredContractAiCalls)
       ?Math.max(0,Math.floor(configuredContractAiCalls)):8;
     const semanticAiSteps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
+    const contractAiAnswers:NonNullable<StoredEvidenceDocument['contractAiAnswers']>=[];
     const onContractAiStep=(step:import("../../contract-parser/src").ContractAiStepReceipt)=>{
+      if(step.proposal!==undefined&&!step.reused)contractAiAnswers.push({sourceHashSha256:hash,key:contractAiSpanKey(step.sourceSpan),text:step.sourceSpan.text,proposal:step.proposal});
       const where=step.sourceSpan.page!==null
         ?'page '+step.sourceSpan.page
         :step.sourceSpan.sourceKind.replace(/_/g,' ')+' '+step.sourceSpan.sourceIndex;
@@ -6837,6 +6846,7 @@ export class RuntimeProjectStore {
         ...parsed.diagnostics,
       ],
       semanticAiSteps,
+      ...(contractAiAnswers.length?{contractAiAnswers}:{}),
     };
     this.upsertEvidence(
       state,
