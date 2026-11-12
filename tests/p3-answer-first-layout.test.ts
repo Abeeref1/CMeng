@@ -106,3 +106,30 @@ test('a line that only says a figure is not calculable never opens the page; the
   const order=await run(chromium,BASIS+VERDICT+unknown+TILES+ACTION,ORDER);
   assert.deepEqual(order,['position-verdict','module-basis','planning-kpi-grid','action-notification','boq-coverage']);
 });
+
+test('a page without a verdict keeps its answer on screen even when it is tall; only buttons never remain alone',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const rows=Array.from({length:60},(_,i)=>'<tr><td>P'+i+'</td><td>'+i+'%</td></tr>').join('');
+  const answer='<section class="planning-panel delivery-answer"><h4>Procurement S-Curves</h4><svg class="svg-chart" width="600" height="320"><rect width="600" height="320"/></svg><table><thead><tr><th>Package</th><th>Progress</th></tr></thead><tbody>'+rows+'</tbody></table></section>';
+  const toolbar='<div class="delivery-toolbar"><button class="btn">Add working record</button><button class="btn">Export</button></div>';
+  const tall='<section class="planning-panel"><h4>Source records</h4><div class="tall">rows</div></section>';
+  const result=await run(chromium,toolbar+answer+tall+tall+tall,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+   const more=c.querySelector('.page-more-detail');return {answerInMore:!!more&&more.contains(c.querySelector('.delivery-answer')),first:c.firstElementChild.className};})()`);
+  assert.equal(result.answerInMore,false,'the S-curve answer stays on the page');
+  assert.match(result.first,/delivery-answer/,'the answer comes before the buttons');
+});
+
+test('a row of tiles that are all unknown is one line, and the page content that is known leads',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const tile=(label:string)=>'<div class="planning-kpi"><span>'+label+'</span><strong>Not established</strong><small>Needs an interface register · known records</small></div>';
+  const grid='<div class="planning-kpi-grid">'+tile('Interfaces from registers')+tile('Blocked / overdue')+tile('Due in 30 days')+'</div>';
+  const known='<div class="notice info"><b>Interface position</b> 1 candidate interface was identified from contract dependencies.</div>';
+  const result=await run(chromium,BASIS+grid+known,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+   const shown=Array.from(c.querySelectorAll('.planning-kpi')).filter(n=>n.checkVisibility()).length;
+   const visible=Array.from(c.children).filter(n=>n.checkVisibility()).map(n=>n.className.split(' ')[0]);
+   return {line:c.querySelector('.page-unknown-once')?.textContent,shown,kept:c.querySelectorAll('.planning-kpi').length,visible};})()`);
+  assert.deepEqual(result.visible,['module-basis','notice','page-unknown-once'],'what is known leads; the unknown line follows');
+  assert.equal(result.line,'Not established (Needs an interface register): Interfaces from registers, Blocked / overdue, Due in 30 days.');
+  assert.equal(result.shown,0,'no tile repeats the unknown');
+  assert.equal(result.kept,3,'nothing is removed');
+});

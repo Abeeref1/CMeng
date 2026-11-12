@@ -124,6 +124,8 @@ function pageAnswerRank(node,seen){
  if(node.matches(PAGE_FIXED)&&node.tagName!=='DETAILS')return 0;
  if(node.matches(PAGE_EVIDENCE)||pageIsUnknownOnly(node))return -1;
  if(node.tagName==='DETAILS'||node.matches('.owner-link-panel'))return -1;
+ // A chart is the page's answer even when a long table sits under it in the same block.
+ if(!seen.chart&&pageShows(node,PAGE_CHART)&&!node.matches('[data-page-answer]')){seen.chart=true;return 3;}
  if(pageVisibleTableRows(node)>PAGE_LONG_TABLE_ROWS)return -1;
  if(node.matches('.experience-management-reading'))return 1;
  const tiles=pageShows(node,PAGE_TILE);
@@ -230,6 +232,22 @@ function pageSayUnknownOnce(container){
    }
    pageUnknownNote(table,'<b>'+esc(item.label)+' ('+esc(item.count)+' rows):</b> '+esc(item.text));said++;
   }
+ }
+ // (4) A row of tiles where every tile is unknown is one line, not one tile per measure:
+ // "Not established (Needs an interface register): Interfaces from registers, Blocked / overdue".
+ for(const grid of Array.from(container.querySelectorAll('.planning-kpi-grid,.experience-facts,.kpi-grid'))){
+  if(grid.dataset.pageUnknownOnce||grid.closest('.position-verdict'))continue;
+  const tiles=Array.from(grid.children).filter(tile=>tile.matches(PAGE_TILE));
+  if(tiles.length<2)continue;
+  const read=tile=>({label:pageNormal(tile.querySelector('span,b,.label')?.textContent),value:pageNormal(tile.querySelector('strong,.value')?.textContent),
+    note:pageNormal(tile.querySelector('small,.sub')?.textContent)});
+  const values=tiles.map(read);
+  if(!values.every(v=>v.label&&/^(?:not established|not available|not calculable|not assessable|unknown|not recorded|not supplied)\b/i.test(v.value)))continue;
+  grid.dataset.pageUnknownOnce='1';
+  const reasons=[...new Set(values.map(v=>v.note.split('·')[0].trim()).filter(Boolean))];
+  const line=document.createElement('p');line.className='page-unknown-once';
+  line.innerHTML='<b>Not established'+(reasons.length===1?' ('+esc(reasons[0])+')':'')+':</b> '+esc(values.map(v=>v.label).join(', '))+'.';
+  grid.parentNode.insertBefore(line,grid);grid.classList.add('page-said-once');said++;
  }
  // (3) The same unknown sentence in several blocks: said once, where it is first shown.
  const groups=new Map();
@@ -403,8 +421,8 @@ function arrangePageDetail(container){
  if(typeof document==='undefined'||typeof document.createElement!=='function'||container.isConnected===false)return null;
  const limitHeight=PAGE_DEFAULT_SCREENS*PAGE_SCREEN_PX,budget=limitHeight-PAGE_LATE_CONTENT_PX;
  // P3: on every page the answer leads, actions follow and evidence comes after; unknowns are said once.
- pageAnswerFirst(container);
  pageSayUnknownOnce(container);
+ pageAnswerFirst(container);
  // A page that already fits keeps that order.
  if(container.scrollHeight<=limitHeight&&pageClosedTotal(container)<=PAGE_MAX_CLOSED_SECTIONS)return null;
  const blocks=pageBlocks(container);
@@ -431,13 +449,20 @@ function arrangePageDetail(container){
  const optional=[];
  for(const rank of [1,2,3,4,5,6])for(const block of ranked)if(block.rank===rank){keep.add(block);optional.push(block);}
  // The least important optional block goes first: the highest rank, then the tallest.
+ // A page without a verdict keeps its last answer block (reading, tiles, answer or
+ // chart) on the first screen even when it is tall: the answer never moves into
+ // More detail, leaving only buttons on screen.
+ const hasVerdict=!!container.querySelector('.position-verdict');
+ const droppable=()=>{const answers=optional.filter(block=>block.rank<=4);
+  return hasVerdict||answers.length>1?optional:optional.filter(block=>block.rank>4);};
  const dropOptional=()=>{
-  const drop=optional.reduce((worst,block)=>block.rank>worst.rank||block.rank===worst.rank&&block.height>worst.height?block:worst,optional[0]);
-  optional.splice(optional.indexOf(drop),1);keep.delete(drop);
+  const pool=droppable();if(!pool.length)return false;
+  const drop=pool.reduce((worst,block)=>block.rank>worst.rank||block.rank===worst.rank&&block.height>worst.height?block:worst,pool[0]);
+  optional.splice(optional.indexOf(drop),1);keep.delete(drop);return true;
  };
  let chosen=plan(keep);
  const dropped=[];
- while(chosen.height>budget&&optional.length){const before=new Set(optional);dropOptional();dropped.push(...[...before].filter(block=>!optional.includes(block)));chosen=plan(keep);}
+ while(chosen.height>budget&&droppable().length){const before=new Set(optional);dropOptional();dropped.push(...[...before].filter(block=>!optional.includes(block)));chosen=plan(keep);}
  // A smaller part of the answer dropped on the way comes back when the first
  // screens still hold it (short page actions are not brought back).
  for(const block of [...dropped].filter(block=>block.rank<6).sort((a,b)=>a.rank-b.rank||a.height-b.height)){
@@ -456,7 +481,7 @@ function arrangePageDetail(container){
   const list=document.createElement('div');list.className='page-detail-groups';area.appendChild(list);
   container.appendChild(area);log.push(()=>area.remove());
   for(const group of chosen.groups)pageDetailGroup(list,pageGroupTitle(group.titles),group.blocks,log);
-  if(container.scrollHeight<=budget||!optional.length)return {kept:keep.size,groups:chosen.groups.length};
+  if(container.scrollHeight<=budget||!droppable().length)return {kept:keep.size,groups:chosen.groups.length};
   for(let i=log.length-1;i>=0;i--)log[i]();
   dropOptional();chosen=plan(keep);
  }

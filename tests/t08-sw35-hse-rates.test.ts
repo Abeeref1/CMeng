@@ -45,7 +45,7 @@ test('SW-35 HSE page shows the calculated rate reconciliation against the report
  const ltifr=metrics.find(m=>m.label==='Recalculated LTIFR'),trir=metrics.find(m=>m.label==='Recalculated TRIR');
  assert.ok(ltifr&&trir,'the reconciliation already calculated is shown on the page');
  assert.equal(ltifr.value,1,'1 LTI / 1,000,000 h x 1,000,000');
- assert.equal(ltifr.unit,'per 1000000 hours');
+ assert.equal(ltifr.unit,'per 1,000,000 hours','the rate base reads with thousands separators');
  assert.match(ltifr.basis,/does not reconcile with the reported rate 1\.5/);
  assert.equal(trir.value,0.8,'(1 + 2 + 1) / 1,000,000 h x 200,000');
  assert.match(trir.basis,/reconciles with the reported rate 0\.8/);
