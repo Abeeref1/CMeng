@@ -474,7 +474,7 @@ ${basisReviewScript}
 ${recoveryScenarioScript}
 ${boqSectionReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
-const pageDataRoute=${pageDataRoute.toString()};
+${pageDataRoute.toString()}
 const moduleWorkspaces=[
  {key:'procurement-packages',title:'Procurement',views:['procurement-packages','material-tracking','long-lead','procurement-scurves','procurement-readiness']},
  {key:'revision-trend',title:'Programme changes',views:['revision-trend','variance-trends','schedule-change-report']},
@@ -6876,7 +6876,7 @@ async function loadModule(key){
   try{
     let result;
     // The same route release preparation saves, so the first open is the prepared result.
-    result=await api("/api/projects/"+encodeURIComponent(project())+pageDataRoute(moduleRegistry.find(m=>m.key===key)||{key,area:managementSurfaceKeysForApi.has(key)?"management":"schedule"}));
+    result=await api("/api/projects/"+encodeURIComponent(project())+pageDataRoute({key,apiKey:apiKeys[key],area:managementSurfaceKeysForApi.has(key)?"management":moduleRegistry.find(m=>m.key===key)?.area||"schedule"}));
     if(!current())return;
     renderModuleResult(result);
   }catch(e){

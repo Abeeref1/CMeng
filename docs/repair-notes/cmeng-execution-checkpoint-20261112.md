@@ -1,42 +1,42 @@
 # CMeng execution checkpoint, 12 Nov 2026
 
-Branch `fix/owner-rules-20261109`, head fd5be2cb. cmeng-main still runs c485be39 (deployed 9 Nov with owner approval).
-The test service `cmeng-verifier-test` runs 2fbed758.
+Branch `fix/owner-rules-20261109`.
 
-## Fixed in this session (tested, pushed, not yet on cmeng-main)
+## Deploy 1 (12 Nov, owner delegated: "you take care of every ting")
 
-- Contract AI reading continues past the 8-call limit: answers already returned for the same heading text are kept
-  (`contractAiAnswers` on the document) and reused, so a second Finish AI reading asks only the unread headings.
-- One shared source-location reader (`source-locations.ts`): Project Review and contract terms show "page 1", "rows 4, 5"
-  and the document name, never span codes; money reads with thousands separators.
-- Verdict label states the position (Off target, Not fully confirmed, Within the checked target, Not assessable), never a task.
-- Shared layout: a line that only says a figure is unknown never opens a page; a page without a verdict keeps its answer on
-  the first screen (chart, tiles or main panel), not only buttons; unknown tiles are one line after the known tiles, for every
-  tile layout; the engine's own summary line is not promoted as a reason line.
-- HSE rate bases read "per 1,000,000 hours".
+- cmeng-main moved from c485be39 (deployment 954cbc09, kept as the rollback point) to fd5be2cb (deployment f32cc3bc).
+- A Railway volume backup cannot be created from this session (no backup tool in the Railway connector). Instead every
+  project, its documents (id, content hash, type, superseded flag) and its review counts were recorded before the deploy
+  and compared after it (`integrity.py`, `compare_integrity.py` in the session scratchpad): 20 projects, 337 documents,
+  15 required decisions, identical before and after. Loss check PASS.
+- CI on fd5be2cb: every CMeng Verify job green (regression, acceptance, concurrency, independent, raster) except
+  Verify operations, which fails on the speed gate only.
 
-## Audit
+## After-deploy audit (fd5be2cb live)
 
-- `audit.cjs` (scratchpad) opens every page of every project in Chromium and checks shared rules; 12 Nov live audit:
-  1,180 checks, 0 failed, 0 script errors, no Data Date conflicts, median 1.4 s, 90% within 2.2 s.
-- Live findings by mechanism: label as task 193 pages, unknown tiles lead 39, answer hidden behind buttons 26, review codes 13
-  projects, review amounts 14 projects (all fixed in the ready release); register not supplied 156 pages (correct by design);
-  dash placeholder 48 pages, first open over 5 s 29 pages (open); repeated unknown sentence 10 (partly fixed).
-- Report published as an artifact ("CMeng Page Audit").
+`audit.cjs` opened all 58 pages of all 20 projects plus Project Review: 1,180 checks, 0 failed, 0 script errors, no Data
+Date conflicts, median 1.2 s, 90% within 1.8 s.
 
-## Verified
-
-- Full local regression on 459a2264: 2,666 of 2,670; the 4 failures were 2 load timeouts (passed alone and in CI) and 2
-  tests fixed since (notice review, R12 cash-flow layout). Browser and layout tests pass on fd5be2cb.
-- CI Focused Verification green on 2fbed758.
-
-## Open
-
-- Speed gate (four cold projects in 5 s) still fails: 7 to 9 s on CI; a cold project needs about 2.8 s of CPU alone and the
-  profile is flat. Accountability and Actions required pages take 12 to 26 s on first open on the largest projects.
-- Dash placeholder in empty cells.
+- Gone live: verdict label as a task word (193 pages before, 0 after); Project Review span codes (13 projects, 0 after);
+  HSE rate base separators (2, 0 after).
+- Still seen, root cause found and fixed in 88b6180a:
+  - Release preparation saved 42 of 58 pages under their internal key ("near-critical") while the browser asks for the page
+    key ("near-critical-and-float-risk", "accountability", "actions-required"). Saved results are keyed by exact route, so
+    Accountability and Actions required were calculated again on first open: 15 to 25 s on large projects (28 pages).
+    Fix: one `pageDataRoute()` in registry.ts used by the browser page loader and by release preparation
+    (`projectPageRoutes`). Test `page-data-route-prepared` fails on the previous code; r17 now checks every browser route.
+  - Delivery Control and Procurement S-Curves opened with only buttons (26 pages): the delivery renderer now names its
+    position statement, chart and action table as the page answer (`data-page-answer`); a position statement ranks like
+    the reading box. p3 tests 12 and 13.
+  - Recovery tiles whose value says why ("Missing working-time basis") were not unknown tiles (4 pages). p3 test 14.
+  - Project Review counts without separators ("5841 WBS candidates"): all counts in review text use `readableAmount`.
+- CI on 88b6180a: 12 regression tests failed. They load the real browser page loader by function name and did not
+  include the new shared route function. The route is now a function declaration in the browser script, the loader keeps
+  its inputs (apiKeys, management keys), and the four harnesses load pageDataRoute with it (fixed in the next commit).
+- Open: long dash as empty-cell placeholder (48 pages); repeated unknown sentence (11, mostly two rows with the same
+  text); "Shortfall: Not established" inline on Resources (3); speed gate (four cold projects in 5 s).
 
 ## Next action
 
-Owner takes a Railway volume backup of cmeng-main and approves; deploy fd5be2cb (or later) to cmeng-main; rerun
-`audit.cjs` on all 20 projects and republish the report.
+CI green on the follow-up commit (speed gate aside) → deploy it to cmeng-main with the same before/after data check → rerun
+`audit.cjs` on all 20 projects → republish the "CMeng Page Audit" report.
