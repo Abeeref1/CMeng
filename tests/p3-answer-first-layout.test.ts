@@ -133,3 +133,15 @@ test('a row of tiles that are all unknown is one line, and the page content that
   assert.equal(result.shown,0,'no tile repeats the unknown');
   assert.equal(result.kept,3,'nothing is removed');
 });
+
+test('unknown tiles next to a known tile: the known tile stays, the unknown ones are one line after it',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const tile=(label:string,value='Not established')=>'<div class="planning-kpi"><span>'+label+'</span><strong>'+value+'</strong><small>Needs an interface register · records</small></div>';
+  const grid='<div class="planning-kpi-grid">'+tile('Interfaces from registers')+tile('Blocked / overdue')+tile('Candidate interfaces','None')+'</div>';
+  const result=await run(chromium,grid,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+   return {line:c.querySelector('.page-unknown-once')?.textContent,shown:Array.from(c.querySelectorAll('.planning-kpi')).filter(n=>n.checkVisibility()).map(n=>n.querySelector('span').textContent),
+     order:Array.from(c.children).filter(n=>n.checkVisibility()).map(n=>n.className.split(' ')[0])};})()`);
+  assert.deepEqual(result.shown,['Candidate interfaces']);
+  assert.equal(result.line,'Not established (Needs an interface register): Interfaces from registers, Blocked / overdue.');
+  assert.deepEqual(result.order,['planning-kpi-grid','page-unknown-once']);
+});

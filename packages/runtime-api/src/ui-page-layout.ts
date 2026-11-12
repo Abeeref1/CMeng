@@ -241,13 +241,16 @@ function pageSayUnknownOnce(container){
   if(tiles.length<2)continue;
   const read=tile=>({label:pageNormal(tile.querySelector('span,b,.label')?.textContent),value:pageNormal(tile.querySelector('strong,.value')?.textContent),
     note:pageNormal(tile.querySelector('small,.sub')?.textContent)});
-  const values=tiles.map(read);
-  if(!values.every(v=>v.label&&/^(?:not established|not available|not calculable|not assessable|unknown|not recorded|not supplied)\b/i.test(v.value)))continue;
+  const unknown=tiles.map(tile=>({tile,...read(tile)})).filter(v=>v.label&&/^(?:not established|not available|not calculable|not assessable|unknown|not recorded|not supplied)\b/i.test(v.value));
+  if(unknown.length<2)continue;
   grid.dataset.pageUnknownOnce='1';
-  const reasons=[...new Set(values.map(v=>v.note.split('·')[0].trim()).filter(Boolean))];
+  const reasons=[...new Set(unknown.map(v=>v.note.split('·')[0].trim()).filter(Boolean))];
   const line=document.createElement('p');line.className='page-unknown-once';
-  line.innerHTML='<b>Not established'+(reasons.length===1?' ('+esc(reasons[0])+')':'')+':</b> '+esc(values.map(v=>v.label).join(', '))+'.';
-  grid.parentNode.insertBefore(line,grid);grid.classList.add('page-said-once');said++;
+  line.innerHTML='<b>Not established'+(reasons.length===1?' ('+esc(reasons[0])+')':'')+':</b> '+esc(unknown.map(v=>v.label).join(', '))+'.';
+  grid.parentNode.insertBefore(line,grid.nextSibling);
+  for(const v of unknown)v.tile.classList.add('page-said-once');
+  if(unknown.length===tiles.length)grid.classList.add('page-said-once');
+  said++;
  }
  // (3) The same unknown sentence in several blocks: said once, where it is first shown.
  const groups=new Map();
