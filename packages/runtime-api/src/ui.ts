@@ -18,7 +18,7 @@ import {programmeReviewScript} from './ui-programme-review';
 import {uploadWorkScript} from './ui-upload-work';
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {MANAGEMENT_DIAGNOSTIC_LABELS} from '../../truth-kernel/src';
-import {moduleRegistry, titleForModule} from './registry';
+import {moduleRegistry, titleForModule, pageDataRoute} from './registry';
 import {STATUS_LABELS,blockedCause} from './position-review';
 import {challengeValueFromSubmission} from '../../module-challenge/src/projector';
 import {readableFieldLabel,readablePathLabel} from './field-labels';
@@ -474,6 +474,7 @@ ${basisReviewScript}
 ${recoveryScenarioScript}
 ${boqSectionReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
+const pageDataRoute=${pageDataRoute.toString()};
 const moduleWorkspaces=[
  {key:'procurement-packages',title:'Procurement',views:['procurement-packages','material-tracking','long-lead','procurement-scurves','procurement-readiness']},
  {key:'revision-trend',title:'Programme changes',views:['revision-trend','variance-trends','schedule-change-report']},
@@ -6874,12 +6875,8 @@ async function loadModule(key){
   el("moduleContent").innerHTML='<div class="view-state-bar"><span class="spinner"></span><strong>Updating '+escapeHtml(moduleName)+'</strong><span>Preparing the latest project position.</span></div>';
   try{
     let result;
-    if(managementSurfaceKeysForApi.has(key)){
-      result=await api("/api/projects/"+encodeURIComponent(project())+"/management/"+encodeURIComponent(apiKeys[key]||key));
-    }else{
-      const moduleArea=moduleRegistry.find(m=>m.key===key)?.area||"schedule";
-      result=await api("/api/projects/"+encodeURIComponent(project())+"/"+moduleArea+"/modules/"+encodeURIComponent(apiKeys[key]||key)+(key==="activity-analytics"?"?view=page":""));
-    }
+    // The same route release preparation saves, so the first open is the prepared result.
+    result=await api("/api/projects/"+encodeURIComponent(project())+pageDataRoute(moduleRegistry.find(m=>m.key===key)||{key,area:managementSurfaceKeysForApi.has(key)?"management":"schedule"}));
     if(!current())return;
     renderModuleResult(result);
   }catch(e){

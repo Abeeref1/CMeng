@@ -8,7 +8,9 @@ import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
 import {mkdir,statfs,stat} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
-import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry} from './registry';
+import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry,pageDataRoute} from './registry';
+// The routes the browser opens for the owner pages (Accountability is "/management/accountability").
+const pageRoute=(key:string)=>pageDataRoute(moduleRegistry.find(page=>page.key===key)!);
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,calculationRelease,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
@@ -24,6 +26,29 @@ import {ExternalError,type ExternalBackend,type ExternalPolicy} from '../../exte
 
 type Lane={worker:Worker;ready:Promise<number>;tail:Promise<void>;pending:number;lastUsed:number;unpublished?:{version:number;served:string}|undefined};
 const send=(res:ServerResponse,status:number,body:unknown)=>{if(!res.destroyed&&!res.writableEnded){if(res.headersSent){res.destroy();return;}sendHttpBody(res,status,{'content-type':'application/json','cache-control':'no-store'},JSON.stringify(body));}};
+/** Every page result release preparation saves for a project, each under the
+ * exact route the browser requests (see pageDataRoute). */
+export function projectPageRoutes(id:string):string[]{
+  const prefix='/api/projects/'+encodeURIComponent(id);
+  return [...new Set([
+      prefix+'/overview',
+      prefix+pageRoute('master-dashboard'),
+      prefix+pageRoute('cross-domain-accountability'),
+      prefix+pageRoute('lookahead-schedule'),
+      prefix+pageRoute('contract-particulars-bonds'),
+      prefix+'/director-position',
+      prefix+'/management-surfaces',
+      prefix+'/actions',
+      prefix+'/evidence/documents',
+      prefix+'/phases',
+      prefix+'/boq/page-review',
+      prefix+'/boq/numeric-review',
+      // Every page under the exact route the browser opens it with.
+      ...moduleRegistry.map(page=>prefix+pageDataRoute(page)),
+      // API clients and saved links that still use the internal key.
+      prefix+'/management/cross-domain-accountability',
+  ])];
+}
 export async function createProjectGateway(root:string,options:{maxWorkers?:number;appPolicy?:()=>ApplicationAccessPolicy|null;workerExecArgv?:string[];prepareRelease?:boolean;releasePreparationMs?:number}={}){
   await clearDerivedReadCaches(root,calculationRelease());
   const storage=await statfs(root).catch(()=>null);if(storage)console.info(JSON.stringify({event:'derived_cache_reset',availableBytes:storage.bavail*storage.bsize}));
@@ -103,7 +128,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(lane)lane.unpublished={version,served:pathname};
   }
   const ownerRoutes=(id:string)=>{const prefix='/api/projects/'+encodeURIComponent(id);
-    return [prefix+'/management/cross-domain-accountability',prefix+'/management/master-dashboard',prefix+'/director-position',prefix+'/management-surfaces'];};
+    return [prefix+pageRoute('cross-domain-accountability'),prefix+pageRoute('master-dashboard'),prefix+'/director-position',prefix+'/management-surfaces',prefix+'/management/cross-domain-accountability'];};
   // A recycled worker otherwise discards the finished calculation, and the next
   // Accountability or Dashboard request repeats the entire analysis. Each page
   // is fetched for this exact version while the worker still holds the finished
@@ -223,24 +248,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   let secondaryWarmupActive=false;
   async function warmProjectPages(id:string,version:number,phase:'priority'|'secondary'){
     const prefix='/api/projects/'+encodeURIComponent(id);
-    const priorityRoutes=[prefix+'/management/cross-domain-accountability',prefix+'/management/master-dashboard',prefix+'/overview'];
-    const allRoutes=[...new Set([
-      prefix+'/overview',
-      prefix+'/management/master-dashboard',
-      prefix+'/management/cross-domain-accountability',
-      prefix+'/schedule/modules/lookahead-schedule',
-      prefix+'/commercial/modules/contract-particulars-bonds',
-      prefix+'/director-position',
-      prefix+'/management-surfaces',
-      prefix+'/actions',
-      prefix+'/evidence/documents',
-      prefix+'/phases',
-      prefix+'/boq/page-review',
-      prefix+'/boq/numeric-review',
-      ...moduleRegistry.map(page=>page.area==='management'?
-        prefix+'/management/'+page.key:
-        prefix+'/'+page.area+'/modules/'+page.key),
-    ])];
+    const priorityRoutes=[prefix+pageRoute('cross-domain-accountability'),prefix+pageRoute('master-dashboard'),prefix+'/overview'];
+    const allRoutes=projectPageRoutes(id);
     // Prepare the three owner-facing pages across the entire portfolio before
     // spending worker capacity on the complete specialist library of one project.
     const routes=phase==='priority'?priorityRoutes:allRoutes.filter(route=>!priorityRoutes.includes(route));

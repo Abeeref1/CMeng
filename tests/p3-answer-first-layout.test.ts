@@ -155,3 +155,47 @@ test('the unknown-tile rule applies to every tile layout (delivery cards too)',a
   assert.deepEqual(result.shown,['Packages from register']);
   assert.equal(result.line,'Not established (Confirm the Procurement packages register is complete): BOQ mapped to procurement, Source-marked long lead.');
 });
+
+// 12 Nov live audit: Delivery Control and Procurement S-Curves still opened with only
+// buttons on 13 projects each. Their answer blocks (position statement, a chart drawn
+// as a plain svg, the ranked action table) were not recognised as the page's answer.
+// The delivery renderer now names them (data-page-answer); this is the live markup shape.
+test('a delivery page without a verdict opens with its position statement and chart, not only buttons',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const rows=Array.from({length:26},(_,i)=>'<tr><td>PKG-'+i+'</td><td>Package '+i+'</td><td>Sep 16, 2026</td></tr>').join('');
+  const toolbar='<div class="delivery-toolbar"><button class="btn">Add working record</button><button class="btn">Export Excel</button></div>';
+  const position='<section class="notice warn" data-page-answer="position"><h4>Procurement S-Curves</h4><p>BOQ mapped to procurement 0% · Packages from register 2,400 records.</p><p>Data Date <b>Aug 31, 2026</b></p></section>';
+  const chart='<section class="card" data-page-answer="chart"><h4>Separate curves</h4><svg width="990" height="323"><rect width="990" height="323"/></svg></section>';
+  const table='<section class="card delivery-table" data-delivery-table="deliveryMain"><h4>Current delivery position</h4><table><thead><tr><th>Reference</th><th>Description</th><th>Required by</th></tr></thead><tbody>'+rows+'</tbody></table></section>';
+  const source='<section class="planning-panel"><h4>Source records</h4><div class="tall">rows</div></section>';
+  const result=await run(chromium,position+chart+table+source+source+toolbar,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+   const more=c.querySelector('.page-more-detail');const inMore=n=>!!more&&more.contains(n);
+   return {position:inMore(c.querySelector('[data-page-answer="position"]')),chart:inMore(c.querySelector('[data-page-answer="chart"]')),
+     first:Array.from(c.children).find(n=>n.checkVisibility()&&n.tagName!=='STYLE').className,more:!!more};})()`);
+  assert.equal(result.more,true,'the long page does use More detail');
+  assert.equal(result.position,false,'the position statement stays on the first screen');
+  assert.equal(result.chart,false,'the chart stays on the first screen');
+  assert.match(result.first,/notice/,'the page opens with its position, not its buttons');
+});
+
+test('the delivery renderer names its answer blocks for the shared layout',()=>{
+  const {deliveryScript}=require('../packages/runtime-api/src/ui-delivery');
+  const script=deliveryScript();
+  assert.match(script,/<section class="notice '\+\(result\.status==='ready'\?'':'warn'\)\+'" data-page-answer="position">/,'position statement');
+  assert.match(script,/const curveBox=p\.curves\.length\?'<section class="card" data-page-answer="chart">/,'S-curve chart');
+  assert.match(script,/deliveryPageAnswer\(deliveryTable\('deliveryManagementActions'/,'Delivery Control action table');
+});
+
+test('tiles whose value says why a figure is unknown are unknown tiles too; each keeps its reason',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const tile=(label:string,value:string,note:string)=>'<div class="planning-kpi"><span>'+label+'</span><strong>'+value+'</strong><small>'+note+'</small></div>';
+  const grid='<div class="planning-kpi-grid">'+tile('Submitted completion','Not established','current programme')+tile('Contract including awarded EOT','Not established','required completion')+
+    tile('Driving-chain shortfall to extended contract date','Working-time basis not established','Calendar difference not established')+tile('Recovery to original date','Missing working-time basis','Not established')+'</div>';
+  const known='<div class="notice info"><b>Recovery position</b> 12 driving activities remain on the current programme.</div>';
+  const result=await run(chromium,grid+known,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+   return {line:c.querySelector('.page-unknown-once')?.textContent,shown:Array.from(c.querySelectorAll('.planning-kpi')).filter(n=>n.checkVisibility()).length,
+     visible:Array.from(c.children).filter(n=>n.checkVisibility()).map(n=>n.className.split(' ')[0])};})()`);
+  assert.equal(result.shown,0,'no tile repeats an unknown');
+  assert.equal(result.line,'Not established: Submitted completion, Contract including awarded EOT, Driving-chain shortfall to extended contract date (Working-time basis not established), Recovery to original date (Missing working-time basis).');
+  assert.deepEqual(result.visible,['notice','page-unknown-once'],'what is known leads');
+});

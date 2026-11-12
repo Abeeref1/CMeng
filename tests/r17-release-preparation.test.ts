@@ -14,6 +14,7 @@ import type {AddressInfo} from 'node:net';
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
 import {projectDirectory,calculationRelease} from '../packages/runtime-api/src/project-catalog';
 import {ProjectReadCache} from '../packages/runtime-api/src/project-read-cache';
+import {moduleRegistry,pageDataRoute} from '../packages/runtime-api/src/registry';
 
 function xer(id:string,count:number,dataDate:string,finish:string){
   const lines=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\t'+id+'\t'+dataDate,'%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tEight hour calendar\tMon-Fri 08:00-16:00','%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt'];
@@ -99,10 +100,16 @@ test('R17 a new release prepares every previously calculated project before it r
       assert.equal(body.releasePreparation.totalProjects,2,'only the two previously calculated projects are prepared');
       assert.equal(body.releasePreparation.preparedProjects,2);
       assert.equal(body.releasePreparation.allPagesProjects,2,'the remaining pages are prepared before ready too');
+      // Every page is prepared under the exact route the browser opens it with
+      // (12 Nov: 42 of 58 pages were prepared under their internal key, so the
+      // browser's first open of Accountability took 15 to 25 s on large projects).
       for(const id of ids){
         const version=gateway.catalog.get(id)!.metadata!.version;
-        for(const path of ['/schedule/modules/near-critical','/commercial/modules/contract-particulars-bonds','/actions'].map(p=>'/api/projects/'+id+p))
-          assert.ok(await stored(root,id,version,path),'module page prepared before ready: '+path);
+        for(const path of [...moduleRegistry.map(page=>pageDataRoute(page)),'/actions'].map(p=>'/api/projects/'+id+p))
+          assert.ok(await stored(root,id,version,path),'page prepared before ready under the browser route: '+path);
+        const browserAccountability='/api/projects/'+id+'/management/accountability';
+        const served=await fetch(base+browserAccountability);assert.equal(served.status,200);
+        assert.ok(Buffer.from(await served.arrayBuffer()).equals((await stored(root,id,version,browserAccountability))!),'the browser\'s Accountability is served from the prepared result');
       }
       // 3. Every first page is this release's saved calculation and equals the request-time result.
       for(const id of ids){

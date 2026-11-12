@@ -80,6 +80,16 @@ export const moduleRegistry: ModuleDescriptor[] = [
 export const pageApiKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.apiKey??key;
 export const resolveModuleKey=(key:string)=>moduleRegistry.find(m=>m.key===key||m.apiKey===key)?.key??key;
 for(const m of moduleRegistry)m.apiKey=m.apiKey??m.title.toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+/** The one data route for a page, after /api/projects/<id>. The browser opens a
+ * page with this route and release preparation saves this same route, so a
+ * page's first open is the prepared result. Prepared results are keyed by the
+ * exact route; preparing the internal key ("near-critical") while the browser
+ * asks for the page key ("near-critical-and-float-risk") left 42 of 58 pages cold.
+ * Self-contained so its source is embedded in the browser script. */
+export function pageDataRoute(page:{key:string;apiKey?:string;area:string}):string{
+  const key=encodeURIComponent(page.apiKey||page.key);
+  return page.area==='management'?'/management/'+key:'/'+page.area+'/modules/'+key+(page.key==='activity-analytics'?'?view=page':'');
+}
 export function publicModuleResult<T extends {key:string}>(result:T,requestedKey:string){
   const page=moduleRegistry.find(m=>m.key===result.key);
   return {...result,key:page?.apiKey===requestedKey?requestedKey:result.key,legacyKey:result.key,page:{key:page?.apiKey??result.key,title:page?.title??result.key,group:page?.group??null}};

@@ -25,3 +25,14 @@ test('locations keep the document they belong to when its name is known',()=>{
   const names:Record<string,string>={AMD:'Amendment 2.pdf',MAIN:'Main contract.pdf'};
   assert.equal(readableSourceLocations(['evidence-document:AMD:page:9','evidence-document:MAIN:page:2','evidence-document:MAIN:page:3'],id=>names[id]??null),'Amendment 2.pdf page 9; Main contract.pdf pages 2, 3');
 });
+
+// 12 Nov live audit: Project Review read "5841 WBS candidates; 6514 activities without a
+// source location". Every count in Project Review text goes through the shared reader.
+test('Project Review text states every count with thousands separators',()=>{
+  const {readFileSync}=require('node:fs') as typeof import('node:fs');
+  const {join}=require('node:path') as typeof import('node:path');
+  const source=readFileSync(join(process.cwd(),'packages/runtime-api/src/project-actions.ts'),'utf8');
+  const raw=[...source.matchAll(/(?<![\w.(])(?:\w+\.)*\w+\.length\+' [a-z]/g)].map(m=>m[0]);
+  assert.deepEqual(raw,[],'a count joined into review text without readableAmount');
+  assert.equal(readableAmount(5841)+' WBS candidates','5,841 WBS candidates');
+});

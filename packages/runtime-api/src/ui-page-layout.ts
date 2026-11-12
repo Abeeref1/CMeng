@@ -128,7 +128,8 @@ function pageAnswerRank(node,seen){
  // sits under it in the same block (a page with a verdict already leads with its answer).
  if(seen.noVerdict&&!seen.chart&&pageShows(node,PAGE_CHART)&&!node.matches('[data-page-answer]')){seen.chart=true;return 3;}
  if(pageVisibleTableRows(node)>PAGE_LONG_TABLE_ROWS)return -1;
- if(node.matches('.experience-management-reading'))return 1;
+ // The page's own position statement reads like the reading box: it leads the page's content.
+ if(node.matches('.experience-management-reading,[data-page-answer="position"]'))return 1;
  const tiles=pageShows(node,PAGE_TILE);
  if(tiles&&!seen.tiles&&!node.matches('[data-page-answer]')){seen.tiles=1;return 2;}
  if(node.matches('[data-page-answer]'))return 3;
@@ -244,12 +245,19 @@ function pageSayUnknownOnce(container){
   if(tiles.length<2)continue;
   const read=tile=>({label:pageNormal(tile.querySelector('.kpi-label,.label,span,b')?.textContent),value:pageNormal(tile.querySelector('.kpi-value,.value,strong')?.textContent),
     note:pageNormal(tile.querySelector('.kpi-sub,.sub,small')?.textContent)});
-  const unknown=tiles.map(tile=>({tile,...read(tile)})).filter(v=>v.label&&/^(?:not established|not available|not calculable|not assessable|unknown|not recorded|not supplied)\b/i.test(v.value));
+  // A tile is unknown when its value states no figure: "Not established", or a phrase
+  // that says why ("Working-time basis not established", "Missing working-time basis").
+  const bare=/^(?:not established|not available|not calculable|not assessable|unknown|not recorded|not supplied)\.?$/i;
+  const unknown=tiles.map(tile=>({tile,...read(tile)})).filter(v=>v.label&&!/\d/.test(v.value)&&
+    (/^(?:not established|not available|not calculable|not assessable|unknown|not recorded|not supplied|missing)\b/i.test(v.value)||/\b(?:not established|not available|not calculable|not assessable)\b/i.test(v.value)));
   if(unknown.length<2)continue;
   grid.dataset.pageUnknownOnce='1';
-  const reasons=[...new Set(unknown.map(v=>v.note.split('·')[0].trim()).filter(Boolean))];
+  // The reason is the tile's note for a bare unknown, or the value itself when it says why.
+  const why=v=>bare.test(v.value)?v.note.split('·')[0].trim():v.value;
+  const reasons=[...new Set(unknown.map(why).filter(Boolean))];
   const line=document.createElement('p');line.className='page-unknown-once';
-  line.innerHTML='<b>Not established'+(reasons.length===1?' ('+esc(reasons[0])+')':'')+':</b> '+esc(unknown.map(v=>v.label).join(', '))+'.';
+  line.innerHTML='<b>Not established'+(reasons.length===1?' ('+esc(reasons[0])+')':'')+':</b> '+
+    esc(unknown.map(v=>reasons.length>1&&!bare.test(v.value)?v.label+' ('+v.value+')':v.label).join(', '))+'.';
   grid.parentNode.insertBefore(line,grid.nextSibling);
   for(const v of unknown)v.tile.classList.add('page-said-once');
   if(unknown.length===tiles.length)grid.classList.add('page-said-once');

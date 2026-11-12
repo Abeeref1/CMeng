@@ -204,14 +204,14 @@ export function programmeActions(state:ProjectRuntimeState):ProjectAction[]{
       const hashMismatch=!!stored&&!!source&&stored.sourceHashSha256!==source.sourceHashSha256;
       if(!canConfirm&&(missingDate||hashMismatch)){
         items.push({id:'schedule:'+identity([phaseId,revisionId]),category:'review',title:prefix+'Replace unreadable reporting programme',
-          reason:filename+'. '+reason+' '+(model?model.activities.length+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
+          reason:filename+'. '+reason+' '+(model?readableAmount(model.activities.length)+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
           recordCount:1,resolution:{kind:'upload',requiresUserAction:true,instruction:'Upload a corrected current programme here. CMeng will process it and use it only after the source is valid.',completionRule:'The action closes when a valid reporting programme is established.'},
           target:{type:'upload',label:'Upload corrected programme',uploadHint:'Corrected current programme',uploadMode:'schedule',...phaseId?{phaseId}:{}}});
         return;
       }
       const needsPurpose=!canConfirm;
       // M13.1: confirming a schedule CMeng already uses changes no figure: it is information, still confirmable.
-      items.push({id:'schedule:'+identity([phaseId,revisionId]),category:inUse?'information':'confirmation',title:prefix+(current?'Confirm the schedule used for reporting':'Confirm the uploaded schedule'),reason:filename+'. '+reason+' '+(model?model.activities.length+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
+      items.push({id:'schedule:'+identity([phaseId,revisionId]),category:inUse?'information':'confirmation',title:prefix+(current?'Confirm the schedule used for reporting':'Confirm the uploaded schedule'),reason:filename+'. '+reason+' '+(model?readableAmount(model.activities.length)+' activities recognised; Data Date '+(model.dataDateIso??'not supplied')+'.':''),
         recordCount:1,
         resolution:{kind:needsPurpose?'choose':'confirm',requiresUserAction:!inUse,instruction:needsPurpose?'Choose the programme purpose here and provide an approval reference only if you select a baseline. Then CMeng will make the programme current in the same action.':'Confirm here that CMeng should use this programme for the current reporting position.',completionRule:'The action closes when the programme is explicitly selected as the reporting basis.'},
         target:{type:'schedule',label:needsPurpose?'Confirm purpose and use programme':'Use this programme for reporting',revisionId,documentId,canConfirm,
@@ -523,7 +523,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
           :group.key==='risk-rating-rule'?'The register supplies inconsistent ratings for identical scores. Original ratings are retained until the rating rule is confirmed.'
           :group.key==='programme-logic'?'The submitted programme includes duplicate IDs or missing links. The planner must validate the original programme.'
           :group.key==='procurement-date-check'||group.key==='register-date-check'?group.note
-          :'CMeng identified '+subset.length+' source finding'+(subset.length===1?'':'s')+'. Available values remain usable; only the listed fields need correction if the source is wrong. Compare the extracted facts before changing a document.';
+          :'CMeng identified '+readableAmount(subset.length)+' source finding'+(subset.length===1?'':'s')+'. Available values remain usable; only the listed fields need correction if the source is wrong. Compare the extracted facts before changing a document.';
       }
       (item.category==='information'?information:actions).push(item);
     };
@@ -540,7 +540,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const basis=procurementDateBasis(state);
     const action:ProjectAction={id:'matter:procurement-date-basis',category:basis.choice?'information':'confirmation',
       title:'Choose the procurement reporting date basis',owner:'Procurement Manager',recordCount:dateDifferences.length,
-      reason:dateDifferences.length+' packages have different register and programme need dates. Both source dates remain visible.',
+      reason:readableAmount(dateDifferences.length)+' packages have different register and programme need dates. Both source dates remain visible.',
       reviewFingerprint:basis.sourceFingerprint,
       evidenceSummary:dateDifferences.slice(0,10).map(row=>row.reference+': register '+row.sourceRequiredOnSite+'; programme '+row.programmeNeedDate),
       resolution:{kind:'choose',requiresUserAction:true,instruction:'Choose the date basis for all procurement packages in these source revisions. Where the chosen date is missing, timing remains not established. Until you choose, the earlier date is used only for screening.'+(basis.choice?' Current choice: '+(basis.choice==='programme'?'programme need dates':'register required-on-site dates')+'.':''),completionRule:'Saved against these programme and procurement records; new source versions require a new decision.'},
@@ -563,7 +563,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
   if(undatedRisks.length){
     const saved=riskBasis.snapshot;
     const item:ProjectAction={id:'matter:risk-status-snapshot',category:saved?'information':'confirmation',title:'Confirm the risk register status date',owner:'Risk Manager',recordCount:undatedRisks.length,
-      reason:undatedRisks.length+' risks have no recorded raised or status date. Confirm when the supplied statuses represent the project position.',
+      reason:readableAmount(undatedRisks.length)+' risks have no recorded raised or status date. Confirm when the supplied statuses represent the project position.',
       evidenceSummary:['Current reporting date: '+(projectDataDate(state)??'Not established'),...state.evidenceDocuments.filter(d=>d.documentType==='risk_register').map(d=>d.sourceFilename)],
       reviewFingerprint:riskBasis.sourceFingerprint,reviewSourceRefs:undatedRisks.flatMap(row=>row.sourceRefs),resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Enter the date represented by these register statuses. This does not invent individual raised or closure dates.',completionRule:'The confirmed snapshot date is used for this source revision only.'},
       target:{type:'inline',kind:'review-risk-snapshot',label:'Confirm register status date',reviewChoice:saved?.choice??null,reviewDateIso:saved?.asOfIso??null,reviewOptions:[{value:'confirm_snapshot',label:'Use the supplied statuses at the date I enter'}]}};
@@ -674,7 +674,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const saved=locations.decision,unclassified=scheduleScopeClassification(locationModel).rows.filter(r=>!r.location).length,required=!saved&&unclassified>0;
     const item:ProjectAction={id:'matter:location-grouping',category:required?'confirmation':'information',title:'Review candidate programme locations',owner:'Construction Manager',recordCount:unclassified,
       reason:'Source WBS area names and asset locations can support reviewed grouping; their names alone do not establish programme location assignments.',reviewFingerprint:locations.sourceFingerprint,reviewSourceRefs:locations.sourceRefs,
-      evidenceSummary:['Programme: '+locations.sourceFilename,locations.wbsCandidates.length+' WBS candidates; '+locations.assetCandidates.length+' asset location values; '+unclassified+' activities without a source location',...locations.wbsCandidates.slice(0,8).map(c=>c.wbsId+': '+c.location)],
+      evidenceSummary:['Programme: '+locations.sourceFilename,readableAmount(locations.wbsCandidates.length)+' WBS candidates; '+readableAmount(locations.assetCandidates.length)+' asset location values; '+readableAmount(unclassified)+' activities without a source location',...locations.wbsCandidates.slice(0,8).map(c=>c.wbsId+': '+c.location)],
       resolution:{kind:'choose',requiresUserAction:required,instruction:'Open Location / Floor / Zone for all WBS and asset candidates. Enter one WBS ID per line to use its source name, or WBS ID | exact candidate location to map an asset location. The nearest selected WBS ancestor supplies otherwise-unclassified activities; explicit source locations remain unchanged.',completionRule:'This review is saved against the programme and asset source versions and can be edited here.'},
       target:{type:'inline',kind:'review-locations',label:'Save location review',reviewChoice:saved?.choice??null,reviewReference:saved?.reference??null,reviewLocationsText:(saved?.locationAssignments??[]).map(a=>a.wbsId+' | '+a.location).join('\n'),
         reviewOptions:[{value:'confirm_wbs_locations',label:'Use the entered WBS-to-location mappings'},{value:'keep_source_locations',label:'Keep explicit source locations only'}]}};
@@ -686,7 +686,7 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const saved=scope.decision,required=!saved&&(scope.nameMatches.length>0||scope.additionalCandidates.length>0);
     const item:ProjectAction={id:'matter:programme-tasks-'+kind,category:required?'confirmation':'information',title:'Review programme '+(kind==='testing'?'testing and commissioning':'handover')+' task scope',owner:'Construction Manager',recordCount:scope.rows.length,
       reason:scope.basis,reviewFingerprint:scope.sourceFingerprint,reviewSourceRefs:scope.sourceRefs,
-      evidenceSummary:['Programme: '+scope.sourceFilename,scope.rows.length+' selected tasks; '+scope.additionalCandidates.length+' additional validation name candidates',scope.qualification],
+      evidenceSummary:['Programme: '+scope.sourceFilename,readableAmount(scope.rows.length)+' selected tasks; '+readableAmount(scope.additionalCandidates.length)+' additional validation name candidates',scope.qualification],
       resolution:{kind:'choose',requiresUserAction:required,instruction:'Review the programme activity IDs below. Add or remove exact IDs to define this reporting scope, including relevant Validation tasks. Open Activity Review for the complete source register. This changes reporting scope only and preserves source activities, progress and formal acceptance.',completionRule:'The editable scope is saved for this programme source and reporting date. A new programme requires review again.'},
       target:{type:'inline',kind:'review-programme-tasks',label:'Save task scope',reviewChoice:saved?.choice??'selected_tasks',reviewActivityIds:scope.rows.map(a=>a.activityId),reviewReference:saved?.reference??null,
         reviewOptions:[{value:'selected_tasks',label:'Use these programme task IDs'},{value:'no_tasks',label:'Confirm no programme tasks for this scope'}]}};
