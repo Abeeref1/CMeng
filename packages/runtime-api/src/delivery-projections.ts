@@ -1036,7 +1036,20 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
  if(programmeReadiness){metrics=metrics.filter(m=>m.label!=='Confirmed scope items');extras.programmeReadiness=true;managementPosition=rows.length+' activities from the shared 42-day look-ahead and overdue backlog: '+rows.filter(r=>r.state==='blocked').length+' blocked, '+rows.filter(r=>r.state==='unknown').length+' with missing readiness evidence. Open each activity for its linked prerequisites.';}
  if(['construction-discipline','construction-locations'].includes(key)&&governedRows.length){
   metrics=[metric('Programme activities',governedRows.every(row=>typeof row.activityCount==='number'&&Number.isFinite(row.activityCount))?governedRows.reduce((sum,row)=>sum+row.activityCount!,0):null,'activities'),metric('Progress groups',governedRows.length,'groups'),metric('Unclassified activities',governedRows.filter(row=>row.label==='Unclassified').every(row=>typeof row.activityCount==='number'&&Number.isFinite(row.activityCount))?governedRows.filter(row=>row.label==='Unclassified').reduce((sum,row)=>sum+row.activityCount!,0):null,'activities')];
-  managementPosition='Programme progress by '+(key==='construction-discipline'?'discipline':'location')+' uses the same classifications as Activity Review. Workfront release and installed quantities retain their separate evidence.';
+  // DMCC-UPD2 #8 (answer first): the page states its answer (where work is behind, or, with no progress yet,
+  // how the programme splits), then the method.
+  const dimensionWord=key==='construction-discipline'?'discipline':'location';
+  const groups=governedRows.filter(row=>row.label!=='Unclassified'&&typeof row.activityCount==='number');
+  const name=(row:any)=>String(row.displayLabel??row.label);
+  const progressed=groups.some(row=>typeof row.scheduleProgressPercent==='number'&&row.scheduleProgressPercent>0);
+  const behind=groups.filter(row=>typeof row.scheduleProgressPercent==='number'&&typeof row.plannedPercent==='number'&&row.plannedPercent-row.scheduleProgressPercent>=0.5)
+   .sort((a:any,b:any)=>(b.plannedPercent-b.scheduleProgressPercent)-(a.plannedPercent-a.scheduleProgressPercent));
+  const largest=[...groups].sort((a:any,b:any)=>b.activityCount-a.activityCount)[0];
+  const answer=!groups.length?'No '+dimensionWord+' groups are established.'
+   :progressed&&behind.length?countText(behind.length,dimensionWord+' group')+' of '+groups.length+' '+(behind.length===1?'is':'are')+' behind plan. Furthest behind: '+name(behind[0])+' ('+Number(behind[0].scheduleProgressPercent).toFixed(1)+'% done against '+Number(behind[0].plannedPercent).toFixed(1)+'% planned).'
+   :progressed?'No '+dimensionWord+' group is behind plan by half a percentage point or more.'
+   :countText(groups.length,dimensionWord+' group')+' cover the programme; progress is not recorded yet.'+(largest?' Largest: '+name(largest)+' ('+countText(largest.activityCount,'activity','activities')+').':'');
+  managementPosition=answer+' Groups use the same classifications as Activity Review; workfront release and installed quantities keep their own evidence.';
  }
  if(key==='delivery-suppliers'&&p.supplierRows.length){
   const linked=new Set(p.supplierRows.flatMap(row=>row.packages.map(pkg=>pkg.recordId)));
