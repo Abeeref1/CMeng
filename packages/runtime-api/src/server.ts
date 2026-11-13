@@ -1314,7 +1314,9 @@ async function route(
     if(body){try{const parsed=JSON.parse(body);if(parsed&&parsed.approvedCeilingUsd!==undefined&&parsed.approvedCeilingUsd!==null){approvedCeilingUsd=Number(parsed.approvedCeilingUsd);if(!Number.isFinite(approvedCeilingUsd)||approvedCeilingUsd<0){json(res,400,{error:'approved_ceiling_invalid'});return;}}}catch{json(res,400,{error:'invalid_json'});return;}}
     if(approvedCeilingUsd!==null){
       const current=estimateAiReading((await runtimeProjects.planAiReading(projectId)).events);
-      if(current.ceilingForPlannedCalls.usd!==null&&current.ceilingForPlannedCalls.usd>approvedCeilingUsd+1e-9){
+      // The approval is the most this reading can cost (every part called alone): the expected
+      // calls are a forecast, the worst case is the bound the reading cannot pass.
+      if(current.worstCase.usd!==null&&current.worstCase.usd>approvedCeilingUsd+1e-9){
         json(res,409,{error:'estimate_changed',message:'The work has changed since the estimate you approved. Review the new estimate before any paid call.',estimate:current});return;
       }
     }

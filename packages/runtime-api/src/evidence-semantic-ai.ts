@@ -188,7 +188,9 @@ export type AiReuse=null|'run'|'cache';
 export interface AiReceipt<T>{result:T|null;call:boolean;reuse:AiReuse;error?:unknown}
 /** Every part that reaches a reader, as planned or read: used by the cost estimate. */
 export interface AiRequestEvent {kind:'table'|'contract';request:SemanticAiRequest;call:boolean;reuse:AiReuse}
-export interface AiReadingOptions {cache?:SemanticAiCache|null;observe?:(event:AiRequestEvent)=>void}
+export interface AiReadingOptions {cache?:SemanticAiCache|null;observe?:(event:AiRequestEvent)=>void;
+  /** Estimate only: the planning model's stand-in answers are never stored in the shared cache. */
+  planning?:boolean}
 interface TableTemplate {documentType:string;confidence:number;columns:Array<{columnIndex:number;meaning:string;confidence:number}>}
 interface ContractTemplate {kind:ContractAiHeadingProposal['kind'];identifier:string;contextIdentifier:string|null;heading:string|null;confidence:number;explanation:string}
 
@@ -209,7 +211,8 @@ export class GroundedTableSemanticAiResolver implements TableSemanticAiResolver 
   private readonly run=new Map<string,Promise<TableTemplate|null>>();
   private readonly cache:SemanticAiCache|null;
   private readonly observe:AiReadingOptions['observe'];
-  constructor(private model:StructuredModel,options:AiReadingOptions={}){this.cache=options.cache??null;this.observe=options.observe;}
+  private readonly planning:boolean;
+  constructor(private model:StructuredModel,options:AiReadingOptions={}){this.cache=options.cache??null;this.observe=options.observe;this.planning=options.planning===true;}
   /** True when an identical structure is already answered (this run or the shared cache). */
   canReuse(input:TableSemanticAiInput):boolean{
     const request=tableSemanticAiRequest(input);if(!request)return false;
@@ -242,7 +245,7 @@ export class GroundedTableSemanticAiResolver implements TableSemanticAiResolver 
       const result=assessTableSemanticAiProposal(input,proposal);
       const template:TableTemplate|null=result&&proposal?{documentType:proposal.documentType,confidence:proposal.confidence,
         columns:(result.columnMeanings??[]).map(column=>({columnIndex:column.columnIndex,meaning:column.meaning,confidence:column.confidence}))}:null;
-      if(template)this.cache?.put('table',TABLE_RESOLVER_VERSION,fingerprint,template);
+      if(template&&!this.planning)this.cache?.put('table',TABLE_RESOLVER_VERSION,fingerprint,template);
       settle(template);return {result,call:true,reuse:null};
     }catch(error){if(!leader&&this.run.get(fingerprint)===promise)this.run.delete(fingerprint);fail(error);throw error;}
   }
@@ -253,7 +256,8 @@ export class GroundedContractHeadingAiResolver implements ContractAiResolver {
   private readonly run=new Map<string,Promise<ContractTemplate|null>>();
   private readonly cache:SemanticAiCache|null;
   private readonly observe:AiReadingOptions['observe'];
-  constructor(private model:StructuredModel,options:AiReadingOptions={}){this.cache=options.cache??null;this.observe=options.observe;}
+  private readonly planning:boolean;
+  constructor(private model:StructuredModel,options:AiReadingOptions={}){this.cache=options.cache??null;this.observe=options.observe;this.planning=options.planning===true;}
   canReuse(input:ContractAiHeadingInput):boolean{
     const {fingerprint}=contractHeadingAiRequest(input);
     return this.run.has(fingerprint)||!!this.cache?.get('contract',CONTRACT_RESOLVER_VERSION,fingerprint);
@@ -287,11 +291,23 @@ export class GroundedContractHeadingAiResolver implements ContractAiResolver {
       const accepted=!!proposal&&assessContractAiHeadingProposal(input,proposal).accepted;
       const template:ContractTemplate|null=accepted?{kind:proposal!.kind,identifier:proposal!.identifier,contextIdentifier:proposal!.contextIdentifier??null,
         heading:proposal!.heading??null,confidence:proposal!.confidence,explanation:proposal!.explanation}:null;
-      if(template)this.cache?.put('contract',CONTRACT_RESOLVER_VERSION,fingerprint,template);
+      if(template&&!this.planning)this.cache?.put('contract',CONTRACT_RESOLVER_VERSION,fingerprint,template);
       settle(template);return {result:proposal,call:true,reuse:null};
     }catch(error){if(!leader&&this.run.get(fingerprint)===promise)this.run.delete(fingerprint);fail(error);throw error;}
   }
 }
+
+/** Estimate only. Answers every request without a call, so a plan follows the reading as it
+ * would run. A table answers "unresolved" (an identical table is then counted as a reuse). A
+ * contract heading is answered as a validated heading whose identity depends on its text alone:
+ * a new heading becomes the next heading's preceding section, so the next heading is a new
+ * question, as it is when the reading runs. Nothing it answers is stored or applied. */
+export const planningModel:StructuredModel={async structured(name:string,_schema:unknown,_prompt:string,input:unknown){
+  if(name!=='cmeng_contract_heading_resolution')return {sourceHashSha256:'',sheetName:'',documentType:'unresolved',confidence:0,columns:[]};
+  const span=(input as {sourceSpan:{start:number;end:number;text:string}}).sourceSpan;
+  return {kind:'clause',identifier:'planned-'+digest(normalizedHeader(span.text)).slice(0,16),contextIdentifier:null,heading:null,confidence:0.95,
+    sourceStart:span.start,sourceEnd:span.end,sourceText:span.text,explanation:'Estimate only; never applied.'};
+}};
 
 /** One table request's receipt from any resolver: a resolver without receipts made a call. */
 export async function resolveTableReceipt(resolver:TableSemanticAiResolver,input:TableSemanticAiInput):Promise<AiReceipt<EvidenceTableSemantic>>{

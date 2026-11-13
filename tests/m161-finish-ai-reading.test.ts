@@ -47,5 +47,5 @@ test('M16.1: the document screen offers Finish AI reading only when AI is set up
   // carrying the ceiling the owner saw.
   assert.match(script,/\/evidence\/ai-reading\/estimate'\)/);
   assert.match(script,/id="confirmAiReading">Run AI reading<\/button>/);
-  assert.match(script,/\/evidence\/ai-reading',\{method:'POST',headers:\{'content-type':'application\/json'\},body:JSON\.stringify\(\{approvedCeilingUsd:e\.ceilingForPlannedCalls\?\.usd\?\?null\}\)\}/);
+  assert.match(script,/\/evidence\/ai-reading',\{method:'POST',headers:\{'content-type':'application\/json'\},body:JSON\.stringify\(\{approvedCeilingUsd:e\.worstCase\?\.usd\?\?null\}\)\}/);
 });

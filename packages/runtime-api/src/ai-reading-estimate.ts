@@ -65,14 +65,16 @@ export function estimateAiReading(events:readonly AiRequestEvent[],env:NodeJS.Pr
     fitsRemainingCap:month&&plannedUsd!==null?plannedUsd<=month.remainingUsd:null,
     basis:'Requests are built exactly as they would be sent. Expected cost: about four bytes per token (the live measurement: 41,573 bytes counted as 10,302 tokens) and the usual answer size. '+
       'Ceiling: two bytes per token plus a '+limits.safetyTokens+'-token margin, and the full '+limits.outputTokens+'-token answer allowance per call. '+
-      'Worst case: every pending part called on its own. Same model, same 0.90 acceptance threshold and source validation.',
+      'A contract heading is asked together with the section before it, and a validated heading becomes the next heading\'s preceding section, so the plan counts a repeated heading as a new question after each new heading. '+
+      'The calls can be a few more than expected when AI names the same heading differently under different sections, or when a reuse fails validation against its own source (it then makes its own call). '+
+      'The most this reading can cost is every pending part called on its own; that is the amount approved. Same model, same 0.90 acceptance threshold and source validation.',
   };
   const statement=events.length===0?'Nothing is waiting for AI reading.':
     estimate.pendingParts+' part'+(estimate.pendingParts===1?'':'s')+' not fully read'+
     (estimate.byKind.table&&estimate.byKind.contract?' ('+estimate.byKind.table+' table, '+estimate.byKind.contract+' contract heading)':estimate.byKind.contract?' (contract headings)':' (tables)')+'. '+
     estimate.uniqueStructures+' unique structure'+(estimate.uniqueStructures===1?'':'s')+'; '+calls+' AI call'+(calls===1?'':'s')+' after reuse'+
     (estimate.reusedFromValidatedCache?' ('+estimate.reusedFromValidatedCache+' answered from earlier validated readings)':'')+'. '+
-    'Expected cost about '+money(estimate.expected.usd)+'; ceiling for these calls '+money(estimate.ceilingForPlannedCalls.usd)+'; worst case '+money(estimate.worstCase.usd)+'. '+
+    'Expected cost about '+money(estimate.expected.usd)+' (ceiling for these calls '+money(estimate.ceilingForPlannedCalls.usd)+'); the most this reading can cost is '+money(estimate.worstCase.usd)+' (every part called alone). '+
     (month?'Spent this month '+money(month.committedUsd)+' of USD '+month.capUsd.toFixed(2)+'; '+money(month.remainingUsd)+' left.':'No spending ledger is configured.');
   return {...estimate,statement};
 }

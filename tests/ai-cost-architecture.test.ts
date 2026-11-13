@@ -2,7 +2,7 @@
 // threshold, same source validation, no invented mappings, unresolved stays unresolved.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,rmSync,readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {mkdtempSync,rmSync,readFileSync,writeFileSync,mkdirSync,readdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {
@@ -122,6 +122,32 @@ test('1c. contract headings: an identical heading under the same preceding secti
   assert.equal(steps.filter(step=>step.status==='call_limit').length,0,'the per-file limit (2) does not stop a reuse');
 });
 
+test('1d. the contract plan follows the reading: a validated heading becomes the next heading\'s preceding section',async()=>{
+  const {planningModel}=await import('../packages/runtime-api/src/evidence-semantic-ai');
+  // The heading identity depends on the text only (the usual case).
+  const byText=(payload:any)=>({kind:'clause',identifier:'C-'+payload.sourceSpan.text.slice(-1),contextIdentifier:null,heading:'Amended wording',confidence:0.97,
+    sourceStart:payload.sourceSpan.start,sourceEnd:payload.sourceSpan.end,sourceText:payload.sourceSpan.text,explanation:'heading'});
+  const doc=(text:string,sourceIndex=1):ContractTextBlock[]=>[{sourceKind:'docx_paragraph',sourceIndex,page:null,block:sourceIndex,text}];
+  const cases:Array<[string,ContractTextBlock[]]>=[
+    ['A, B, A: the second A follows B, a new question',doc('Clause ??? unresolved heading A\nClause ??? unresolved heading B\nClause ??? unresolved heading A')],
+    ['the same heading six times (ORBIT C02)',doc(Array(6).fill('Clause ??? unresolved heading A').join('\n'))],
+    ['two documents with the same text',[...doc('Clause ??? unresolved heading A\nClause ??? unresolved heading B',1),...doc('Clause ??? unresolved heading A\nClause ??? unresolved heading B',2)]],
+  ];
+  for(const [label,blocks] of cases){
+    let calls=0;
+    await collectAiHeadingOverrides(blocks,new GroundedContractHeadingAiResolver({structured:async(_n,_s,_p,payload:any)=>{calls++;return byText(payload);}}),{});
+    const planned:AiRequestEvent[]=[];
+    const dir=mkdtempSync(join(tmpdir(),'cmeng-plan-cache-'));const cache=new SemanticAiCache(dir);
+    await collectAiHeadingOverrides(blocks,new GroundedContractHeadingAiResolver(planningModel,{planning:true,cache,observe:event=>planned.push(event)}),{});
+    assert.equal(planned.filter(event=>event.call).length,calls,label+': planned calls equal the reading\'s calls');
+    assert.equal(planned.length,blocks.flatMap(block=>block.text.split('\n')).length,label+': every heading is planned');
+    assert.equal(readdirSync(dir).length,0,label+': a plan stores nothing in the shared cache');rmSync(dir,{recursive:true,force:true});
+  }
+  // Six identical headings are two questions: under no section, then under itself.
+  let six=0;await collectAiHeadingOverrides(cases[1]![1],new GroundedContractHeadingAiResolver({structured:async(_n,_s,_p,payload:any)=>{six++;return byText(payload);}}),{});
+  assert.equal(six,2);
+});
+
 test('5. the estimate comes from the actual requests: calls after reuse, expected cost, ceiling, worst case, month spend',async t=>{
   const dir=mkdtempSync(join(tmpdir(),'cmeng-estimate-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
   const events:AiRequestEvent[]=[];
@@ -195,8 +221,9 @@ test('5b. the estimate route plans without calling or changing the project; a ru
   assert.ok(estimate.expected.usd>0&&estimate.expected.usd<estimate.ceilingForPlannedCalls.usd);
   assert.equal(estimate.month.capUsd,20);
   assert.equal(JSON.stringify(state.evidenceDocuments),before,'planning changed nothing');assert.equal(state.version,version);
-  // Approved a smaller ceiling than the work now needs: refused before any provider request.
-  const refused=await fetch(base,{method:'POST',headers:{'content-type':'application/json','x-cmeng-paid-ai':'1'},body:JSON.stringify({approvedCeilingUsd:estimate.ceilingForPlannedCalls.usd/10})});
+  // The approval is the most the reading can cost; a smaller approval than the work now needs is
+  // refused before any provider request.
+  const refused=await fetch(base,{method:'POST',headers:{'content-type':'application/json','x-cmeng-paid-ai':'1'},body:JSON.stringify({approvedCeilingUsd:estimate.worstCase.usd/10})});
   assert.equal(refused.status,409);assert.equal((await refused.json() as any).error,'estimate_changed');
   assert.equal(JSON.stringify(state.evidenceDocuments),before,'nothing was read');
 });

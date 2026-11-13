@@ -140,7 +140,7 @@ import {
   rebuildEvidenceFamily,
 } from "./evidence-control";
 import {configuredSemanticAiCache} from './semantic-ai-cache';
-import {aiEligibleColumns,aiReadingCoverage,configuredTableSemanticAiResolver,tableNeedsSemanticReading,configuredContractHeadingAiResolver,resolveTableReceipt,tableCanReuse,GroundedTableSemanticAiResolver,GroundedContractHeadingAiResolver,type TableSemanticAiResolver,type AiReceipt,type AiRequestEvent} from './evidence-semantic-ai';
+import {aiEligibleColumns,aiReadingCoverage,configuredTableSemanticAiResolver,tableNeedsSemanticReading,configuredContractHeadingAiResolver,resolveTableReceipt,tableCanReuse,GroundedTableSemanticAiResolver,GroundedContractHeadingAiResolver,planningModel,type TableSemanticAiResolver,type AiReceipt,type AiRequestEvent} from './evidence-semantic-ai';
 import {
   deriveReadinessFromCsv,
   rebuildReadinessEvidence,
@@ -2601,9 +2601,9 @@ export class RuntimeProjectStore {
     const configuredTable=this.semanticAiResolver??configuredTableSemanticAiResolver(readingOptions);
     const configuredContract=this.contractAiResolver??configuredContractHeadingAiResolver(readingOptions);
     if(!configuredTable&&!configuredContract)return {state:'not_set_up',documentsRead:0,steps:[]};
-    const planningModel={async structured(name:string){return name==='cmeng_table_semantic_resolution'?{sourceHashSha256:'',sheetName:'',documentType:'unresolved',confidence:0,columns:[]}:null;}};
-    const resolver=plan?(configuredTable?new GroundedTableSemanticAiResolver(planningModel,readingOptions):null):configuredTable;
-    const contractResolver=plan?(configuredContract?new GroundedContractHeadingAiResolver(planningModel,readingOptions):null):configuredContract;
+    const planningOptions={...readingOptions,planning:true};
+    const resolver=plan?(configuredTable?new GroundedTableSemanticAiResolver(planningModel,planningOptions):null):configuredTable;
+    const contractResolver=plan?(configuredContract?new GroundedContractHeadingAiResolver(planningModel,planningOptions):null):configuredContract;
     // The estimate works on copies: no step, reading or contract result of the project changes.
     const own=(document:StoredEvidenceDocument)=>plan?structuredClone(document):document;
     const pending=candidates.tables.map(own);
