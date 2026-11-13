@@ -14,7 +14,7 @@ import type {AddressInfo} from 'node:net';
 import {createProjectGateway} from '../packages/runtime-api/src/project-gateway';
 import {projectDirectory,calculationRelease} from '../packages/runtime-api/src/project-catalog';
 import {ProjectReadCache} from '../packages/runtime-api/src/project-read-cache';
-import {moduleRegistry,pageDataRoute} from '../packages/runtime-api/src/registry';
+import {moduleRegistry,pageOpenRoutes} from '../packages/runtime-api/src/registry';
 
 function xer(id:string,count:number,dataDate:string,finish:string){
   const lines=['ERMHDR\t23.12','%T\tPROJECT','%F\tproj_id\tproj_short_name\tlast_recalc_date','%R\t1\t'+id+'\t'+dataDate,'%T\tCALENDAR','%F\tclndr_id\tclndr_name\tclndr_data','%R\t1\tEight hour calendar\tMon-Fri 08:00-16:00','%T\tTASK','%F\ttask_id\tproj_id\tclndr_id\ttask_code\ttask_name\tstatus_code\tearly_start_date\tearly_end_date\ttarget_drtn_hr_cnt\tremain_drtn_hr_cnt\ttotal_float_hr_cnt'];
@@ -105,7 +105,7 @@ test('R17 a new release prepares every previously calculated project before it r
       // browser's first open of Accountability took 15 to 25 s on large projects).
       for(const id of ids){
         const version=gateway.catalog.get(id)!.metadata!.version;
-        for(const path of [...moduleRegistry.map(page=>pageDataRoute(page)),'/actions'].map(p=>'/api/projects/'+id+p))
+        for(const path of [...moduleRegistry.flatMap(page=>pageOpenRoutes(page)),'/actions'].map(p=>'/api/projects/'+id+p))
           assert.ok(await stored(root,id,version,path),'page prepared before ready under the browser route: '+path);
         const browserAccountability='/api/projects/'+id+'/management/accountability';
         const served=await fetch(base+browserAccountability);assert.equal(served.status,200);

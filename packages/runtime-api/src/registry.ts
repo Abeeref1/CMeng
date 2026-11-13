@@ -90,6 +90,17 @@ export function pageDataRoute(page:{key:string;apiKey?:string;area:string}):stri
   const key=encodeURIComponent(page.apiKey||page.key);
   return page.area==='management'?'/management/'+key:'/'+page.area+'/modules/'+key+(page.key==='activity-analytics'?'?view=page':'');
 }
+/** The Activity Review table request. Shared by the browser and release
+ * preparation, which saves the first page with no filter: every open of the
+ * page asks for it (13 Nov: 13 to 20 s on first open of large projects). */
+export function activityRegisterParams(page:number,q:string,condition:string):URLSearchParams{
+  return new URLSearchParams({view:'register',page:String(page),pageSize:'50',q,condition});
+}
+export function activityRegisterRoute(params:URLSearchParams):string{return '/schedule/modules/activity-analytics?'+params.toString();}
+/** Every request a page makes as it opens: its data route, plus the Activity Review table's first page. */
+export function pageOpenRoutes(page:{key:string;apiKey?:string;area:string}):string[]{
+  return [pageDataRoute(page),...(page.key==='activity-analytics'?[activityRegisterRoute(activityRegisterParams(0,'',''))]:[])];
+}
 export function publicModuleResult<T extends {key:string}>(result:T,requestedKey:string){
   const page=moduleRegistry.find(m=>m.key===result.key);
   return {...result,key:page?.apiKey===requestedKey?requestedKey:result.key,legacyKey:result.key,page:{key:page?.apiKey??result.key,title:page?.title??result.key,group:page?.group??null}};

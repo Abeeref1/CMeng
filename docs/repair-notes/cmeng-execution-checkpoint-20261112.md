@@ -36,6 +36,21 @@ Date conflicts, median 1.2 s, 90% within 1.8 s.
 - Open: long dash as empty-cell placeholder (48 pages); repeated unknown sentence (11, mostly two rows with the same
   text); "Shortfall: Not established" inline on Resources (3); speed gate (four cold projects in 5 s).
 
+## 13 Nov: d8e00cc1 live, audit and the next fixes
+
+- d8e00cc1 deployed to cmeng-main (deployment 0da2fdc3). CI: every job green except Verify operations (speed gate only).
+  Data check against the 12 Nov snapshot: 20 projects, 337 documents, saved decisions identical. PASS.
+- Audit on d8e00cc1: 1,180 checks; label-as-task 0 (193 before), answer behind buttons 0 (26), Project Review codes 0,
+  HSE separators 0, first open over 5 s 0 after a one-at-a-time recheck (the audit's own Chromium crashed twice with three
+  pages open; 11 pages rechecked, slowest 4.4 s). Report republished.
+- Found and fixed in the next commit:
+  - The Activity Review table asks for its first page as the page opens; that request was never prepared (13 to 20 s on
+    first open of ORBIT and DMM-HDC-P2). `activityRegisterParams`/`activityRegisterRoute` are shared by the browser and
+    `pageOpenRoutes`, which release preparation saves. Test runs the real browser loader and checks the request is prepared.
+  - Recovery & Acceleration on 4 projects opened with unknown lines: its position statement now leads
+    (`data-page-answer="position"`), and an unknown driving chain is stated once (no "Of these, Not established have").
+- Local: J8 blind acceptance 9/9, r17, p3 15/15, planning-ui-evidence, recovery tests, ui-management-experience pass.
+
 ## Next action
 
 CI green on the follow-up commit (speed gate aside) → deploy it to cmeng-main with the same before/after data check → rerun

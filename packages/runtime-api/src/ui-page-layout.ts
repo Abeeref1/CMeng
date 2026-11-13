@@ -149,8 +149,10 @@ function pageAnswerRank(node,seen){
 // the page's answer and its actions, and moves to More detail on a long page.
 function pageIsUnknownOnly(node){
  if(node.matches('.position-verdict,.module-basis,[role="alert"]'))return false;
- if(node.querySelector('table,svg,canvas,.planning-kpi,.experience-fact,.pmc-domain-card'))return false;
- const copy=node.cloneNode(true);for(const button of Array.from(copy.querySelectorAll('button,a.btn')))button.remove();
+ // Parts the layout already hid (tiles stated once as an unknown line) do not count.
+ const said='.page-said-once,.page-unknown-col,.page-kind-hidden,.table-row-paged';
+ if(Array.from(node.querySelectorAll('table,svg,canvas,.planning-kpi,.experience-fact,.pmc-domain-card')).some(part=>!part.closest(said)))return false;
+ const copy=node.cloneNode(true);for(const part of Array.from(copy.querySelectorAll('button,a.btn,'+said)))part.remove();
  const text=String(copy.textContent||'').replace(/\s+/g,' ').trim();
  return text.length>0&&text.length<=320&&/\b(?:not calculable|not established|not available|not assessable|cannot (?:yet )?be (?:calculated|established|assessed))\b/i.test(text);
 }

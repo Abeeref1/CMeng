@@ -42,3 +42,21 @@ test('the browser page loader builds its data route only through pageDataRoute',
   assert.doesNotMatch(script,/"\/modules\/"\+encodeURIComponent\(apiKeys\[/);
   assert.doesNotMatch(script,/"\/management\/"\+encodeURIComponent\(apiKeys\[/);
 });
+
+// 13 Nov audit: the Activity Review table asks for its first page as the page opens
+// (13 to 20 s on first open of large projects). Run the real browser loader with no
+// filter and check release preparation saves the exact request it makes.
+test('the Activity Review table request on page open is prepared',async()=>{
+  const {createSourceFile,ScriptTarget,isFunctionDeclaration}=require('typescript') as typeof import('typescript');
+  const source=createSourceFile('browser.js',browserScript(),ScriptTarget.Latest,true);
+  const wanted=['filterActivityReview','activityFilterValue','activityRegisterParams','activityRegisterRoute'];
+  const code=source.statements.filter(isFunctionDeclaration).filter(n=>n.name&&wanted.includes(n.name.text)).map(n=>n.getText(source)).join('\n');
+  let requested='';
+  const context=vm.createContext({URLSearchParams,currentModuleResult:{key:'activity-analytics'},activityReviewRequest:0,project:()=>'ABB-100',
+    el:(id:string)=>id==='activityFilterBody'?{innerHTML:''}:id==='activityFilterCount'?{textContent:''}:{value:''},
+    api:async(path:string)=>{requested=path;throw new Error('stop');},escapeHtml:String});
+  vm.runInContext(code+';var activityReviewRequest=0;',context);
+  await vm.runInContext('filterActivityReview(0)',context);
+  assert.match(requested,/view=register/,'the loader asked for the table');
+  assert.ok(new Set(projectPageRoutes('ABB-100')).has(requested),'prepared: '+requested);
+});

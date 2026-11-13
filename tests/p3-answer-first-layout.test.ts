@@ -199,3 +199,19 @@ test('tiles whose value says why a figure is unknown are unknown tiles too; each
   assert.equal(result.line,'Not established: Submitted completion, Contract including awarded EOT, Driving-chain shortfall to extended contract date (Working-time basis not established), Recovery to original date (Missing working-time basis).');
   assert.deepEqual(result.visible,['notice','page-unknown-once'],'what is known leads');
 });
+
+// 13 Nov live audit (Recovery & Acceleration on 4 projects): after its unknown tiles became
+// one line, the "Recovery target" panel said only "Not established" yet still led the page,
+// because its hidden tiles still counted as content.
+test('a panel left with only its unknown line follows the known content',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('Chromium is not available');return;}
+  const tile=(label:string,value:string,note:string)=>'<div class="planning-kpi"><span>'+label+'</span><strong>'+value+'</strong><small>'+note+'</small></div>';
+  const verdict='<section class="position-verdict"><b>Not fully confirmed</b><p>Recovery cannot be sized until the working-time basis is supplied.</p></section>';
+  const target='<section class="planning-panel recovery-target"><h4>Recovery target</h4><div class="planning-kpi-grid">'+tile('Submitted completion','Not established','current programme')+
+    tile('Contract including awarded EOT','Not established','required completion')+tile('Driving-chain shortfall','Working-time basis not established','Calendar difference not established')+
+    tile('Recovery to original date','Missing working-time basis','Not established')+'</div></section>';
+  const known='<section class="planning-panel recovery-known"><h4>Driving activities</h4><p>12 driving activities remain on the current programme.</p></section>';
+  const result=await run(chromium,verdict+target+known,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+   return Array.from(c.children).filter(n=>n.checkVisibility()).map(n=>n.className.split(' ').find(x=>/position-verdict|recovery/.test(x)));})()`);
+  assert.deepEqual(result,['position-verdict','recovery-known','recovery-target'],'what is known follows the verdict; the unknown line comes after it');
+});

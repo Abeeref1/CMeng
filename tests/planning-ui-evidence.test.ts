@@ -216,6 +216,10 @@ test('Recovery renders each missing domain and driving network independently of 
   eligibility:{activityFeasibilityCheckCount:null,crewAccelerationCandidateCount:null,knownCrewAccelerationCandidateCount:4,lateProcurementPackageCount:0,unresolvedFeasibilityCheckCount:null,governedResequencingWorkfrontCount:null,actualEligibilityChecksPerformed:3,unlinkedFeasibilityRowCount:7}};
  const render=()=>runInNewContext(script+';renderRecoveryAccelerationVisual(data)',{countText,data,projectionFor:(v:any)=>v,escapeHtml:String,humanizeKey:String,planningShortDate:String,fmt:(v:any)=>v==null?'0':String(v),planningKpis:(rows:any[])=>rows.map(row=>row.join(' ')).join(' ')});
  const html=render();assert.match(html,/Activity feasibility checks Not assessable/);assert.match(html,/Crew acceleration candidates Not assessable · 4 known/);assert.match(html,/Late procurement packages 0/);assert.match(html,/Resequencing-enabled workfronts Not assessable/);assert.match(html,/Unfinished driving activities: Not established/);assert.match(html,/7 source item\(s\) still need activity links/);assert.match(html,/Eligibility checks performed 3/);
+ // 13 Nov audit: an unknown driving chain is stated once; no "Of these, Not established have ..." sentence.
+ assert.doesNotMatch(html,/Of these, Not established/);assert.match(html,/depend on the driving chain, so they are not established either/);
+ // The position statement leads the page; the targets and the sixth-day check follow it.
+ assert.ok(html.indexOf('data-page-answer="position"')>=0&&html.indexOf('data-page-answer="position"')<html.indexOf('Sixth-working-day option'),'position first');
  data.drivingChainShortfall.drivingOpenActivityCount=0;data.drivingChainShortfall.fiveDayDrivingActivityCount=0;assert.match(render(),/Unfinished driving activities: 0/);
  data.eligibility={};const legacy=render();assert.match(legacy,/Activity feasibility checks Not assessable/);assert.match(legacy,/Eligibility checks performed Not assessable/);
 });

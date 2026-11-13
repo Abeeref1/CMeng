@@ -8,7 +8,7 @@ import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
 import {mkdir,statfs,stat} from 'node:fs/promises';
 import {cmengUatHtml} from './ui';
-import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry,pageDataRoute} from './registry';
+import {scheduleModuleSummary,commercialModuleSummary,moduleRegistry,pageDataRoute,pageOpenRoutes} from './registry';
 // The routes the browser opens for the owner pages (Accountability is "/management/accountability").
 const pageRoute=(key:string)=>pageDataRoute(moduleRegistry.find(page=>page.key===key)!);
 import {normalizeProjectCode} from './project-identity';
@@ -43,8 +43,8 @@ export function projectPageRoutes(id:string):string[]{
       prefix+'/phases',
       prefix+'/boq/page-review',
       prefix+'/boq/numeric-review',
-      // Every page under the exact route the browser opens it with.
-      ...moduleRegistry.map(page=>prefix+pageDataRoute(page)),
+      // Every request a page makes as it opens, under the exact route the browser uses.
+      ...moduleRegistry.flatMap(page=>pageOpenRoutes(page).map(route=>prefix+route)),
       // API clients and saved links that still use the internal key.
       prefix+'/management/cross-domain-accountability',
   ])];

@@ -18,7 +18,7 @@ import {programmeReviewScript} from './ui-programme-review';
 import {uploadWorkScript} from './ui-upload-work';
 import {aggregateCount} from '../../truth-kernel/src/aggregates';
 import {MANAGEMENT_DIAGNOSTIC_LABELS} from '../../truth-kernel/src';
-import {moduleRegistry, titleForModule, pageDataRoute} from './registry';
+import {moduleRegistry, titleForModule, pageDataRoute, activityRegisterParams, activityRegisterRoute} from './registry';
 import {STATUS_LABELS,blockedCause} from './position-review';
 import {challengeValueFromSubmission} from '../../module-challenge/src/projector';
 import {readableFieldLabel,readablePathLabel} from './field-labels';
@@ -475,6 +475,8 @@ ${recoveryScenarioScript}
 ${boqSectionReviewScript}
 const moduleRegistry=${JSON.stringify(moduleRegistry).replace(/</g, '\u003c')};
 ${pageDataRoute.toString()}
+${activityRegisterParams.toString()}
+${activityRegisterRoute.toString()}
 const moduleWorkspaces=[
  {key:'procurement-packages',title:'Procurement',views:['procurement-packages','material-tracking','long-lead','procurement-scurves','procurement-readiness']},
  {key:'revision-trend',title:'Programme changes',views:['revision-trend','variance-trends','schedule-change-report']},
@@ -2949,11 +2951,11 @@ let activityReviewPage=0,activityReviewRequest=0;
 async function filterActivityReview(page=0){
   if((currentModuleResult?.legacyKey||currentModuleResult?.key)!=="activity-analytics")return;
   const body=el('activityFilterBody'),count=el('activityFilterCount'),owner=project(),request=++activityReviewRequest;if(!body)return;
-  const params=new URLSearchParams({view:'register',page:String(page),pageSize:'50',q:activityFilterValue('activityFilterSearch'),condition:activityFilterValue('activityFilterCondition')});
+  const params=activityRegisterParams(page,activityFilterValue('activityFilterSearch'),activityFilterValue('activityFilterCondition'));
   const fields={Wbs:'wbsId',Zone:'zone',Floor:'floor',Tower:'tower',Building:'building',Area:'area',Plot:'plot',Location:'location',WorkFront:'workFront',Phase:'phase',Section:'section',Chainage:'chainage',Discipline:'discipline',Trade:'trade',System:'system',Package:'package',Cbs:'cbs',Contractor:'contractor',Subcontractor:'subcontractor',Status:'status',Criticality:'criticality'};
   Object.entries(fields).forEach(([id,key])=>{const value=activityFilterValue('activityFilter'+id);if(value)params.set(key,value);});
   try{
-    const result=await api('/api/projects/'+encodeURIComponent(owner)+'/schedule/modules/activity-analytics?'+params);
+    const result=await api('/api/projects/'+encodeURIComponent(owner)+activityRegisterRoute(params));
     if(request!==activityReviewRequest||project()!==owner||el('activityFilterBody')!==body)return;
     activityReviewPage=result.page;
     body.innerHTML=result.rows.map(activityReviewRowHtml).join('')||'<tr><td colspan="13">No activities match the selected filters.</td></tr>';
@@ -6111,11 +6113,16 @@ function renderRecoveryAccelerationVisual(data){
   const targets=p.recoveryTargets;
   const targetPanel=targets?managementPanel('Recovery target',targets.basis,planningKpis([['Submitted completion',planningShortDate(targets.submittedCompletionIso),'current programme'],['Contract including awarded EOT',planningShortDate(targets.extended.dateIso),'required completion'],['Driving-chain shortfall to extended contract date',targets.extended.workingDays==null?'Working-time basis not established':fmt(targets.extended.workingDays)+' '+countUnit(targets.extended.workingDays,'working days'),targets.extended.calendarDays==null?'Calendar difference not established':fmt(targets.extended.calendarDays)+' '+countUnit(targets.extended.calendarDays,'calendar days')],['Recovery to original date',targets.original.workingDays==null?'Missing working-time basis':fmt(targets.original.workingDays)+' '+countUnit(targets.original.workingDays,'working days'),planningShortDate(targets.original.dateIso)]]),true):'';
   const driving=p.drivingChainShortfall||null;
-  const sixthDayControl=driving?
+  // When the driving chain itself is unknown, the counts that depend on it are stated once, not as "Of these, Not established have".
+  const drivingUnknown=!!driving&&driving.drivingOpenActivityCount==null&&!(driving.knownDrivingOpenActivityCount>0);
+  const sixthDayControl=drivingUnknown?
+    '<div class="notice info"><b>Sixth-working-day option and driving-chain shortfall</b><p>Unfinished driving activities: Not established. The five-working-day calendar count and the required catch-up depend on the driving chain, so they are not established either. The additional day is a scenario requiring approved crews, time arrangements and a recalculated CPM.</p></div>':
+    driving?
     '<div class="notice info"><b>Sixth-working-day option and driving-chain shortfall</b><p>Unfinished driving activities: '+escapeHtml(driving.drivingOpenActivityCount==null?"Not established"+(driving.knownDrivingOpenActivityCount>0?" · "+fmt(driving.knownDrivingOpenActivityCount)+" known":""):fmt(driving.drivingOpenActivityCount))+'. Of these, '+escapeHtml(driving.fiveDayDrivingActivityCount==null?"Not established"+(driving.knownFiveDayDrivingActivityCount>0?" · "+fmt(driving.knownFiveDayDrivingActivityCount)+" known":""):fmt(driving.fiveDayDrivingActivityCount))+' have an explicit five-working-day source calendar. Required catch-up: '+escapeHtml(driving.workingDays===null?'Not established':fmt(driving.workingDays)+' source-calendar working days')+' ('+escapeHtml(driving.calendarDays===null?'calendar-day comparison not established':fmt(driving.calendarDays)+' '+countUnit(driving.calendarDays,'calendar days'))+'). This is the shortfall, not a predicted gain from the sixth day. The additional day is a scenario requiring approved crews, time arrangements and a recalculated CPM.</p></div>':'';
   const count=(value,known)=>value==null?"Not assessable"+(known>0?" · "+fmt(known)+" known":""):fmt(value);
   const table=scenarios.length?recoveryScenarioTable(scenarios):'<div class="notice info"><b>'+escapeHtml(headline)+'</b><p>'+escapeHtml(p.managementPosition||"")+'</p></div>';
-  return '<section class="planning-view recovery-view">'+targetPanel+sixthDayControl+'<div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+planningKpis([
+  // The page's position statement leads (shared layout: data-page-answer="position"); targets and the sixth-day check follow.
+  return '<section class="planning-view recovery-view"><div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'" data-page-answer="position"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+targetPanel+sixthDayControl+planningKpis([
     ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":assessment==="supporting_basis_incomplete"?"Not established":"None qualify","on the CPM path to completion, with a CPM completion gain"],
     ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":"None identified","not quantified until assumptions are established"],
     ["Eligibility checks performed",count(eligibility.actualEligibilityChecksPerformed),"linked activity, package timing and explicit workfront checks","",eligibility.supportingBasisAvailable===false?"Needs quantity, procurement or workfront evidence linked to programme activities":""],
