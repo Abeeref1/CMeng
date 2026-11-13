@@ -124,7 +124,10 @@ function reviewFindingPreview(a){
 function reviewEvidenceHtml(a){
  if(!a.evidenceSummary?.length)return '';
  const rows=a.evidenceSummary.slice(0,3).map(row=>'<li>'+escapeHtml(row)+'</li>').join('');
- const rest=a.evidenceSummary.length>3?'<details><summary>'+(actionListTotal(a.evidenceSummary)===a.evidenceSummary.length?'See all '+fmt(a.evidenceSummary.length)+' findings':'See '+actionShownOf(a.evidenceSummary,'findings'))+'</summary><ol>'+a.evidenceSummary.slice(3).map(row=>'<li>'+escapeHtml(row)+'</li>').join('')+'</ol></details>':'';
+ // DMCC-UPD2 #26: each of 75 actions carried its own closed "See all findings" section. The first three
+ // findings are shown; the rest are counted and stay in the action export (no fold per action).
+ const total=actionListTotal(a.evidenceSummary);
+ const rest=total>3?'<small>'+fmt(total-3)+' more '+(total-3===1?'finding is':'findings are')+' in the action export.</small>':'';
  return '<section class="review-evidence"><b>What CMeng found in the documents already provided</b><ol>'+rows+'</ol>'+rest+'</section>';
 }
 function programmePurposeOptions(current='update'){

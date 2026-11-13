@@ -53,8 +53,10 @@ test('T05/N1: findings and recorded locations inside each action show the retain
   assert.equal(api.actionListTotal(a.findings),64);
   assert.equal(api.actionListTotal(a.affectedPages),3,'an uncut list keeps its own length');
   const html=api.reviewEvidenceHtml(a) as string;
-  assert.match(html,/See 25 of 80 findings/);
-  assert.doesNotMatch(html,/See all 25 findings/,'25 sent is never shown as all findings');
+  // DMCC-UPD2 #26: no closed section per action; the remaining findings are counted from the retained total.
+  assert.match(html,/77 more findings are in the action export/);
+  assert.doesNotMatch(html,/22 more findings/,'25 sent is never shown as all findings');
+  assert.doesNotMatch(html,/<details/,'no fold per action');
   assert.ok(script.includes(`'Open '+actionShownOf(a.correctionRecords,'recorded locations')`),'recorded locations use the retained total');
   assert.ok(script.includes(`'<small>Affects '+screenCountText(actionListTotal(a.affectedPages))+' view'`));
   assert.ok(!script.includes(`'<small>Affects '+fmt(a.affectedPages.length)`));

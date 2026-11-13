@@ -30,12 +30,19 @@ h1,h2,h3,h4,h5,.kpi-value,.position-value{font-family:Inter,"Segoe UI",system-ui
 
 export const experienceScript = String.raw`
 function experienceManagementReading(key,brief){
- const facts=(brief.facts||[]).filter(item=>item.value!==null&&item.value!==undefined&&item.display!=='Not established').slice(0,4);
- const absent=(brief.facts||[]).filter(item=>item.value===null||item.value===undefined||item.display==='Not established').slice(0,3);
- if(!facts.length&&!absent.length&&!brief.review)return '';
+ // Mechanism B/A: "Not supplied" (the register is absent) and "Not measured" (only the baseline programme) are
+ // said as such, separately from figures that are unknown.
+ const said=item=>item.display==='Not supplied'||item.display==='Not measured';
+ const facts=(brief.facts||[]).filter(item=>!said(item)&&item.value!==null&&item.value!==undefined&&item.display!=='Not established').slice(0,4);
+ const absent=(brief.facts||[]).filter(item=>!said(item)&&(item.value===null||item.value===undefined||item.display==='Not established')).slice(0,3);
+ const notSupplied=(brief.facts||[]).filter(item=>item.display==='Not supplied').slice(0,4);
+ const notMeasured=(brief.facts||[]).filter(item=>item.display==='Not measured').slice(0,4);
+ if(!facts.length&&!absent.length&&!notSupplied.length&&!notMeasured.length&&!brief.review)return '';
  const explanation=f=>f.explanationHtml||(f.basis?escapeHtml(f.basis):'');
  const established=facts.length?'<p><b>Established from project records:</b> '+facts.map(f=>escapeHtml(f.label)+': <strong>'+escapeHtml(f.display)+'</strong>'+(explanation(f)?' <small class="figure-explanation">('+explanation(f)+')</small>':'')).join(' · ')+'</p>':'';
- const gaps=absent.length?'<p><b>Not yet established:</b> '+absent.map(f=>escapeHtml(f.label)).join('; ')+'. These values are unknown, not zero.</p>':'';
+ const gaps=(notMeasured.length?'<p><b>Not measured:</b> '+notMeasured.map(f=>escapeHtml(f.label)).join('; ')+'. '+escapeHtml(notMeasured[0].basis||'')+'.</p>':'')
+  +(notSupplied.length?'<p><b>Not supplied:</b> '+notSupplied.map(f=>escapeHtml(f.label)).join('; ')+'. The register is not in the project documents.</p>':'')
+  +(absent.length?'<p><b>Not yet established:</b> '+absent.map(f=>escapeHtml(f.label)).join('; ')+'.</p>':'');
  const attention=brief.review?'<p><b>What needs attention:</b> '+escapeHtml(brief.review)+'</p>':'';
  const context=brief.note?'<details><summary>How to interpret these figures</summary><p>'+escapeHtml(brief.note)+'</p></details>':'';
  const reading='<section class="experience-management-reading"><h4>What this page shows</h4>'+established+gaps+attention+context+'</section>';
@@ -81,6 +88,13 @@ function experienceBrief(key,data){
   const d=findProjectionRoot(data),s=d.result||d,p=d.position||{},f=p.foundation||{},c=p.contractControls||{};
   const facts=[];
   const add=(label,value,basis,unit='')=>facts.push({label,value,display:experienceValue(value,unit),basis:basis+(value&&typeof value==='object'&&['partial','candidate','provisional','conflicted'].includes(value.state)?' · '+humanizeKey(value.state):''),unit});
+  // Mechanism B (unknown is not zero, DMCC-UPD2 #9): a count read from a register that was never supplied is
+  // "Not supplied", never 0. A count from a supplied register keeps its value, zero included.
+  const absent=register=>!register||['missing','not_submitted'].includes(register.state)&&!(Number(register.sourceRecordCount)>0)&&!(Number(register.recordCount)>0);
+  const addRegister=(register,label,value,basis,unit='')=>absent(register)?facts.push({label,value:null,display:'Not supplied',basis:basis+' · register not supplied',unit}):add(label,value,basis,unit);
+  // Mechanism A (baseline-only state, DMCC-UPD2 #4): one programme and no update has no movement to compare.
+  const programmeState=(d.projectFacts||data?.projectFacts||{}).schedule?.programmeState||null,baselineOnly=programmeState?.baselineOnly===true;
+  const addMovement=(label,value,basis,unit='')=>baselineOnly?facts.push({label,value:null,display:'Not measured',basis:'Only the baseline programme is supplied',unit}):add(label,value,basis,unit);
   let note='',review='';
   if(key==='pmo-analysis'){
     add('Schedule progress',d.progress?.durationWeightedProgressPercent,'Duration weighted schedule snapshot','%');
@@ -98,12 +112,14 @@ function experienceBrief(key,data){
     if(experienceRecordCount(s.logicQuality?.executionOpenStartActivityIds))review='Review the open starts against approved project boundaries. The complete activity list is in the analysis below.';
   }else if(key==='activity-analytics'){
     const m=d.movementAnalysis,dist=d.movementDistribution;
+    if(baselineOnly){add('Programme activities',d.activityCount,'Source activities in the baseline');addMovement('Finish movement',null,'');note=programmeState.statement;}
+    else{
     add('Baseline-comparable',dist?.knownCount,'Of '+experienceValue(d.activityCount)+' source activities');
     add('Largest finish movement',dist?.maximum,'Current vs each activity’s controlled baseline','d');
     add('Activities at maximum',dist?.maximumCount,'Shared movement, not separate delay causes');
     add('Comparison coverage',d.finishVarianceCoveragePercent,'Known baseline/current date pairs','%');
-    note='Activity finish movement measures changed source dates. It does not establish causation or EOT.';
-    if(dist?.maximumCount>1)review='Review the shared maximum movement with the baseline/current date pairs and previous-revision comparison before attributing a cause.';
+    note='Activity finish movement measures changed source dates. It does not establish causation or EOT.';}
+    if(!baselineOnly&&dist?.maximumCount>1)review='Review the shared maximum movement with the baseline/current date pairs and previous-revision comparison before attributing a cause.';
   }else if(key==='near-critical'){
     add('Strict near-critical',d.nearCriticalCount,d.nearCriticalScreening?.basis||'Above critical threshold, within the disclosed screening band');
     add('Zero float',d.zeroFloatCount,'Included in the wider watchlist');
@@ -188,8 +204,8 @@ function experienceBrief(key,data){
       add('Further adjusted finish',d.officialAdjustedCompletionIso,'Requires reconciled authority','date');add('Programme finish movement',d.projectCompletionMovementDays,'Source finish movement, not entitlement','d');
       if(d.timeBasisReconciliation?.overlapResolution==='unresolved')review='Resolve which determinations are already incorporated in the contract amendment before calculating any further adjusted completion.';
     }else if(key==='windows-analysis'){
-      add('Revision windows',d.windowCount,'Available comparisons');add('Source finish movement',d.projectCompletionMovementDays,'First vs latest programme','d');
-      add('Gross analytical movement',d.grossAnalyticalMovementDays,'Positive movement across windows','d');add('Complete windows',d.completeWindowCount,'Calculation coverage');
+      addMovement('Revision windows',d.windowCount,'Available comparisons');addMovement('Source finish movement',d.projectCompletionMovementDays,'First vs latest programme','d');
+      addMovement('Gross analytical movement',d.grossAnalyticalMovementDays,'Positive movement across windows','d');addMovement('Complete windows',d.completeWindowCount,'Calculation coverage');
     }else{
       add('Claims by Data Date',d.claimCount,'Future and undated claims excluded');add('Events by Data Date',d.eventCount,'Evidence of existence, not causation');
       if(key==='delay-claims'){add('Activity-linked events',d.activityLinkedEventCount,'Accepted event/activity links');add('Source finish movement',d.projectCompletionMovementDays,'Calendar days, not attributable delay','d');}
@@ -207,16 +223,16 @@ function experienceBrief(key,data){
   }else if(key==='cash-flow'){
     const rows=p.performance?.cashFlow?.currencies||[];
     if(rows.length===1){const r=rows[0];add('Cash received',r.paidIncome,'Actual dated receipts',r.currency);add('Cash spent',r.actualExpenditure,'Actual dated expenditure',r.currency);add('Net cash movement',r.netCashPosition,'Receipts less expenditure; opening cash excluded',r.currency);}
-    add('Certificate periods',f.paymentRegister?.recordCount,'On or before the Data Date');
+    addRegister(f.paymentRegister,'Certificate periods',f.paymentRegister?.recordCount,'On or before the Data Date');
     note='Cash movements and certificate values are separate views. Currency and tax partitions are never combined.';
     if(rows.some(r=>!r.sourceReadiness?.netCashReady))review='Add paid amounts with receipt dates and actual cash expenditure dates to establish net cash. Certificate values by reporting period are available below.';
   }else if(key==='payments'){
-    const r=f.paymentRegister||{};add('Certificate periods',r.recordCount,'By Data Date');add('Future periods',experienceRecordCount(r.futureRows),'Excluded from current position');
-    add('Undated records',experienceRecordCount(r.undatedRows),'Outside dated totals');
+    const r=f.paymentRegister||{};addRegister(f.paymentRegister,'Certificate periods',r.recordCount,'By Data Date');addRegister(f.paymentRegister,'Future periods',experienceRecordCount(r.futureRows),'Excluded from current position');
+    addRegister(f.paymentRegister,'Undated records',experienceRecordCount(r.undatedRows),'Outside dated totals');
     note='Application, certification and payment are separate events. A period-end date is not proof of a payment date.';
   }else if(key==='variations-change'){
-    const t=p.sourceLedger?.temporalPosition?.variations||{};add('Approvals by Data Date',t.asOfApprovedCount,'Dated approved changes');
-    add('Future approvals',t.futureApprovalCount,'Outside the current position');add('Undated approvals',t.undatedApprovalCount,'Approval date not confirmed');
+    const t=p.sourceLedger?.temporalPosition?.variations||{},changes=c.variations?.changeRegister??c.variations;addRegister(changes,'Approvals by Data Date',t.asOfApprovedCount,'Dated approved changes');
+    addRegister(changes,'Future approvals',t.futureApprovalCount,'Outside the current position');addRegister(changes,'Undated approvals',t.undatedApprovalCount,'Approval date not confirmed');
     note='Current approval records and the source contract summary retain separate date bases.';
   }else if(key==='cost-forecast'){
     const rows=p.performance?.costControl?.positions||[];
@@ -231,8 +247,8 @@ function experienceBrief(key,data){
     add('Commercial records',p.claimCommercialCount,'Claims with a commercial linkage');
     note='Money claims and time entitlement have separate assessment and approval bases.';
   }else if(key==='commercial-overview'){
-    add('Approvals by Data Date',p.sourceLedger?.temporalPosition?.variations?.asOfApprovedCount,'Dated approved changes');add('Certificate periods',f.paymentRegister?.recordCount,'By Data Date');
-    add('Currencies',p.currencies?.length,'Separate currency and tax bases');add('Contract completion',p.timeExposure?.contractualCompletion?.value,'Confirmed date','date');
+    addRegister(c.variations?.changeRegister??c.variations,'Approvals by Data Date',p.sourceLedger?.temporalPosition?.variations?.asOfApprovedCount,'Dated approved changes');addRegister(f.paymentRegister,'Certificate periods',f.paymentRegister?.recordCount,'By Data Date');
+    if(p.currencies?.length)add('Currencies',p.currencies.length,'Separate currency and tax bases');else facts.push({label:'Currencies',value:null,display:'Not supplied',basis:'No commercial records',unit:''});add('Contract completion',p.timeExposure?.contractualCompletion?.value,'Confirmed date','date');
     note='Contract value, change, certification, receipts and exposure remain distinct positions.';
   }
   return {facts,note,review};

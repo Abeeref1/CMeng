@@ -46,7 +46,7 @@ const PAGE_ACTION_MAX_PX=220;
 // the page view and its grids. Their blocks are arranged one by one.
 // DMCC-UPD2 #8: the Management brief is one tall section; as one block it went whole into More detail and
 // the page opened with only the verdict. Its sections are arranged one by one, its conclusion leading.
-const PAGE_WRAPPER_CLASS=/(?:^|\s)(?:role-view-[a-z-]+|role-primary-analysis|planning-view|planning-primary-grid|visual-chart-grid|experience-preview|management-two-column|management-brief)(?:\s|$)/;
+const PAGE_WRAPPER_CLASS=/(?:^|\s)(?:role-view-[a-z-]+|role-primary-analysis|planning-view|planning-primary-grid|visual-chart-grid|experience-preview|management-two-column|management-brief|source-quality-page)(?:\s|$)/;
 const PAGE_FIXED='.module-basis,.position-verdict,.view-state-bar,[role="alert"],.experience-notes.error';
 const PAGE_TILE='.planning-kpi,.kpi-card,.kpi,.scalar,.metric-card,.position-card,.experience-kpi,.experience-fact,.management-metric-card,.pmc-domain-card,.currency-card';
 const PAGE_CHART='[data-visual-panel],.visual-chart,.chart-card,svg.svg-chart,.float-histogram,.milestone-date-chart,.lookahead-timeline,.certificate-columns,.date-ladder,.pressure-matrix,.cash-movement-bars,.waterfall-chart,.signed-bars,.status-band,.constraint-bars,.finish-period-bars,.donut-ring,.visual-bars';
@@ -117,7 +117,9 @@ function pageGroupTitle(titles){
 // answer (data-page-answer) and the main chart, the primary panel, the page actions
 // and a second row of tiles. A long table, a collapsed section and a block of system
 // evidence (readiness, evidence snapshot, calculation checks) never lead the page.
-const PAGE_EVIDENCE='[data-page-role="evidence"],.module-evidence-link,.experience-scope-note,.experience-audit,.page-review-summary,[data-owner-topic="cross-module-consistency"]';
+// Links to records owned by another page and the source-record browser are supporting furniture: they follow
+// the page's answer (DMCC-UPD2 #8/#19: "Source records · 2 groups" led empty delivery pages).
+const PAGE_EVIDENCE='.owner-link-panel,.source-record-browser,[data-page-role="evidence"],.module-evidence-link,.experience-scope-note,.experience-audit,.page-review-summary,[data-owner-topic="cross-module-consistency"]';
 function pageIsAction(node){
  if(node.matches('[data-page-role="action"],.actions,.action-notification'))return true;
  return !!node.querySelector('button')&&!node.querySelector('table')&&!node.matches(PAGE_EVIDENCE)&&pageBlockHeight(node)<=PAGE_ACTION_MAX_PX;
@@ -437,9 +439,26 @@ function pagePlanGroups(moved,limit){
  }
  return groups;
 }
+// Mechanism F (DMCC-UPD2 #23): one number reader for the text of every page. Hour totals of 1,000 or more are
+// whole hours ("6,657,608 h", not "6,657,608.08 h"); a count of 1,000 or more before a noun carries separators
+// ("2,335 activities", not "2335 activities"). Table cells used for sorting keep their own values.
+const PAGE_HOURS_DECIMAL=/\b(\d{1,3}(?:,\d{3})+)\.\d{1,2}( h\b| labou?r hours\b| hours\b)/g;
+const PAGE_BARE_COUNT=/\b(\d{4,})( (?:activities|activity|tasks|records|items|labou?r hours|hours|days|calendar days|working days)\b)/g;
+function pageNumberReader(container){
+ if(typeof document==='undefined'||typeof document.createTreeWalker!=='function')return 0;
+ const walker=document.createTreeWalker(container,4);let node,changed=0;
+ while((node=walker.nextNode())){
+  const text=node.nodeValue;if(!text||text.length<5||!/\d/.test(text))continue;
+  if(node.parentElement&&node.parentElement.closest('script,style,textarea,input,code,[data-sort-value]'))continue;
+  const next=text.replace(PAGE_HOURS_DECIMAL,(_m,whole,unit)=>whole+unit).replace(PAGE_BARE_COUNT,(m,digits,noun)=>/^(?:19|20)\d\d$/.test(digits)?m:Number(digits).toLocaleString('en-US')+noun);
+  if(next!==text){node.nodeValue=next;changed++;}
+ }
+ return changed;
+}
 function arrangePageDetail(container){
  if(!container||!container.children||typeof container.querySelectorAll!=='function'||typeof container.getBoundingClientRect!=='function')return null;
  if(typeof document==='undefined'||typeof document.createElement!=='function'||container.isConnected===false)return null;
+ pageNumberReader(container);
  const limitHeight=PAGE_DEFAULT_SCREENS*PAGE_SCREEN_PX,budget=limitHeight-PAGE_LATE_CONTENT_PX;
  // P3: on every page the answer leads, actions follow and evidence comes after; unknowns are said once.
  pageSayUnknownOnce(container);

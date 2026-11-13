@@ -44,9 +44,10 @@ export const DISCIPLINE_CODE_TYPES=[/\bdiscipline\b/i,/\btrades?\b/i];
 export const LOCATION_CODE_TYPES=[/\blocation\b/i,/\barea\b/i,/\bzone\b/i,/\bbuilding\b/i,/\btower\b/i,/\bplot\b/i,/\blevel\b/i,/\bfloor\b/i];
 /** F22: the programme's own Plot code. */
 const PLOT_CODE_TYPES=[/\bplot\b/i];
-/** First code type (in priority order) with exactly one value on the activity. */
-export function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[]){
-  const codes=activity.activityCodes??[];
+/** First code type (in priority order) with exactly one value on the activity. With `onlyTypeName`, only
+ * that code type is read. */
+export function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[],onlyTypeName?:string|null){
+  const codes=(activity.activityCodes??[]).filter(code=>!onlyTypeName||code.typeName===onlyTypeName);
   for(const type of types){
     const matching=codes.filter(code=>type.test(code.typeName));
     const values=new Set(matching.map(code=>code.value));
@@ -57,6 +58,25 @@ export function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[]){
         ...(description&&description.toUpperCase()!==code.value.toUpperCase()?{description}:{})};}
   }
   return null;
+}
+/** DMCC-UPD2 #14: locations were grouped by Area codes on some activities and Level codes on others, so one
+ * list mixed two dimensions ("EAP, ESU, SCA, TED" beside level codes). A project groups by one code type: of
+ * the matching types, the one carried (with one value) by the most activities; a tie goes to the type
+ * earlier in priority order. Activities without that code fall back to the WBS level. */
+const dominantCodeTypeCache=new WeakMap<CanonicalScheduleModel,Map<RegExp[],string|null>>();
+export function dominantCodeType(model:CanonicalScheduleModel,types:RegExp[]):string|null{
+  const memo=dominantCodeTypeCache.get(model)??new Map<RegExp[],string|null>();
+  if(!dominantCodeTypeCache.has(model))dominantCodeTypeCache.set(model,memo);
+  if(memo.has(types))return memo.get(types)!;
+  const carried=new Map<string,number>();
+  for(const activity of model.activities){
+    const values=new Map<string,Set<string>>();
+    for(const code of activity.activityCodes??[])if(types.some(type=>type.test(code.typeName))){const set=values.get(code.typeName)??new Set<string>();set.add(code.value);values.set(code.typeName,set);}
+    for(const [typeName,set] of values)if(set.size===1)carried.set(typeName,(carried.get(typeName)??0)+1);
+  }
+  const priority=(typeName:string)=>{const index=types.findIndex(type=>type.test(typeName));return index<0?types.length:index;};
+  const chosen=[...carried.entries()].sort((a,b)=>b[1]-a[1]||priority(a[0])-priority(b[0])||a[0].localeCompare(b[0]))[0]?.[0]??null;
+  memo.set(types,chosen);return chosen;
 }
 export interface ClassificationCoverage {
   key:keyof Omit<ActivityScopeClassification,'activityId'|'classificationBasis'>;
@@ -302,7 +322,8 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   const chain:CanonicalWbsNode[]=[];{let current=node;const seen=new Set<string>();while(current&&!seen.has(current.wbsId)){seen.add(current.wbsId);chain.unshift(current);current=current.parentWbsId?nodes.get(current.parentWbsId):undefined;}}
   const wbsLevel=chain.length>=2?2:chain.length;
   const levelName=wbsLevel?(chain[wbsLevel-1]!.name??'').trim():'';
-  const locationSource=codeGroup(activity,LOCATION_CODE_TYPES)??(levelName?{value:levelName,basis:'wbs_level' as const,source:'From WBS level '+wbsLevel}:null)
+  const locationCodeType=dominantCodeType(model,LOCATION_CODE_TYPES);
+  const locationSource=(locationCodeType?codeGroup(activity,LOCATION_CODE_TYPES,locationCodeType):null)??(levelName?{value:levelName,basis:'wbs_level' as const,source:'From WBS level '+wbsLevel}:null)
     ??(spatial.length?{value:spatial.join(' / '),basis:'name_match' as const,source:NAME_MATCH_GROUP_SOURCE}:null);
   const display=(source:{value:string;description?:string}|null|undefined)=>source?(source.description?source.description+' ('+source.value+')':source.value):null;
   return {disciplineGroup:disciplineSource?.value??null,disciplineGroupBasis:disciplineSource?.basis??null,disciplineGroupSource:disciplineSource?.source??null,

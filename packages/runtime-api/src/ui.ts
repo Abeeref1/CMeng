@@ -566,7 +566,7 @@ function ownsBlock(topic,pageKey=currentPageKey()){
 function ownerLinkPanel(topic,figure='',heading='',pageScoped=false){
   const entry=blockOwnerEntry(topic);if(!entry)return '';
   const title=names[entry.owner]||entry.owner;
-  return '<section class="owner-link-panel planning-panel" data-owner-link="'+escapeHtml(topic)+'" data-owner-page="'+escapeHtml(entry.owner)+'"'+(pageScoped?' data-owner-scope="page"':'')+'><h4>'+escapeHtml((heading||entry.heading)+': see '+title)+'</h4>'+(figure?'<p data-owner-figure="'+escapeHtml(figure)+'">'+escapeHtml(figure)+'</p>':'')+'<button type="button" class="btn small" data-owner-open="'+escapeHtml(entry.owner)+'" onclick="openOwnerPage(this.dataset.ownerOpen)">Open '+escapeHtml(title)+'</button></section>';
+  return '<section class="owner-link-panel planning-panel" data-owner-link="'+escapeHtml(topic)+'" data-owner-page="'+escapeHtml(entry.owner)+'"'+(pageScoped?' data-owner-scope="page"':'')+'><h4>'+escapeHtml((heading||entry.heading)+': see '+title)+'</h4>'+(figure?'<p class="owner-link-figure" data-owner-figure="'+escapeHtml(figure)+'" hidden></p>':'')+'<button type="button" class="btn small" data-owner-open="'+escapeHtml(entry.owner)+'" onclick="openOwnerPage(this.dataset.ownerOpen)">Open '+escapeHtml(title)+'</button></section>';
 }
 function markOwnedBlock(html,topic,figure=''){
   return String(html).replace(/^(\s*<[a-zA-Z][a-zA-Z0-9-]*)/,(_m,open)=>open+' data-owner-topic="'+escapeHtml(topic)+'"'+(figure?' data-owner-figure="'+escapeHtml(figure)+'"':''));
@@ -855,7 +855,7 @@ function renderEvidenceUploadProgress(progress,fileIndex=0,fileTotal=1,transferD
         ? screenCountText(progress.identifiedDocuments)+" / "+progress.documentTotal+" identified"
         : progress.state==="processing"
           ? screenCountText(progress.processedDocuments)+" / "+progress.documentTotal+" processed"
-          : progress.documentTotal+" documents")
+          : countText(progress.documentTotal,"document",undefined,fmt))
     : "";
   const fileDetail=fileTotal>1?"File "+(fileIndex+1)+" of "+fileTotal:"";
   const meta=[fileDetail,docDetail,transferDetail].filter(Boolean).join(" · ");
@@ -1713,10 +1713,12 @@ function renderLineChart(points,series,yMaxHint=null,options={}){
     grid+zero+dataDateLine+contractLine+plots+labels+axisTitle+xAxisTitle+'</svg></div></div>';
 }
 function percent2(value){return typeof value==="number"&&Number.isFinite(value)?value.toFixed(2):"—";}
-function renderProgressScope(scope){
+function renderProgressScope(scope,programmeState=null){
+  // Mechanism A (DMCC-UPD2 #5/#19): with no progress recorded, "0.00 pp level with baseline" compared 0% with 0%.
+  if(programmeState?.progressRecorded===false)return '<section class="planning-panel primary" data-page-answer="position"><div class="planning-panel-head"><div><h4>Progress is not measured yet</h4><p>'+escapeHtml(programmeState.statement)+'</p></div></div></section>';
   if(!scope)return '<div class="notice warn">Comparable progress is unavailable: match baseline and current activities before stating a performance gap.</div>';
   const gap=scope.gapPercentagePoints;
-  const verdict=gap==null?'Progress gap cannot be calculated':Math.abs(gap).toFixed(2)+' pp '+(gap<0?'behind':gap>0?'ahead of':'level with')+' baseline on the same tasks and fixed weights';
+  const verdict=gap==null?'Progress gap cannot be calculated':(gap===0?'On the baseline plan':Math.abs(gap).toFixed(2)+' percentage points '+(gap<0?'behind':'ahead of')+' the baseline plan')+' on the same tasks and fixed weights';
   return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>'+escapeHtml(verdict)+'</h4><p>'+fmt(scope.comparableActivityCount)+' comparable tasks out of '+fmt(scope.matchedActivityCount)+' matched · '+escapeHtml(humanizeKey(scope.state))+'</p></div></div><div class="planning-panel-body">'+planningKpis([
     ['Baseline plan',percent2(scope.baselinePlannedPercent)+'%','matched tasks, baseline duration weights'],
     ['Snapshot · fixed weights',percent2(scope.snapshotPercent)+'%','same tasks and baseline duration weights'],
@@ -1750,7 +1752,7 @@ function renderProgressScurveVisual(data){
   const options={unit:"%",yLabel:"Schedule progress",xLabel:"Reporting date",dataDateIso:p.dataDateIso,observationCount:p.observationCount??p.actualSnapshots?.length};
   return '<section class="planning-view progress-scurve-view">'+
     renderVisualPanel("Progress S-Curve","Baseline plan, current plan and available schedule-progress observations. Source dates establish 0% before start and 100% after finish. Between those dates, missing working calendars leave gaps. Missing certified physical progress is never inferred.",renderLineChart(p.points,series,100,{...options,ariaLabel:"Full programme progress"}))+
-    kpis+renderProgressScope(p.scopeComparison)+note+
+    kpis+renderProgressScope(p.scopeComparison,data?.projectFacts?.schedule?.programmeState)+note+
     '<details class="source-scope"><summary>First 12 months and source record coverage</summary>'+
       renderLineChart(early,series,null,{...options,ariaLabel:"Progress first 12 months"})+
     '</details></section>';
@@ -1859,7 +1861,11 @@ function renderLookAheadVisual(data){
     // ABB G2_PLANNING-55: one shared readiness state (the same rule as Construction Readiness).
     const reviewState=readinessReviewState(row.readiness);
     const overall=reviewState==="blocked"?"Blocked":reviewState==="ready"?"Ready":reviewState==="at_risk"?"At risk":"No known linked blocker";
-    return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(overall)+'</span></td><td>'+escapeHtml(sourceWorkingFloat(row))+'<br>'+escapeHtml(row.drivingPath===true?'Driving completion':row.drivingPath===false?'Outside driving path':'Path not calculated')+'</td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";return '<td><details class="readiness-reason"><summary aria-label="'+escapeHtml(row.activityId+' '+labels[key]+' '+planningStateLabel(state))+'">'+escapeHtml(state==="ready"?"Ready":state==="blocked"?"Blocked":state==="not_applicable"?"N/A":dim?.sourceRefs?.length?"Dates / status need review":"Readiness not established")+(key==="resource"?resourceHoursSummary(row):"")+'</summary><p>'+escapeHtml(dim?.note||'No linked readiness record')+'</p>'+(key==="resource"?resourceHoursDetail(row):"")+((dim?.records||[]).length?'<ul>'+dim.records.map(r=>'<li><b>'+escapeHtml(r.recordId||r.documentType)+'</b> · '+escapeHtml(humanizeKey(r.documentType))+' · '+escapeHtml(planningStateLabel(r.state))+' · '+escapeHtml(r.note)+((typeof apiOwnerText==='function'?apiOwnerText(r):r.owner)?' · Owner: '+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(r):r.owner)):'')+'</li>').join('')+'</ul>':'')+'</details></td>'}).join("")+'</tr>';
+    return '<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(planningShortDate(row.startIso))+'</td><td>'+escapeHtml(planningShortDate(row.finishIso))+'</td><td><span class="state-pill '+escapeHtml(row.readiness?.state||"unknown")+'">'+escapeHtml(overall)+'</span></td><td>'+escapeHtml(sourceWorkingFloat(row))+'<br>'+escapeHtml(row.drivingPath===true?'Driving completion':row.drivingPath===false?'Outside driving path':'Path not calculated')+'</td>'+dimensions.map(key=>{const dim=map.get(key);const state=dim?.state||"unknown";const stateText=state==="ready"?"Ready":state==="blocked"?"Blocked":state==="not_applicable"?"N/A":dim?.sourceRefs?.length?"Dates / status need review":"Readiness not established";
+  // DMCC-UPD2 #26: every readiness cell was a closed section (225 on one page). A cell with no linked
+  // record says its state, with the reason on hover; only a cell with records or hours opens.
+  if(!(dim?.records||[]).length&&key!=="resource")return '<td class="readiness-plain" title="'+escapeHtml(dim?.note||'No linked readiness record')+'">'+escapeHtml(stateText)+'</td>';
+  return '<td><details class="readiness-reason"><summary aria-label="'+escapeHtml(row.activityId+' '+labels[key]+' '+planningStateLabel(state))+'">'+escapeHtml(stateText)+(key==="resource"?resourceHoursSummary(row):"")+'</summary><p>'+escapeHtml(dim?.note||'No linked readiness record')+'</p>'+(key==="resource"?resourceHoursDetail(row):"")+((dim?.records||[]).length?'<ul>'+dim.records.map(r=>'<li><b>'+escapeHtml(r.recordId||r.documentType)+'</b> · '+escapeHtml(humanizeKey(r.documentType))+' · '+escapeHtml(planningStateLabel(r.state))+' · '+escapeHtml(r.note)+((typeof apiOwnerText==='function'?apiOwnerText(r):r.owner)?' · Owner: '+escapeHtml((typeof apiOwnerText==='function'?apiOwnerText(r):r.owner)):'')+'</li>').join('')+'</ul>':'')+'</details></td>'}).join("")+'</tr>';
   }).join("");
   const readiness=planningStatusBand([["Ready",p.readyCount,"success"],["At risk",p.atRiskCount??p.conditionalCount,"warning"],["No known linked blocker",p.noKnownLinkedBlockerCount??null,"neutral"],["Known blocker",p.blockedCount,"danger"]]);
   const blockers=planningLookAheadBlockers(p.blockerTypes);
@@ -2857,6 +2863,21 @@ function renderScheduleAnalyticsVisual(data){
   ]);
   return '<section class="planning-view programme-review"><div class="notice info"><b>Programme Review = whole-programme control.</b><p>This page answers programme health, logic, float, finish dates and baseline variance. Use Activity Review for individual activity filtering and detailed row investigation.</p></div>'+kpis+planningKpis([['Delayed open activities',data.projectFacts?.schedule?.delayedOpenActivityCount?.value??'Missing','includes open milestones'],['Delayed open execution',data.projectFacts?.schedule?.delayedExecutionActivityCount?.value??'Missing','completed work excluded']])+renderProgrammeQuality(data.projectFacts?.programmeQuality)+visualOverview+'<div class="planning-primary-grid"><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Programme health</h4><p>Float, progress and logic quality across the current programme.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Logic checks</h4><p>Issues that reduce confidence in schedule sequencing.</p></div></div><div class="planning-panel-body">'+integrity+quality+'<p>Submitted Near Critical label: '+escapeHtml(fmt(p.controlBasis?.sourceReportedNearCriticalLabelCount))+'; strict confirmed near-critical: '+escapeHtml(fmt(r.float.nearCriticalCount))+'; float-risk watchlist: '+escapeHtml(fmt(r.float.floatRiskWatchlistCount))+'. These definitions are reconciled separately.</p></div></section></div><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Finish dates</h4><p>Baseline, current forecast and actual finish dates are kept separate so one is not mistaken for another.</p></div></div><div class="planning-panel-body">'+completion+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Recorded finish variance · completed and open work</h4><p>Controlled-baseline comparison by '+escapeHtml(humanizeKey(variance.populationBasis??'not_established'))+'. Denominator: '+escapeHtml(fmt(variance.denominator??null))+'.</p></div></div><div class="planning-panel-body">'+varianceBand+distributionSummary(variance.distribution)+'<div class="coverage-line"><span>Variance coverage</span><b>'+escapeHtml(variance.coveragePercent===null||variance.coveragePercent===undefined?"—":fmt(variance.coveragePercent)+"%")+'</b></div></div></section></div></section>';
 }
+// DMCC-UPD2 #18 (one fact per measure): the dashboard said "No source date constraint identified" while
+// Completion Forecast listed 16 activity constraints. Every tile that states the programme's constraints
+// reads this one statement: the activity constraint count of the current programme and the project's own
+// Must Finish By date when the programme states one.
+function programmeConstraintText(data){
+ const listed=data?.scheduleBasisReview?.constraints??[];
+ const count=typeof data?.projectDiagnosis?.anomalies?.constraints==='number'?data.projectDiagnosis.anomalies.constraints:listed.length?listed.length:null;
+ const mustFinish=data?.projectFacts?.schedule?.declaredProjectFinishIso?.value??null;
+ const types=[...new Set(listed.map(c=>humanizeKey(c.type)))].slice(0,3).join('; ');
+ const activity=typeof count==='number'?(count>0?countText(count,'activity constraint',undefined,fmt)+(types?' ('+types+')':''):'No activity date constraints'):null;
+ const project=mustFinish?'project must finish by '+planningShortDate(mustFinish):null;
+ if(activity===null&&!project)return 'Programme constraints: see Completion Forecast';
+ const text=[activity,project].filter(Boolean).join('; ');
+ return text.charAt(0).toUpperCase()+text.slice(1);
+}
 function renderMovementConcentration(m,fallback){
   if(!m)return Array.isArray(fallback)?planningSignedBars(fallback,"calendar days"):'<div class="empty-visual">Largest finish movements: Not established. Only a preview of the activity rows was received.</div>';
   const signed=v=>v==null?"Not established":(v>0?"+":"")+fmt(v)+" d";
@@ -3385,7 +3406,7 @@ function renderProgressReportVisual(data){
       {label:"Unknown",value:p.progress?.unknownStatusCount??null,tone:"warning"}
     ],"Activities"))+
   '</div>';
-  return '<section class="planning-view progress-position-view">'+renderProgressScope(p.scopeComparison)+kpis+measuresPanel+areaPanel+(typeof renderMeasuredAreaProgress==="function"?renderMeasuredAreaProgress(data?.measuredProgressByArea):'')+warning+visualOverview+'<details class="source-scope"><summary>All progress bases and schedule pressure</summary><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current planned phasing, activity percentage-complete snapshot, physical, contractor-reported, certified and earned-value progress remain separate. Current planned phasing is never presented as achieved progress.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme activities.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Critical and near-critical are disjoint classes. Negative float can overlap critical activities; these counts must not be added.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div></details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  return '<section class="planning-view progress-position-view">'+renderProgressScope(p.scopeComparison,data?.projectFacts?.schedule?.programmeState)+kpis+measuresPanel+areaPanel+(typeof renderMeasuredAreaProgress==="function"?renderMeasuredAreaProgress(data?.measuredProgressByArea):'')+warning+visualOverview+'<details class="source-scope"><summary>All progress bases and schedule pressure</summary><section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Progress bases</h4><p>Baseline plan, current planned phasing, activity percentage-complete snapshot, physical, contractor-reported, certified and earned-value progress remain separate. Current planned phasing is never presented as achieved progress.</p></div></div><div class="planning-panel-body">'+progressBasisBars(p.progressBases)+'</div></section><div class="planning-primary-grid"><section class="planning-panel"><div class="planning-panel-head"><div><h4>Activity status</h4><p>Current programme activities.</p></div></div><div class="planning-panel-body">'+status+'</div></section><section class="planning-panel"><div class="planning-panel-head"><div><h4>Schedule pressure</h4><p>Critical and near-critical are disjoint classes. Negative float can overlap critical activities; these counts must not be added.</p></div></div><div class="planning-panel-body">'+pressure+'</div></section></div></details><section class="planning-panel"><div class="planning-panel-head"><div><h4>Near-term delivery</h4><p>Milestones and look-ahead indicators tied to the current data date.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Reviewed key dates",p.milestones?.reviewedKeyDateCount??null,"selected from this programme; original types retained"],
     ["Milestones",p.milestones?.populationState==='partial'?null:p.milestones?.milestoneCount,p.milestones?.populationState==='partial'?'Activity types incomplete; milestone total not established':"total"],
     ["Open milestones",p.milestones?.populationState==='partial'?null:p.milestones?.openCount,"open"],
@@ -3544,6 +3565,10 @@ function renderVarianceTrendVisual(data){
   const movementWhy=(point,measure)=>typeof baselineMovementReason==="function"?baselineMovementReason(data?.baselineComparison,point,measure):"";
   if(availability&&availability.state!=="active"){
     const latest=p.points.at(-1)||null;
+    // Mechanism A: with only the baseline, "0 records finishing after baseline" and "0 d vs baseline" compared
+    // the baseline with itself. Nothing is measured until a second revision exists.
+    const baselineOnly=data?.projectFacts?.schedule?.programmeState?.baselineOnly===true;
+    if(baselineOnly)return '<section class="planning-view variance-view"><div class="notice info" data-page-answer="position"><b>Variance is not measured yet.</b><p>'+escapeHtml(data.projectFacts.schedule.programmeState.statement)+'</p></div><p>Use Programme Review for the current programme position.</p></section>';
     return '<section class="planning-view variance-view"><div class="notice info"><b>Variance Trend is not yet a trend.</b><p>'+escapeHtml(availability.reason||"At least two comparable controlled revisions are required.")+'</p></div>'+(latest?planningKpis([
       ["Current revision",latest.sequence??1,"current controlled programme"],
       ["Records finishing after baseline",latest.lateActivityCount??"Not established","current comparison position"],
@@ -4376,7 +4401,8 @@ function renderCommercialVisual(key,data){
   const knownCount=value=>typeof value==="number"&&Number.isFinite(value)&&value>=0;
   // DMCC-UPD2 #9: a register that was never uploaded showed 0. Unknown is not zero: it is "Not supplied".
   const countPosition=(state,count,noun)=>{
-    if(state==="not_submitted")return "Not supplied";
+    // Mechanism B: a register that is missing with no rows is not supplied, not a checked zero.
+    if(state==="not_submitted"||state==="missing"&&!(Number(count)>0))return "Not supplied";
     if(!knownCount(count))return "Not established";
     return fmt(count)+" "+countUnit(count,noun);
   };
@@ -5623,8 +5649,11 @@ function renderPmcControlRoom(data){
  const scheduleTone=cmengLeads?(pmcDefined(independentVar)?Number(independentVar)>0?"danger":"good":"source"):pmcDefined(submittedVar)?Number(submittedVar)>0?"danger":"good":submitted?.value?"source":"unresolved";
  const scheduleValue=cmengLeads?(pmcDefined(independentVar)?pmcDays(independentVar)+" vs extended contract date (CMeng forecast)":planningShortDate(headline.completionIso)+" CMeng forecast"):
    pmcDefined(submittedVar)?pmcDays(submittedVar)+" vs extended contract date":submitted?.value?planningShortDate(submitted.value)+" submitted programme":"Not established";
- const progress=vc.progress||{},scope=progress.scopeComparison||{},progressTone=pmcDefined(progressGap)?Number(progressGap)<0?"warning":"good":progress.progressBases?"source":"unresolved";
- const progressValue=pmcDefined(progressGap)?(Math.abs(Number(progressGap)).toFixed(2)+" pp "+(Number(progressGap)<0?"behind":Number(progressGap)>0?"ahead":"level")):
+ const progress=vc.progress||{},scope=progress.scopeComparison||{},progressTone=data.projectFacts?.schedule?.programmeState?.progressRecorded===false?"source":pmcDefined(progressGap)?Number(progressGap)<0?"warning":"good":progress.progressBases?"source":"unresolved";
+ // DMCC-UPD2 #5/#19 (baseline-only state): with only the baseline and no progress, "0.00 pp level" compared 0%
+ // with 0%. The shared programme state answers; a gap is shown in plain words ("1.25 percentage points behind").
+ const programmeState=data.projectFacts?.schedule?.programmeState||null,noProgress=programmeState?.progressRecorded===false;
+ const progressValue=noProgress?(programmeState.baselineOnly?"Not measured: baseline only":"Not measured: no progress recorded"):pmcDefined(progressGap)?(Number(progressGap)===0?"On plan":fmt(Math.abs(Number(progressGap)).toFixed(2))+" percentage points "+(Number(progressGap)<0?"behind":"ahead")):
    pmcDefined(scope.snapshotPercent)?fmt(scope.snapshotPercent)+"% schedule snapshot":"Not established";
  const cost=(vc.commercial?.cost||[])[0]||null,commercial=(vc.commercial?.positions||[]).find(row=>!cost||row.currency===cost.currency)||(vc.commercial?.positions||[])[0]||null;
  const currency=cost?.currency||commercial?.currency||"";
@@ -5660,7 +5689,7 @@ function renderPmcControlRoom(data){
  const packageAvailable=pmcDefined(packageEvidence)?packageEvidence:(packagePopulationEstablished?delivery.confirmedPackageCount:null);
  const procurementEvidence=pmcDefined(longLead)||pmcDefined(packageEvidence)||Boolean(procSource?.documentCount);
  const procurementTone=pmcDefined(delivery.latePackageKnownCount)&&Number(delivery.latePackageKnownCount)>0?"danger":packagePopulationEstablished?"good":procurementEvidence?"source":"unresolved";
- const longLeadLabel=pmcDefined(sourceLongLead)&&Number(sourceLongLead)>0?" source-marked long-lead items":pmcDefined(boqLongLead)&&Number(boqLongLead)>0?" BOQ-screened long-lead candidates":pmcDefined(scheduleLongLead)&&Number(scheduleLongLead)>0?" schedule/WBS long-lead candidates":" long-lead candidates";
+ const longLeadLabel=pmcDefined(sourceLongLead)&&Number(sourceLongLead)>0?" source-marked long-lead items":pmcDefined(boqLongLead)&&Number(boqLongLead)>0?" BOQ-screened long-lead candidates":pmcDefined(scheduleLongLead)&&Number(scheduleLongLead)>0?" programme long-lead activities":" long-lead candidates";
  const procurementValue=pmcDefined(delivery.latePackageKnownCount)&&Number(delivery.latePackageKnownCount)>0?fmt(delivery.latePackageKnownCount)+" known late packages":pmcDefined(longLead)&&Number(longLead)>0?fmt(longLead)+longLeadLabel:pmcDefined(packageEvidence)?fmt(packageEvidence)+" procurement source / scope items":packagePopulationEstablished&&pmcDefined(delivery.confirmedPackageCount)?fmt(delivery.confirmedPackageCount)+" confirmed packages":"Not established";
  const designSource=delivery.sourceAvailability?.design||pmcSource(data,"design"),submittalSource=delivery.sourceAvailability?.submittal||pmcSource(data,"submittal");
  const overdueRfi=ops.counts?.overdueRfiCount,openRfi=ops.counts?.openRfiCount;
@@ -5727,7 +5756,7 @@ function renderPmcControlRoom(data){
  };
  const bestEacLabel=cost?.bestEacBasis==="source_reported"?"Source EAC":cost?.bestEacBasis==="cmeng_scenario"?"CMeng scenario EAC":"EAC";
  const cards=[
-  {domain:"time",priority:dashboardPriority.time,tone:scheduleTone,html:pmcCard({title:"Time",value:scheduleValue,state:scheduleTone==="danger"?"Behind contract":scheduleTone==="good"?"On / ahead":scheduleTone==="unresolved"?"Information gap":"Available position",tone:scheduleTone,sub:"Contract, submitted and programme recalculation positions remain separate.",meta:[["Extended contract",data.projectFacts?.time?.extendedContractCompletionIso?.value?planningShortDate(data.projectFacts.time.extendedContractCompletionIso.value):null],["Contractual completion",contract?.value?planningShortDate(contract.value):null],["Submitted",submitted?.value?planningShortDate(submitted.value):null],["Programme recalculation · candidate",independent?.value?planningShortDate(independent.value):null],["Recalculation vs contract · candidate",pmcDefined(independentVar)?pmcDays(independentVar):null],["Submitted programme constraint",(data.scheduleBasisReview?.constraints||[]).length?(data.scheduleBasisReview.constraints.slice(0,3).map(c=>humanizeKey(c.type)).join('; ')):"No source date constraint identified"]],module:"independent-forecast"})},
+  {domain:"time",priority:dashboardPriority.time,tone:scheduleTone,html:pmcCard({title:"Time",value:scheduleValue,state:scheduleTone==="danger"?"Behind contract":scheduleTone==="good"?"On / ahead":scheduleTone==="unresolved"?"Information gap":"Available position",tone:scheduleTone,sub:"Contract, submitted and programme recalculation positions remain separate.",meta:[["Extended contract",data.projectFacts?.time?.extendedContractCompletionIso?.value?planningShortDate(data.projectFacts.time.extendedContractCompletionIso.value):null],["Contractual completion",contract?.value?planningShortDate(contract.value):null],["Submitted",submitted?.value?planningShortDate(submitted.value):null],["Programme recalculation · candidate",independent?.value?planningShortDate(independent.value):null],["Recalculation vs contract · candidate",pmcDefined(independentVar)?pmcDays(independentVar):null],["Programme constraints",programmeConstraintText(data)]],module:"independent-forecast"})},
   {domain:"progress",priority:dashboardPriority.progress,tone:progressTone,html:pmcCard({title:"Progress",value:progressValue,state:progressTone==="warning"?"Behind":progressTone==="unresolved"?"Information gap":"Available position",tone:progressTone,sub:"Same-scope progress first; separate progress authorities remain visible.",meta:[["Baseline",pmcDefined(scope.baselinePlannedPercent)?fmt(scope.baselinePlannedPercent)+"%":null],["Schedule snapshot",pmcDefined(scope.snapshotPercent)?fmt(scope.snapshotPercent)+"%":null],["EVM SPI",pmcMetric(data,"schedule-spi")?.value]],module:"progress-report"})},
   {domain:"cost",priority:dashboardPriority.cost,tone:costTone,html:pmcCard({title:"Cost",value:costValue,state:costTone==="danger"?"Adverse forecast":costQueried?"Comparison queried":costTone==="warning"?"Efficiency pressure":costTone==="unresolved"?"Information gap":"Available position",tone:costTone,sub:(cost?.currentContractComparisonBasis||"Compare each currency and forecast basis separately.")+(costQueries.length?" Queried: "+costQueries.join(" "):""),meta:[["Original budget",pmcDefined(cost?.bac)?pmcMoney(cost.bac,currency):null],["Current contract",pmcDefined(cost?.currentContractValue)?pmcMoney(cost.currentContractValue,currency):null],["EAC vs current contract",pmcDefined(eacVsContract)?(eacVsContract<0?"Below by ":eacVsContract>0?"Above by ":"Equal · ")+pmcMoney(Math.abs(eacVsContract),currency):null],[bestEacLabel,pmcDefined(bestEac)?pmcMoney(bestEac,currency):null],["CPI",cost?.cpi],["SPI",cost?.spi]],module:"cost-forecast"})},
   {domain:"change",priority:dashboardPriority.change,tone:changeTone,html:pmcCard({title:"Change / VO",value:changeValue,state:changeTone==="danger"?"Records disagree":changeTone==="unresolved"?"Information gap":"Available position",tone:changeTone,sub:"Reported variation totals and dated approvals stay separate.",meta:[["Reported",pmcDefined(vr?.sourceAggregate)?pmcMoney(vr.sourceAggregate,vr.currency):null],["Approved by DD",pmcDefined(vr?.datedApprovedAmount)?pmcMoney(vr.datedApprovedAmount,vr.currency):null],["Future approvals",vr?.futureCount],["Register versus current contract",sourceRegisterException]],module:"variations-change"})},
@@ -5747,14 +5776,7 @@ function renderPmcControlRoom(data){
  const submittedDate=submitted?.value??null;
  const awardedDays=data.projectFacts?.time?.awardedEotDays?.value??null;
  const submittedAfterEot=data.projectFacts?.time?.submittedDaysAfterExtendedCompletion?.value??null;
- const constraints=data.scheduleBasisReview?.constraints??[];
- // DMCC-UPD2 #18: the dashboard said "No source date constraint identified" while Completion Forecast
- // listed 16 activity constraints. Both now read the programme's constraint count; the project finish
- // constraint (none here) is said separately from activity constraints.
- const activityConstraintCount=typeof data.projectDiagnosis?.anomalies?.constraints==='number'?data.projectDiagnosis.anomalies.constraints:constraints.length||null;
- const sourceConstraint=constraints.length?constraints.slice(0,3).map(c=>humanizeKey(c.type)).join('; ')+(activityConstraintCount>constraints.length?' · '+countText(activityConstraintCount,'activity constraint',undefined,fmt):'')
-   :typeof activityConstraintCount==='number'?(activityConstraintCount>0?'No project finish constraint; '+countText(activityConstraintCount,'activity constraint',undefined,fmt):'No date constraint in the programme')
-   :data.scheduleBasisReview?'No source date constraint identified by this review':'Programme constraints: confirm on Independent Forecast';
+ const sourceConstraint=programmeConstraintText(data);
  const timeSummary=originalDate||extendedDate?
    '<div class="notice '+(typeof submittedAfterEot==='number'&&submittedAfterEot>0?'warn':'info')+'"><b>Contract time position</b><p>Original completion: '+escapeHtml(planningShortDate(originalDate))+
    ' · Contract completion including awarded EOT: '+escapeHtml(planningShortDate(extendedDate))+
@@ -6157,7 +6179,7 @@ function renderRecoveryAccelerationVisual(data){
   const count=(value,known)=>value==null?"Not assessable"+(known>0?" · "+fmt(known)+" known":""):fmt(value);
   const table=scenarios.length?recoveryScenarioTable(scenarios):'<div class="notice info"><b>'+escapeHtml(headline)+'</b><p>'+escapeHtml(p.managementPosition||"")+'</p></div>';
   // The page's position statement leads (shared layout: data-page-answer="position"); targets and the sixth-day check follow.
-  return '<section class="planning-view recovery-view"><div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'" data-page-answer="position"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+targetPanel+sixthDayControl+planningKpis([
+  return '<section class="planning-view recovery-view"><div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'" data-page-answer="position"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p>'+(noDelay?'':'<p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p>')+'</div>'+targetPanel+sixthDayControl+planningKpis([
     ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":assessment==="supporting_basis_incomplete"?"Not established":"None qualify","on the CPM path to completion, with a CPM completion gain"],
     ["Options needing assumptions",noDelay?"Not needed":p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":"None identified",noDelay?"no delay to recover":"not quantified until assumptions are established"],
     ["Eligibility checks performed",count(eligibility.actualEligibilityChecksPerformed),"linked activity, package timing and explicit workfront checks","",eligibility.supportingBasisAvailable===false?"Needs quantity, procurement or workfront evidence linked to programme activities":""],
@@ -6783,8 +6805,10 @@ function renderModuleResult(result){
     if(control)control.onclick=()=>openProjectActions(true);
   }
   const missing=issues.filter(issue=>issue.kind==='missing_information');
-  if(missing.length){
-    container.insertAdjacentHTML('beforeend','<div class="notice info"'+reviewItemsLinkAttrs(result.legacyKey||result.key)+'><b>Information needed · '+screenCountText(issueKindTotal(['missing_information'],missing))+'</b><p>Open the shared Actions & Data gaps list to upload, correct or confirm the missing source fields. Existing source figures remain available.</p><button class="btn small" data-open-data-gaps>Open Actions and Data gaps</button></div>');
+  // DMCC-UPD2 #8: on Actions required itself the list is the page's answer; the box pointing to it led the
+  // page instead. Other pages keep the link, named after the real page.
+  if(missing.length&&!ownsBlock('review-items',result.legacyKey||result.key)){
+    container.insertAdjacentHTML('beforeend','<div class="notice info"'+reviewItemsLinkAttrs(result.legacyKey||result.key)+'><b>Information needed · '+screenCountText(issueKindTotal(['missing_information'],missing))+'</b><p>The missing documents and fields are listed on Actions required. The figures on this page use what is supplied.</p><button class="btn small" data-open-data-gaps>Open Actions required</button></div>');
     container.querySelector('[data-open-data-gaps]').onclick=()=>openProjectActions();
   }
   const review=result.scheduleAuthorityReview||result.data?.scheduleAuthorityReview;
@@ -7173,7 +7197,7 @@ async function loadEvidence(){
     const liveIds=new Set((data.documents||[]).map(document=>document.documentId));
     selectedEvidenceDocuments=new Set([...selectedEvidenceDocuments].filter(id=>liveIds.has(id)));
     el("evidenceBadge").className="badge "+(data.documentCount?"ready":"");
-    el("evidenceBadge").textContent=data.documentCount+" documents";
+    el("evidenceBadge").textContent=countText(data.documentCount,"document",undefined,fmt);
     if(!data.documentCount){
       selectedEvidenceDocuments.clear();
       el("evidenceLibrary").innerHTML='<div class="empty">No project documents have been added yet.</div>';
@@ -7376,7 +7400,7 @@ function updateActiveProjectShell(){
   el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate):id+" · "+unloaded;
   el("aiProjectBadge").className="badge";
   el("aiProjectBadge").textContent=id||"No active project";
-  el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):escapeHtml(unloaded);
+  el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(countText(overview.evidenceDocumentCount,'project document',undefined,fmt))+'<br>'+escapeHtml(countText(overview.revisionCount,'programme revision',undefined,fmt))+'<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):escapeHtml(unloaded);
   ["runAnalysisTop","askAi","openAiTop"].forEach(key=>{el(key).disabled=!overview});
   el("openLibraryQuick").disabled=!project();el("openEvidenceTop").disabled=!overview;
 }

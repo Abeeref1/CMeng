@@ -267,7 +267,14 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
           : !crewAssessmentComplete||!packageAssessmentComplete||!workfrontAssessmentComplete
             ? 'supporting_basis_incomplete'
             : 'checked_no_eligible_basis';
-  const managementPosition=max
+  // Mechanism A (DMCC-UPD2 #6): with no negative float, no finish later than a contract date and no calculated
+  // option, there is no delay to recover; recovery candidates are not offered as the answer.
+  const openNegativeFloat=(programme?.activities??[]).some(a=>typeof a.totalFloatHours==='number'&&a.totalFloatHours<0&&a.status!=='completed');
+  const lateToContract=[recoveryTargets.original.calendarDays,recoveryTargets.extended.calendarDays].some(days=>typeof days==='number'&&days>0);
+  const noDelayToRecover=!max&&!openNegativeFloat&&!lateToContract;
+  const managementPosition=noDelayToRecover
+    ? 'No delay to recover: no open activity has negative float and the finish is not later than a contract date. Recovery options are assessed when a delay exists.'
+    : max
     ? 'The strongest CPM-calculated recovery option is '+max.subject+': in the CMeng CPM run the project finish moves '+max.completionGainWorkingDays+' '+countUnit(max.completionGainWorkingDays,'working days')+' earlier under the stated scenario assumptions. This is not an approved Project plan.'+lateWorkNote
     : recoveryOptions.length
       ? 'Recovery options on the path to completion exist, but their completion gain is not established by a CMeng CPM run without additional assumptions.'+(unresolvedChecks.length?' '+unresolvedChecks.length+' linked feasibility check(s) need a quantified working-time, productivity or resource basis.':'')+(unlinkedFeasibilityRowCount?' '+unlinkedFeasibilityRowCount+' source item(s) still need activity links before their feasibility can be checked.':!feasibilityPopulationComplete?' Activity feasibility coverage is not established.':'')+lateWorkNote
