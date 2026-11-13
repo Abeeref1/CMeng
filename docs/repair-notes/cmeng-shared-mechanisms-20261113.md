@@ -85,5 +85,25 @@ projects, 472 documents, nothing lost. DMCC XER unchanged; DMCC P6 parity unchan
 | QAT-VLC1 page checks (10) | 3 | 7 (one plural sentence on Completion Forecast, "activity(ies)" on Resources, nested sections) |
 | Shared facts on 7 pages, 20 projects | 20 consistent | 20 consistent |
 
-The plural sentences are fixed at source and by the shared number reader in 287054ac (CI pending at the time of
-writing).
+## Live result (e9685aa3, deployed 14 Nov 2026 01:15 Dubai)
+
+e9685aa3 adds count agreement at source and in the shared number reader ("1 activity", "activity(ies)").
+CI: regression, raster, concurrency, acceptance, independent and the focused set passed; operations failed only on
+the cold-project gate (8,937 ms). Data check 20 projects / 472 documents, nothing lost; DMCC XER unchanged; DMCC P6
+parity unchanged; no project's forecast changed; shared facts consistent on all 20 projects.
+
+| Check (live) | f77811a2 | 24ed6e42 | e9685aa3 |
+|---|---|---|---|
+| DMCC-UPD2 page defects (27) | 3 | 26 | 26 |
+| UPTOWN-100 page checks (10) | 2 | 8 | 9 |
+| QAT-VLC1 page checks (10) | 3 | 7 | 9 |
+
+The one check left on each is the number of sections inside the page when nested and hidden ones are counted
+(Actions required 75-81; Look-Ahead 45-64; Contract Particulars 63 on QAT). Closed sections shown at load: 15 to 19.
+
+## Open
+
+- Actions required: nested sections (76 on DMCC). Look-Ahead reduced from 247 to 45.
+- Locations without a location code are grouped by WBS level 2 (for DMCC, phases such as "Construction"), per the
+  SW-27 rule; changing it needs the owner's decision.
+- G: the 5-second cold-project gate.
