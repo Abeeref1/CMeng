@@ -566,7 +566,7 @@ function ownsBlock(topic,pageKey=currentPageKey()){
 function ownerLinkPanel(topic,figure='',heading='',pageScoped=false){
   const entry=blockOwnerEntry(topic);if(!entry)return '';
   const title=names[entry.owner]||entry.owner;
-  return '<section class="owner-link-panel planning-panel" data-owner-link="'+escapeHtml(topic)+'" data-owner-page="'+escapeHtml(entry.owner)+'"'+(pageScoped?' data-owner-scope="page"':'')+'><h4>'+escapeHtml((heading||entry.heading)+': see '+title)+'</h4>'+(figure?'<p class="owner-link-figure" data-owner-figure="'+escapeHtml(figure)+'" hidden></p>':'')+'<button type="button" class="btn small" data-owner-open="'+escapeHtml(entry.owner)+'" onclick="openOwnerPage(this.dataset.ownerOpen)">Open '+escapeHtml(title)+'</button></section>';
+  return '<section class="owner-link-panel planning-panel" data-owner-link="'+escapeHtml(topic)+'" data-owner-page="'+escapeHtml(entry.owner)+'"'+(pageScoped?' data-owner-scope="page"':'')+'><h4>'+escapeHtml((heading||entry.heading)+': see '+title)+'</h4>'+(figure?(/original records in \d/.test(figure)?'<p class="owner-link-figure" data-owner-figure="'+escapeHtml(figure)+'" hidden></p>':'<p data-owner-figure="'+escapeHtml(figure)+'">'+escapeHtml(figure)+'</p>'):'')+'<button type="button" class="btn small" data-owner-open="'+escapeHtml(entry.owner)+'" onclick="openOwnerPage(this.dataset.ownerOpen)">Open '+escapeHtml(title)+'</button></section>';
 }
 function markOwnedBlock(html,topic,figure=''){
   return String(html).replace(/^(\s*<[a-zA-Z][a-zA-Z0-9-]*)/,(_m,open)=>open+' data-owner-topic="'+escapeHtml(topic)+'"'+(figure?' data-owner-figure="'+escapeHtml(figure)+'"':''));

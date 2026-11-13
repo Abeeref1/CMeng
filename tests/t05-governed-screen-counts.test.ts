@@ -74,7 +74,9 @@ test('T05 commercial count authority requires a real numeric population and neve
  assert.match(script,/const variationPopulationEstablished=knownCount\(vo\.recordCount\)/);
  assert.match(script,/const variationLifecycleEstablished=variationPopulationEstablished&&variationLifecycleCounts\.every\(knownCount\)/);
  assert.doesNotMatch(script,/variationPopulationEstablished=\(vo\.recordCount\?\?0\)>0\|\|vo\.state==="established"/);
- assert.match(script,/const siteInstructionPopulationEstablished=knownCount\(si\.recordCount\)/);
+ // DMCC-UPD2 #9: the population is established only from a supplied register with a numeric count; with no
+ // register supplied the counts read "Not supplied".
+ assert.match(script,/const siteInstructionPopulationEstablished=siSupplied&&knownCount\(si\.recordCount\)/);
  assert.match(script,/governedDisplayCount\(siteInstructionPopulationEstablished,si\.unquotedCount\)/);
  assert.doesNotMatch(script,/siteInstructionPopulationEstablished\?\(si\.unquotedCount\?\?0\)/);
  assert.match(script,/escapeHtml\(fmt\(challenge\.unavailableCheckCount\)\)/);

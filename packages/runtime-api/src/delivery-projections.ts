@@ -583,7 +583,9 @@ function buildDelivery(state:ProjectRuntimeState){
   // own gates is blocked or every unfinished activity in it is blocked; otherwise it is partly
   // blocked, with the count of blocked unfinished activities beside it.
   const gates=readiness.filter(r=>group.recordIds.includes(r.recordId));const ready=gates.some(r=>r.state==='blocked')||unfinished.length>0&&blockedActivityIds.length===unfinished.length?'blocked':blockedActivityIds.length?'partly_blocked':gates.some(r=>r.state==='unknown')||!gates.length?'unknown':gates.some(r=>r.state==='at_risk')?'at_risk':'ready';
-  return {dimension:group.dimension,label:byId.get(group.label)?.description??group.display??group.label,groupSource:group.groupSource??(group.recordIds.length?'From workfront register':null),recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
+  // The label is the group's identity (the code, shared with the activity filters and facts); displayLabel adds
+  // the programme's own description for the reader ("Electrical installation (ELEC)", DMCC-UPD2 #14).
+  return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,displayLabel:byId.get(group.label)?.description??group.display??group.label,groupSource:group.groupSource??(group.recordIds.length?'From workfront register':null),recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
    // SW-27: a group total is calculated from its known members; the members
    // it could not use are counted beside it, never blanking the whole group.
    plannedPercent:total?.currentPlanPercent??null,baselinePlannedPercent:total?.baselinePlannedPercent??null,scheduleProgressPercent:total?.durationWeightedProgressPercent??null,

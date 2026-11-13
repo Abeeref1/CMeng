@@ -192,10 +192,8 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   // is never a substitute for the question this page answers.
   // W8: no generic 'review the figures' line; the page lists its own actions.
   // DMCC-UPD2 #12: "Information & Actions" is not a page. The missing inputs are listed under Project review.
-  if(!nextAction&&blockedBy==='missing_input'){
-    const deps=Array.isArray(result.dependencies)?result.dependencies.filter(Boolean):[];
-    nextAction=deps.length?'Upload '+deps.slice(0,3).map((d:string)=>String(d).replace(/_+/g,' ').replace(/^governed\s+/i,'')).join('; ')+(deps.length>3?' and the other inputs listed in Project review':'')+'.':'Provide the missing inputs listed in Project review.';
-  }
+  // The dependency keys are internal names ("schedule"), so the step names the real page that lists the inputs.
+  if(!nextAction&&blockedBy==='missing_input')nextAction='Provide the missing inputs listed in Actions required.';
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
   return {schemaVersion:'1.0',facts,specific,rag,// The label states the position, never a task: a review decision is shown only where one waits (Project Review).
     label:rag==='red'?'Off target':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Not fully confirmed',text,
