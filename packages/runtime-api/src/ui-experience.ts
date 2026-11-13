@@ -149,7 +149,8 @@ function experienceBrief(key,data){
     add('Open milestones',d.openCount,'Current programme milestones');add('Completed',d.completedCount,'As of the Data Date');
     add('Critical milestones',d.criticalMilestoneCount,'Source float; may overlap open milestones');add('Due in 30 days',d.due30Count,'Open milestones');
     note='Source float, due dates and completion movement are separate measures of milestone exposure.';
-    if(d.criticalMilestoneCount>0)review='Review the critical milestone dates and their driving activities before confirming recovery commitments.';
+    // Mechanism A: on a baseline with no delay there are no recovery commitments to confirm.
+    if(d.criticalMilestoneCount>0)review=baselineOnly?'Confirm the critical milestone dates and their driving activities with the planner.':'Review the critical milestone dates and their driving activities before confirming recovery commitments.';
   }else if(key==='resource-utilization'){
     add('Programme resources',d.assignedResourceCount,'P6 resources with assignments');add('Weekly resources',d.weeklyObservedResourceCount,'Resources with weekly capacity evidence');
     const checks=d.weeklyCapacityEvidence?.capacityChecksToDataDate;
