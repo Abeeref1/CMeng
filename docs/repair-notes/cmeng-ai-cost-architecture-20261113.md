@@ -62,6 +62,17 @@ section, so it could count fewer calls than the reading makes (A, B, A: plan 2, 
 A failed project request (the 503) and a project process error are now logged with project, method, path and
 error message, so the ORBIT 503 can be diagnosed if it recurs.
 
+## fbd4af9e live and the ORBIT run (13 Nov, 13:25 UTC)
+
+- CI on fbd4af9e: every job green except Verify operations (speed gate only). Deployed (pinned). Data check before
+  and after: 20 projects, 472 documents, saved decisions identical. PASS. Rollback point: b5ace23c (7687315f).
+- ORBIT estimate sent to the owner before the run: 292 parts, 2 unique structures, 2 calls after reuse, expected
+  669/310 tokens, USD 0.0008; ceiling USD 0.02; worst case USD 2.65; month USD 0.06 of 20, USD 19.94 left.
+- Run (approved against the worst case): HTTP 200 in 7.4 s, 1 paid call (ledger 51 to 52 calls, USD 0.0623 to
+  0.0626). The answer under the preceding section matched that section, so the second planned question was a reuse.
+  300 heading steps validated (8 earlier answers, 1 call, 291 reuses each checked against its own span).
+  Pending parts now 0. Data check after the run: PASS, no other project changed.
+
 ## Next action
 
-CI on fbd4af9e → deploy with the data check → ORBIT estimate to the owner → run → report the result.
+The other projects' Finish AI reading with the estimate first; DMCC-UPD2 defects; speed gate.
