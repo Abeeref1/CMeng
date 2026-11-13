@@ -109,7 +109,10 @@ function renderActionFindings(a,expanded=false){
  const reference=value=>typeof readerReference==='function'?readerReference(value):readable(value);
  const unique=new Map();
  for(const i of a.findings||[]){const r=projectReviewFinding(i),key=r.title+'|'+r.detail;const group=unique.get(key)||{r,modules:new Set(),refs:new Set()};for(const mod of i.moduleKeys??[])group.modules.add(mod);for(const ref of i.sourceRefs??[])group.refs.add(ref);unique.set(key,group);}
- const rows=[...unique.values()].map(({r,modules,refs})=>'<details'+(expanded?' open':'')+'><summary>'+escapeHtml(r.title)+'</summary><p>'+escapeHtml(r.detail)+'</p><p><b>Review owner:</b> '+escapeHtml(r.owner)+'</p><p>Relevant pages: '+escapeHtml([...modules].map(k=>(typeof names==='object'&&names[k])||k.replace(/-/g,' ')).join(', '))+'</p>'+(refs.size?'<p>'+fmt(refs.size)+' source references retained for audit and the full records.</p>':'')+'</details>').join('');
+ // DMCC-UPD2 #26: each finding was its own closed section inside the action's supporting information (74 on
+ // one page). The findings are one list; the action's own section is the only fold.
+ const items=[...unique.values()].map(({r,modules,refs})=>'<li><b>'+escapeHtml(r.title)+'</b><p>'+escapeHtml(r.detail)+'</p><p><b>Review owner:</b> '+escapeHtml(r.owner)+'</p><p>Relevant pages: '+escapeHtml([...modules].map(k=>(typeof names==='object'&&names[k])||k.replace(/-/g,' ')).join(', '))+'</p>'+(refs.size?'<p>'+fmt(refs.size)+' source references retained for audit and the full records.</p>':'')+'</li>').join('');
+ const rows=items?'<ol class="action-findings">'+items+'</ol>':'';
  const cut=Array.isArray(a.findings)&&a.findings.length&&actionListTotal(a.findings)!==a.findings.length?'<p>'+actionShownOf(a.findings,'findings')+' are listed here. The full list is in the action export.</p>':'';
  return (a.completionPosition?renderCompletionPosition(a.completionPosition,true):'')+cut+rows;
 }
