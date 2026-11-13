@@ -590,7 +590,7 @@ export function buildResourceUtilizationProjection(
       // Finished work is not under schedule pressure, whatever float it still shows.
       const pressureCount = affectedActivities.filter(activity => activity.status !== "completed" && typeof activity.totalFloatHours === "number" && activity.totalFloatHours <= 0).length;
       const programmeEffect = affectedActivities.length === 0 ? null : pressureCount > 0
-        ? String(pressureCount) + " affected activity(ies) are on submitted critical/negative-float scope."
+        ? pressureCount.toLocaleString("en-US") + (pressureCount === 1 ? " affected activity is" : " affected activities are") + " on submitted critical/negative-float scope."
         : "Affected programme scope is identified; project-completion effect is not established from resource evidence alone.";
       const remainingCapacityGapUnitsPerHour =
         canAssessCapacity && remainingPeak.peak !== null && capacity.value !== null

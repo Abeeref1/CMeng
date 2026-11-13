@@ -444,13 +444,16 @@ function pagePlanGroups(moved,limit){
 // ("2,335 activities", not "2335 activities"). Table cells used for sorting keep their own values.
 const PAGE_HOURS_DECIMAL=/\b(\d{1,3}(?:,\d{3})+)\.\d{1,2}( h\b| labou?r hours\b| hours\b)/g;
 const PAGE_BARE_COUNT=/\b(\d{4,})( (?:activities|activity|tasks|records|items|labou?r hours|hours|days|calendar days|working days)\b)/g;
+const PAGE_PLURAL_HACK=/\b(\d[\d,]*) ((?:[A-Za-z-]+ ){0,3})([A-Za-z]+)\((s|ies)\)/g;
 function pageNumberReader(container){
  if(typeof document==='undefined'||typeof document.createTreeWalker!=='function')return 0;
  const walker=document.createTreeWalker(container,4);let node,changed=0;
  while((node=walker.nextNode())){
   const text=node.nodeValue;if(!text||text.length<5||!/\d/.test(text))continue;
   if(node.parentElement&&node.parentElement.closest('script,style,textarea,input,code,[data-sort-value]'))continue;
-  const next=text.replace(PAGE_HOURS_DECIMAL,(_m,whole,unit)=>whole+unit).replace(PAGE_BARE_COUNT,(m,digits,noun)=>/^(?:19|20)\d\d$/.test(digits)?m:Number(digits).toLocaleString('en-US')+noun);
+  const next=text.replace(PAGE_HOURS_DECIMAL,(_m,whole,unit)=>whole+unit).replace(PAGE_BARE_COUNT,(m,digits,noun)=>/^(?:19|20)\d\d$/.test(digits)?m:Number(digits).toLocaleString('en-US')+noun)
+   // "1 activity(ies)", "3 item(s)": the word agrees with its count.
+   .replace(PAGE_PLURAL_HACK,(_m,digits,lead,word,suffix)=>{const one=Number(String(digits).replace(/,/g,''))===1;return digits+' '+lead+(suffix==='ies'?(one?word:word.replace(/y$/,'')+'ies'):(one?word:word+'s'));});
   if(next!==text){node.nodeValue=next;changed++;}
  }
  return changed;
