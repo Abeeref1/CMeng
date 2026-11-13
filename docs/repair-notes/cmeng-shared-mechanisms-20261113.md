@@ -52,15 +52,19 @@ counts on link panels, next steps that name a real document or page.
 
 ## G. Performance
 
-Not started. CI operations: four cold project shapes, slowest 5,978 ms against 5,000 ms. The T11 cold Dashboard
-(8,900 activities, owner limit 10 s) varies between CI runners: 5.3 s on f77811a2, 9.2 s and 10.5 s on two runs of
-this branch; locally the two builds measure the same within noise (11.6-13.5 s against 12.7-14.3 s under load).
+Not started. CI operations: four cold project shapes, slowest 5,978 ms against 5,000 ms on f77811a2 and 6,022 ms on
+16cfeb85 (earlier runs of the same gate: 6,847, 8,884, 9,179 ms). The T11 cold Dashboard (8,900 activities, owner
+limit 10 s) varies between CI runners: 5.3 to 7.4 s before this branch, 7.1 to 10.5 s on runs of this branch (7.5 s
+on 16cfeb85); on an idle local machine 7.5 / 8.1 s (f77811a2) against 8.5 / 8.4 s (this branch).
 
 ## Checks used
 
 - `defect_check.py` (session scratchpad): the 27 DMCC-UPD2 page defects, read from a capture of every page.
-  Live f77811a2 (P6 only): 3 of 27 pass. This branch, local, stored DMCC programme: 26 of 27 (closed sections on
-  Actions required still above the check's limit when nested sections are counted; 20 shown closed at load).
+  Live f77811a2 (P6 only): 3 of 27 pass. This branch, local: 26 of 27 on the stored DMCC programme and 26 of 27 on
+  a fresh project made by uploading the same file (FRESH-BASELINE-1113). The one left: Actions required still holds
+  77 sections in the page when nested and hidden ones are counted (223 before; 20 shown closed at load); Look-Ahead
+  45 (247 before; 15 shown closed at load).
+- Focused verification set locally: 808 of 809 (the 10-second cold Dashboard timing gate on a 2-core machine).
 - `generic_check.py`: build number, singular, set-up buttons, internal wording, hour decimals, count separators,
   answer-first, closed sections, page errors; for any project.
 - `headline_consistency.py`: per project, the finish headline, Data Date, criticality and submitted finish read on
