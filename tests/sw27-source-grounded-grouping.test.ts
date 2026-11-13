@@ -75,14 +75,14 @@ function workfront(t:any,model:CanonicalScheduleModel){
  state.schedules.push({role:'update',format:'xer',sourceFilename:'Current.xer',sourceHashSha256:'sw27-'+model.sourceRevisionId+'-'+model.activities.length+'-'+String(model.wbs.length),uploadedAt:'2031-01-05',
   revision:{revisionId:model.sourceRevisionId,label:'Current',sequence:1,effectiveAt:'2031-01-05',model}} as any);
  store.touch(state);
- return (deliveryPosition(state).workfrontMatrix as any[]).map(row=>[row.dimension,row.label,row.groupSource,row.activityCount]);
+ return (deliveryPosition(state).workfrontMatrix as any[]).map(row=>[row.dimension,row.label,row.groupSource,row.activityCount,row.displayLabel]);
 }
 test('SW-27 the workfront page groups by activity code, then WBS level, then labelled name match',t=>{
  const coded=workfront(t,xer(true));
- // DMCC-UPD2 #14: a code group shows the programme's description with the code; the code stays its identity.
- assert.ok(coded.some(r=>r[0]==='location'&&r[1]==='Plant room (A-01)'&&r[2]==='From activity code: Area'&&r[3]===1));
+ // DMCC-UPD2 #14: the code stays the group's identity; the page shows the programme's description with it.
+ assert.ok(coded.some(r=>r[0]==='location'&&r[1]==='A-01'&&r[4]==='Plant room (A-01)'&&r[2]==='From activity code: Area'&&r[3]===1));
  assert.ok(coded.some(r=>r[0]==='location'&&r[1]==='South Wing'&&r[2]==='From WBS level 2'&&r[3]===2));
- assert.ok(coded.some(r=>r[0]==='discipline'&&r[1]==='Civil (CIV)'&&r[2]==='From activity code: Discipline'));
+ assert.ok(coded.some(r=>r[0]==='discipline'&&r[1]==='CIV'&&r[4]==='Civil (CIV)'&&r[2]==='From activity code: Discipline'));
  assert.ok(coded.some(r=>r[0]==='discipline'&&r[2]==='Grouped by name match'));
  assert.ok(coded.some(r=>r[0]==='discipline'&&r[1]==='Unclassified'&&r[2]==='Not grouped'));
  for(const dimension of ['discipline','location'])assert.equal(coded.filter(r=>r[0]===dimension).reduce((n,r)=>n+r[3],0),4,'every activity in exactly one '+dimension+' group');

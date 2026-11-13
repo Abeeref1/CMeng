@@ -459,6 +459,12 @@ function arrangePageDetail(container){
  if(!container||!container.children||typeof container.querySelectorAll!=='function'||typeof container.getBoundingClientRect!=='function')return null;
  if(typeof document==='undefined'||typeof document.createElement!=='function'||container.isConnected===false)return null;
  pageNumberReader(container);
+ // Sections that render their content when opened are read by the same number reader.
+ if(!container.__pageNumberObserver&&typeof MutationObserver==='function'){
+  let pending=0;
+  container.__pageNumberObserver=new MutationObserver(()=>{if(pending)return;pending=setTimeout(()=>{pending=0;pageNumberReader(container);},60);});
+  container.__pageNumberObserver.observe(container,{childList:true,subtree:true});
+ }
  const limitHeight=PAGE_DEFAULT_SCREENS*PAGE_SCREEN_PX,budget=limitHeight-PAGE_LATE_CONTENT_PX;
  // P3: on every page the answer leads, actions follow and evidence comes after; unknowns are said once.
  pageSayUnknownOnce(container);
