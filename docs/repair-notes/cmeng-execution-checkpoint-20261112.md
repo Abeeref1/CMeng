@@ -51,7 +51,22 @@ Date conflicts, median 1.2 s, 90% within 1.8 s.
     (`data-page-answer="position"`), and an unknown driving chain is stated once (no "Of these, Not established have").
 - Local: J8 blind acceptance 9/9, r17, p3 15/15, planning-ui-evidence, recovery tests, ui-management-experience pass.
 
+## 13 Nov: fc35588b live (current)
+
+- CI on fc35588b: every job green except Verify operations (speed gate only). Data check before and after the deploy:
+  20 projects, 337 documents, saved decisions identical. PASS. Rollback point: deployment 0da2fdc3 (d8e00cc1).
+- Activity Review table first open: 0.2 s on ORBIT, DMM-HDC-P2, ABB-100 (was 13 to 20 s).
+- Audit on fc35588b (concurrency 2): 1,180 checks, 0 failed, no Data Date conflicts, median 1.0 s, 90% within 1.25 s.
+  Label as task 0 (193 before), answer behind buttons 0 (26), unknown tiles leading 0 (39), Project Review codes 0 (13),
+  HSE separators 0. One page over 5 s once (RAK-PORT-P4 Locations 6.6 s; 0.9 s when opened again). Report republished.
+- Also in fc35588b: a block whose tiles were all stated once as an unknown line counts as unknown-only (p3 test 15).
+
+## Open
+
+- Speed gate (four cold projects in 5 s): fails in CI; needs its own workstream.
+- Long dash as empty-cell placeholder (48 pages); same unknown sentence twice on 11 pages (mostly two rows with the same
+  text); "What this page shows: Not yet established" leads Resources on 3 projects with no resource data.
+
 ## Next action
 
-CI green on the follow-up commit (speed gate aside) → deploy it to cmeng-main with the same before/after data check → rerun
-`audit.cjs` on all 20 projects → republish the "CMeng Page Audit" report.
+Owner review of the live pages. Speed gate workstream next.
