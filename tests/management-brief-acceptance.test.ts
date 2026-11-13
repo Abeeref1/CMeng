@@ -124,12 +124,16 @@ test('Verified contract adjustment and available CPM do not clear an unknown mil
  data.projectFacts.time.awardedEotDays.value=60;
  data.projectFacts.time.extendedContractCompletionIso={value:'2029-04-30',complete:true};
  data.projectFacts.time.submittedDaysAfterExtendedCompletion={value:-118};
+ // DMCC-UPD2 #2: "reconciled" is read from the Completion Forecast reconciliation, not from "a finish was calculated".
+ (data.projectFacts.time as any).forecastHeadline={source:'cmeng_calculation',completionIso:'2029-01-15',statement:'',notReliableReasons:[],reconciled:false,qualifications:['12 activities finish more than 14 days away from the submitted date.']};
+ assert.match(rendered(d,data),/CMeng has calculated its own finish, but it is not reconciled: 12 activities finish more than 14 days away/);
+ (data.projectFacts.time as any).forecastHeadline={source:'cmeng_calculation',completionIso:'2029-01-15',statement:'',notReliableReasons:[],reconciled:true,qualifications:[]};
  const html=rendered(d,data);
  assert.match(html,/2029-04-30/);
  assert.match(html,/60 days in the dated determination basis/);
  assert.match(html,/Against the independently established adjusted contract date/);
  assert.match(html,/calendar days early/);
- assert.match(html,/CMeng has a reconciled independent finish calculation/);
+ assert.match(html,/CMeng's own calculation of the programme is reconciled: every forecast check passed/);
  assert.match(html,/Milestone exposure cannot be cleared or ranked/);
  d.milestoneExposure={value:0,knownCount:0,unresolvedCount:0,identifiedCount:0,identificationComplete:true,absenceConfirmed:true};
  assert.match(rendered(d,data),/source-bound review confirms no programme milestones/);

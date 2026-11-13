@@ -271,7 +271,7 @@ export function recoveryAccelerationIntelligence(state:ProjectRuntimeState){
   // option, there is no delay to recover; recovery candidates are not offered as the answer.
   const openNegativeFloat=(programme?.activities??[]).some(a=>typeof a.totalFloatHours==='number'&&a.totalFloatHours<0&&a.status!=='completed');
   const lateToContract=[recoveryTargets.original.calendarDays,recoveryTargets.extended.calendarDays].some(days=>typeof days==='number'&&days>0);
-  const noDelayToRecover=!max&&!openNegativeFloat&&!lateToContract;
+  const noDelayToRecover=!max&&(programme?.activities?.length??0)>0&&!openNegativeFloat&&!lateToContract;
   const managementPosition=noDelayToRecover
     ? 'No delay to recover: no open activity has negative float and the finish is not later than a contract date. Recovery options are assessed when a delay exists.'
     : max
