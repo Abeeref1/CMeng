@@ -222,7 +222,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
             const entry=catalog.get(id);if(entry){entry.metadata=message.metadata;if(entry.summary?.version!==entry.metadata?.version)entry.summaryRelease=null;}
           }
         });
-        worker.once('error',error=>{clearTimeout(timer);reject(error);});
+        worker.once('error',error=>{console.error('[cmeng-gateway] project process error: '+id+': '+(error instanceof Error?error.message:String(error)).slice(0,300));clearTimeout(timer);reject(error);});
         worker.once('exit',code=>{clearTimeout(timer);reject(new Error('PROJECT_PROCESS_STOPPED_'+code));if(lanes.get(id)===lane)lanes.delete(id);signal();});
       });
       // Attach a rejection handler immediately; queued requests still receive the original failure.
@@ -418,6 +418,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       });});
     }catch(error){
       if(uploadId){const prior=progress.get(id+'::'+uploadId);progress.set(id+'::'+uploadId,{...prior,state:'failed',message:'The upload could not finish. Check the document register before retrying.'});}
+      // 13 Nov: a 503 here left no trace in the service log. Record why (no request content).
+      console.error('[cmeng-gateway] project request failed: '+id+' '+req.method+' '+path.split('?')[0]+': '+(error instanceof Error?error.message:String(error)).slice(0,300));
       send(res,503,{error:'project_work_unavailable',message:'This project could not finish its request. Other projects remain available.'});
     }finally{
       if(mutation)updating.set(id,Math.max(0,(updating.get(id)??1)-1));
