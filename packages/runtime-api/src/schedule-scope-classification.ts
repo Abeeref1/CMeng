@@ -31,6 +31,9 @@ export interface ActivityScopeClassification {
   disciplineGroup?:string|null;
   disciplineGroupBasis?:SourceGroupBasis|null;
   disciplineGroupSource?:string|null;
+  /** Display label: the code's description with the code ("Marble & Granite (MB)"); identity stays the code. */
+  disciplineGroupLabel?:string|null;
+  locationGroupLabel?:string|null;
   locationGroup?:string|null;
   locationGroupBasis?:SourceGroupBasis|null;
   locationGroupSource?:string|null;
@@ -47,7 +50,11 @@ export function codeGroup(activity:CanonicalScheduleActivity,types:RegExp[]){
   for(const type of types){
     const matching=codes.filter(code=>type.test(code.typeName));
     const values=new Set(matching.map(code=>code.value));
-    if(values.size===1)return {value:matching[0]!.value,basis:'activity_code' as const,source:'From activity code: '+matching[0]!.typeName};
+    // The code is the group's identity (trade-chain capacity and reviews match on it); its description is
+    // carried for display only (DMCC-UPD2 #14: "MB, RMC, EXLI" with no names).
+    if(values.size===1){const code=matching[0]!,description=code.description?.trim();
+      return {value:code.value,basis:'activity_code' as const,source:'From activity code: '+code.typeName,
+        ...(description&&description.toUpperCase()!==code.value.toUpperCase()?{description}:{})};}
   }
   return null;
 }
@@ -297,8 +304,10 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
   const levelName=wbsLevel?(chain[wbsLevel-1]!.name??'').trim():'';
   const locationSource=codeGroup(activity,LOCATION_CODE_TYPES)??(levelName?{value:levelName,basis:'wbs_level' as const,source:'From WBS level '+wbsLevel}:null)
     ??(spatial.length?{value:spatial.join(' / '),basis:'name_match' as const,source:NAME_MATCH_GROUP_SOURCE}:null);
+  const display=(source:{value:string;description?:string}|null|undefined)=>source?(source.description?source.description+' ('+source.value+')':source.value):null;
   return {disciplineGroup:disciplineSource?.value??null,disciplineGroupBasis:disciplineSource?.basis??null,disciplineGroupSource:disciplineSource?.source??null,
     locationGroup:locationSource?.value??null,locationGroupBasis:locationSource?.basis??null,locationGroupSource:locationSource?.source??null,
+    disciplineGroupLabel:display(disciplineSource as any),locationGroupLabel:display(locationSource as any),
     activityId:activity.activityId,wbsId:activity.wbsId,wbsPath:hierarchy.path,wbsLevel:hierarchy.level,zone:zone.value,floor:floor.value,level:level.value,tower:tower.value,building:building.value,area:area.value,workFront:workFront.value,
     phase:phase.value,section:section.value,chainage:chainage.value,discipline,trade:trade.value,system:system.value,package:packageValue.value,cbs:cbs.value,contractor:contractor.value,subcontractor:subcontractor.value,
     plot:plot.value,location:spatial.length?spatial.join(' / '):null,classificationBasis:basis};

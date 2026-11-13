@@ -113,9 +113,26 @@ function renderProjectBrief(d,data=null){
  const verifiedComparison=typeof extendedDifference==='number'
   ?'Against the independently established adjusted contract date, the submitted programme is '+(extendedDifference<0?fmt(Math.abs(extendedDifference))+' calendar days early':extendedDifference>0?fmt(extendedDifference)+' calendar days late':'on the adjusted completion date')+'.'
   :'The governing completion date after extension is not established. No contractual lateness figure can be concluded.';
- const networkMessage=verifiedNetwork
-  ?'CMeng has a reconciled independent finish calculation. Confirm the critical path and activity impacts in the programme detail.'
+ // DMCC-UPD2 #2: "reconciled" came from "a finish was calculated". It now reads the same reconciliation
+ // as the Completion Forecast page, so the two pages cannot disagree.
+ const headline=time.forecastHeadline||null,reconciled=headline?.reconciled===true;
+ const networkMessage=verifiedNetwork&&reconciled
+  ?'CMeng\'s own calculation of the programme is reconciled: every forecast check passed. Confirm the critical path and activity impacts in the programme detail.'
+  :verifiedNetwork
+  ?'CMeng has calculated its own finish, but it is not reconciled'+(headline?.qualifications?.length?': '+headline.qualifications.join(' '):'.')+' See Completion Forecast.'
   :'CMeng cannot currently establish an independent finish-driving path or recalculated completion. Submitted float is a warning, not proof of project delay.';
+ // DMCC-UPD2 #6: the response asked for recovery plans on a baseline with no delay. Each part is asked
+ // only when its condition holds.
+ const programmeState=scheduleFacts.programmeState||null;
+ const governingHeld=Boolean(time.governingContractCompletionIso?.value??time.contractualCompletionIso?.value);
+ const late=(typeof negative==='number'&&negative>0)||(typeof extendedDifference==='number'&&extendedDifference>0)||(typeof originalDifference==='number'&&originalDifference>0&&!verifiedExtended);
+ const responseParts=[
+  governingHeld?null:'Add the contract, or its completion date, so the finish can be compared with the contract.',
+  verifiedNetwork&&!reconciled?'Reconcile the programme logic and calendars behind the difference between CMeng\'s finish and the contractor\'s.':null,
+  late?'Require dated recovery plans from the owners of the late or negative-float workfronts.':null,
+  programmeState?.progressRecorded===false?(programmeState.baselineOnly?'Upload the first progress update so progress and movement can be measured.':'Upload a programme update with progress recorded.'):null,
+ ].filter(Boolean);
+ const managementResponse=responseParts.length?responseParts.join(' '):'None from the programme: no delay, negative float or unreconciled difference is found.';
  const amendmentText=amendmentStatements.length
   ?amendmentStatements.map(row=>'<p><b>Recorded amendment:</b> '+escapeHtml(row.statement)+' <small>('+escapeHtml(readerReference(row.documentId))+')</small></p>').join('')
   :'<p>No explicit extension wording was identified in the available amendment records.</p>';
@@ -139,10 +156,10 @@ function renderProjectBrief(d,data=null){
    ['Near-critical activities',fmtCount(nearCritical),floatOrigin],
    ['Independent CPM finish',independent?planningShortDate(independent):'Not established','Calculated finish, not an EOT decision','',d.completion?.reason]
  ]);
- const summary='<section class="diagnosis-section brief-management-conclusion"><h4>Management conclusion</h4>'+
+ const summary='<section class="diagnosis-section brief-management-conclusion" data-page-answer="position"><h4>Management conclusion</h4>'+
   '<p><b>Completion:</b> '+escapeHtml(originalComparison)+' '+escapeHtml(verifiedComparison)+'</p>'+
   '<p><b>Schedule confidence:</b> '+escapeHtml(networkMessage)+'</p>'+tension+
-  '<p><b>Required management response:</b> Establish the governing contract date, correct or reconcile the programme logic and calendars, and require dated recovery plans from the affected workfront owners.</p>'+
+  '<p><b>Required management response:</b> '+escapeHtml(managementResponse)+'</p>'+
   '<p><small>All figures use the stated reporting date. No source-float warning or date comparison independently establishes contractual delay responsibility.</small></p></section>';
  const drivers=(d.wbsRows||[]).filter(r=>r.pressureCount||r.drivingCount).slice(0,4);
  const driversHtml=drivers.length

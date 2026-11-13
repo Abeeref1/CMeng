@@ -1,3 +1,4 @@
+import {countText} from './count-text';
 import {ownersForActivity,withActivityOwners} from './activity-owners';
 import {governedQuantityModel} from './boq-programme-links';
 import {registerScopeReason} from './unknown-reason';
@@ -8033,7 +8034,10 @@ function moduleForProjectUncached(
         teamActionCount:teamActions.length,userDecisionCount:decisionIds.size,
         actionCountBasis:'All management actions: accountable team groups plus decisions requiring your authority (Project Review). The Actions page counts only the decisions.',
         ownerRegisterGroups:groupActionsByOwnerRegister(teamActions),
-        managementPosition:teamActions.length+' accountable project-team groups. '+register.recordActionCount+' underlying source records remain available. Each action carries its retained source evidence and owning correction page; decisions requiring your authority remain in Project Review.'}
+        // DMCC-UPD2 #16: "0 underlying source records remain available" next to 325,874 programme records.
+        managementPosition:teamActions.length===0&&register.recordActionCount===0
+          ?'No owner or action register is supplied and no source record names an accountable owner, so accountability is not assessed. Decisions requiring your authority remain in Project Review.'
+          :countText(teamActions.length,'accountable project-team group')+'. '+countText(register.recordActionCount,'source record')+' behind them. Each action carries its retained source evidence and owning correction page; decisions requiring your authority remain in Project Review.'}
     })));
   }
   if (isDeliveryPage(key)) {

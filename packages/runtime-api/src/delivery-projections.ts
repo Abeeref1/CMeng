@@ -296,6 +296,7 @@ function buildDelivery(state:ProjectRuntimeState){
     populationConfirmed:gate.population.state==='established'});
  }
  const scheduleWbs=model?.wbs??[];
+ const wbsById=new Map(scheduleWbs.map(w=>[w.wbsId,w] as const));
  const explicitProgrammeLongLead=model?programmeLongLeadScope(model):{roots:[] as typeof scheduleWbs,activityIds:new Set<string>()};
  const longLeadRoots=explicitProgrammeLongLead.roots;
  const descendantWbs=(rootId:string)=>{
@@ -315,8 +316,13 @@ function buildDelivery(state:ProjectRuntimeState){
   const activityIds=new Set(activityRows.map(a=>a.activityId));
   const starts=activityRows.map(a=>a.currentStartIso??a.forecastStartIso).filter((d):d is string=>!!d).map(d=>d.slice(0,10)).sort();
   const finishes=activityRows.map(a=>a.currentFinishIso??a.forecastFinishIso).filter((d):d is string=>!!d).map(d=>d.slice(0,10)).sort();
+  // DMCC-UPD2 #7: 337 rows all read "Long Lead Materials · Long Lead Materials". The root keeps its name as
+  // the reference; the description names where it sits (its parent WBS) and the work under it.
+  const parentNames:string[]=[];{let parent=wbsById.get(root.parentWbsId??'');for(let guard=0;parent&&guard<3;guard++){if(parent.name)parentNames.unshift(parent.name);parent=wbsById.get(parent.parentWbsId??'');}}
+  const firstWork=activityRows.map(a=>a.name).filter(Boolean)[0];
   scheduleLongLeadCandidates.push({
-   recordId:'schedule-long-lead-wbs:'+root.wbsId,reference:root.name||root.wbsId,description:root.name||root.wbsId,
+   recordId:'schedule-long-lead-wbs:'+root.wbsId,reference:root.name||root.wbsId,
+   description:[parentNames.join(' > '),firstWork?firstWork+(activityRows.length>1?' and '+(activityRows.length-1)+' more':''):null].filter(Boolean).join(' · ')||root.name||root.wbsId,
    authority:'candidate',candidateType:'schedule_wbs',wbsId:root.wbsId,activityIds:[...activityIds],activityCount:activityRows.length,
    programmeNeedDate:starts[0]??null,forecastFinish:finishes.at(-1)??null,
    designDependencies:deliveryDependencyRefs('design',activityIds),submittalDependencies:deliveryDependencyRefs('submittal',activityIds),
@@ -501,7 +507,7 @@ function buildDelivery(state:ProjectRuntimeState){
  // Keep the original producer and its full output, evaluated only when used.
  const workfrontGeneratedAt=new Date().toISOString();
  const calculateWorkfrontMatrix=()=>{
- const scopeGroups=new Map<string,{dimension:string;label:string;recordIds:string[];activityIds:Set<string>;groupSource?:string}>();
+ const scopeGroups=new Map<string,{dimension:string;label:string;recordIds:string[];activityIds:Set<string>;groupSource?:string;display?:string}>();
  for(const r of byKind('workfront'))for(const [dimension,labels] of [['discipline',[field(r,'discipline')]],['location',r.links.locationIds]] as const)for(const label of labels.filter(Boolean)){const key=dimension+'|'+label;const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>()};group.recordIds.push(r.recordId);r.links.activityIds.forEach(id=>group.activityIds.add(id));scopeGroups.set(key,group);}
  // A specialist workfront register enriches the programme; its absence must
  // not hide programme progress that is already classified in Activity Review.
@@ -519,7 +525,8 @@ function buildDelivery(state:ProjectRuntimeState){
     const source=(dimension==='discipline'?row.disciplineGroupSource:row.locationGroupSource)??null;
     const label=value&&source?value:'Unclassified',groupSource=value&&source?source:'Not grouped';
     const key=dimension+'|'+(label==='Unclassified'?label:JSON.stringify([groupSource,label]));
-    const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>(),groupSource};
+    const shown=(dimension==='discipline'?row.disciplineGroupLabel:row.locationGroupLabel)??undefined;
+    const group=scopeGroups.get(key)??{dimension,label,recordIds:[],activityIds:new Set<string>(),groupSource,...(shown&&label!=='Unclassified'?{display:shown}:{})};
     group.activityIds.add(row.activityId);scopeGroups.set(key,group);
    }
   }
@@ -576,7 +583,7 @@ function buildDelivery(state:ProjectRuntimeState){
   // own gates is blocked or every unfinished activity in it is blocked; otherwise it is partly
   // blocked, with the count of blocked unfinished activities beside it.
   const gates=readiness.filter(r=>group.recordIds.includes(r.recordId));const ready=gates.some(r=>r.state==='blocked')||unfinished.length>0&&blockedActivityIds.length===unfinished.length?'blocked':blockedActivityIds.length?'partly_blocked':gates.some(r=>r.state==='unknown')||!gates.length?'unknown':gates.some(r=>r.state==='at_risk')?'at_risk':'ready';
-  return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,groupSource:group.groupSource??(group.recordIds.length?'From workfront register':null),recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
+  return {dimension:group.dimension,label:byId.get(group.label)?.description??group.display??group.label,groupSource:group.groupSource??(group.recordIds.length?'From workfront register':null),recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
    // SW-27: a group total is calculated from its known members; the members
    // it could not use are counted beside it, never blanking the whole group.
    plannedPercent:total?.currentPlanPercent??null,baselinePlannedPercent:total?.baselinePlannedPercent??null,scheduleProgressPercent:total?.durationWeightedProgressPercent??null,
@@ -954,6 +961,13 @@ export function deliveryModule(state:ProjectRuntimeState,key:string):ModuleRunti
    metric('Readable source rows',sourceAvailability!.readableRowCount,'rows',sourceAvailability!.basis),
    metric('Source-marked long lead',sourceAvailability!.signals.longLeadMarkedCount,'items','Explicit Long Lead marks read from the procurement source. This does not establish schedule impact or lateness.'),
    metric('Governed procurement status',null,'','Package completeness, dated lifecycle, programme linkage and lateness remain separate until established.')
+  ]:useBoqCandidates&&key==='long-lead'&&boqScope.itemCount===0?[
+   // DMCC-UPD2 #7: with no BOQ, the page led with "Candidate long-lead items: 0" while the programme holds
+   // 337 long-lead items (shown as 337 on the dashboard). The programme items lead; the BOQ is "Not supplied".
+   metric('Programme long-lead items',p.scheduleLongLeadCandidates.length,'items','Long-lead scope in the programme WBS. Not a confirmed procurement package; lead times and order dates are not in the programme.'),
+   metric('Programme activities under them',p.scheduleLongLeadCandidates.reduce((n:number,r:any)=>n+(r.activityCount??0),0),'activities','Activities in those WBS groups.'),
+   metric('BOQ long-lead screening',null,'items','No BOQ is supplied.','Not supplied: no BOQ in the documents'),
+   metric('Actual procurement status',null,'','Not recorded in the current Project information.','Needs a procurement register'),
   ]:useBoqCandidates?[
    metric('BOQ scope items',boqScope.itemCount,'items','Readable BOQ scope used for this candidate view.'),
    metric('Candidate packages',boqScope.packages.length,'packages','Packages derived from BOQ scope; not a confirmed procurement register.'),

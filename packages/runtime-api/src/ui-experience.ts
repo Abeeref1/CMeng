@@ -65,6 +65,8 @@ function experienceValue(value,unit=''){
   const v=value&&typeof value==='object'&&'value' in value?value.value:value;
   if(v===null||v===undefined||typeof v==='number'&&!Number.isFinite(v))return 'Not established';
   if(unit==='date')return fmtForField('date',v);
+  // DMCC-UPD2 #23: hour totals over 1,000 are whole hours ("6,657,608 h", not "6,657,608.08 h").
+  if(unit==='h'&&typeof v==='number'&&Math.abs(v)>=1000)return Math.round(v).toLocaleString('en-US')+' h';
   const exactUnit=['','%','d','h'].includes(unit);
   // Executive abbreviation is presentation-only; source amounts stay exact in
   // the detail and report. All other scalar values use the common presenter.
@@ -140,8 +142,17 @@ function experienceBrief(key,data){
     note='Resources, assignments and weekly records are counted separately.';
     if(d.weeklyCapacityEvidence?.overloadPeriods)review='Use the dated overload register to review capacity by resource and week. An average utilization does not rule out local overloads.';
   }else if(key==='manhour-scurve'){
-    add('Planned hours',d.plannedHoursToDataDate,'Weekly plan by Data Date','h');add('Actual hours',d.actualHoursToDataDate,'Approved weekly usage by Data Date','h');
-    add('Actual less plan',d.actualMinusPlannedHoursToDataDate,'Same reporting periods','h');add('Labor resources',d.laborResourceCount,'Labor only; equipment excluded');
+    // DMCC-UPD2 #11: the page said "Not yet established: Planned hours; Actual hours" next to 6,657,608 planned
+    // hours. These read the fields the man-hour projection actually carries; a weekly-register page keeps its own.
+    if(d.plannedHoursToDataDate!=null||d.actualHoursToDataDate!=null){
+      add('Planned hours',d.plannedHoursToDataDate,'Weekly plan by Data Date','h');add('Actual hours',d.actualHoursToDataDate,'Approved weekly usage by Data Date','h');
+      add('Actual less plan',d.actualMinusPlannedHoursToDataDate,'Same reporting periods','h');
+    }else{
+      add('Planned labour hours',d.plannedState==='complete'?d.plannedHoursKnown:null,'All labour assignments in the programme','h');
+      add('Actual labour hours to the Data Date',d.actualState==='complete'?d.actualHoursKnownCurrent:null,'Recorded on the labour assignments','h');
+      add('Remaining labour hours',d.forecastState==='complete'?d.remainingHoursKnown:null,'Remaining on the labour assignments','h');
+    }
+    add('Labor resources',d.laborResourceCount,'Labor only; equipment excluded');
     note='Hours compare resource use with plan. They do not measure productivity without installed output.';
   }else if(key==='quantity-scurve'){
     add('BOQ items',d.boqItemCount,'Source quantities');add('Items with dated measurements',d.installedQuantityStatus?.measuredItemCount,'Through the reporting date');

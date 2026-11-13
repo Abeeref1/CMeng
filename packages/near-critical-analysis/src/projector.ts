@@ -30,13 +30,28 @@ export function floatHourHistogram(values:readonly (number|null)[],days?:{workin
   for(const value of values)if(typeof value==='number'&&Number.isFinite(value))counts.set(value,(counts.get(value)??0)+1);
   const distinct=[...counts.keys()].sort((a,b)=>a-b),exact=distinct.length<=10;
   const minimum=distinct[0]??null,maximum=distinct.at(-1)??null;
-  const groups=exact?distinct.map(value=>({lowerHours:value,upperHours:value,upperInclusive:true,count:counts.get(value)!})):
-    Array.from({length:10},(_,i)=>({lowerHours:minimum!*(1-i/10)+maximum!*(i/10),upperHours:minimum!*(1-(i+1)/10)+maximum!* ((i+1)/10),upperInclusive:i===9,count:0}));
-  if(!exact)for(const [value,count] of counts){const index=groups.findIndex(g=>value<g.upperHours);groups[index<0?groups.length-1:index]!.count+=count;}
-  const knownCount=[...counts.values()].reduce((n,count)=>n+count,0);
   // T06 group rule: buckets show working days only when every float-bearing
   // activity uses one source calendar working-day length.
   const dayHours=days?.daysBasis==='source_activity_calendar'?days.workingDayHours:null;
+  // DMCC-UPD2 #17: ten equal bands (68.4 working days each) put critical, near-critical and comfortable work
+  // in one bar. Standard planning bands instead: negative, zero, up to 5, 5-10, 10-20, 20-40 and over 40
+  // working days (in hours of 5/10/20/40 eight-hour days when no single day length is shared).
+  const unit=dayHours!==null&&dayHours>0?dayHours:8,inDays=dayHours!==null&&dayHours>0;
+  const edges=[0,5,10,20,40].map(d=>d*unit);
+  const span=(d:number)=>inDays?d+' working day'+(d===1?'':'s'):(d*unit)+' h';
+  type Group={lowerHours:number;upperHours:number;upperInclusive:boolean;count:number;label?:string};
+  const groups:Group[]=exact?distinct.map(value=>({lowerHours:value,upperHours:value,upperInclusive:true,count:counts.get(value)!})):[
+    {lowerHours:Math.min(minimum!,0),upperHours:0,upperInclusive:false,count:0,label:'Negative float'},
+    {lowerHours:0,upperHours:0,upperInclusive:true,count:0,label:'Zero float (critical)'},
+    ...edges.slice(0,-1).map((lower,i)=>({lowerHours:lower,upperHours:edges[i+1]!,upperInclusive:true,count:0,
+      label:i===0?'Up to '+span(5):'Over '+span([5,10,20][i-1]!)+' to '+span([10,20,40][i-1]!)})),
+    {lowerHours:edges.at(-1)!,upperHours:Math.max(maximum!,edges.at(-1)!),upperInclusive:true,count:0,label:'Over '+span(40)},
+  ];
+  if(!exact)for(const [value,count] of counts){
+    const index=value<0?0:value===0?1:value>edges.at(-1)!?groups.length-1:2+edges.slice(1).findIndex(edge=>value<=edge);
+    groups[index]!.count+=count;
+  }
+  const knownCount=[...counts.values()].reduce((n,count)=>n+count,0);
   const toDays=(hours:number)=>dayHours!==null&&dayHours>0?Number((hours/dayHours).toFixed(6)):null;
   return {unit:'hours' as const,basis:dayHours!==null&&dayHours>0?'All unfinished execution activities with supplied finite total float; working days from the one source calendar day length they all share.':'All unfinished execution activities with supplied finite total float; no working-day conversion.',knownCount,unknownCount:values.length-knownCount,exact,
     groups:days?groups.map(group=>({...group,lowerWorkingDays:toDays(group.lowerHours),upperWorkingDays:toDays(group.upperHours)})):groups,

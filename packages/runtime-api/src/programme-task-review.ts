@@ -12,14 +12,35 @@ function buildBasis(state:ProjectRuntimeState){
   const sourceFingerprint=createHash('sha256').update(JSON.stringify(['programme-task-review-v1',kind,state.projectId,schedule.sourceHashSha256,schedule.revision.revisionId,model.sourceRevisionId,model.dataDateIso])).digest('hex');
   const saved=state.controls?.reviewDecisions?.['programme-tasks-'+kind];
   const decision=saved?.sourceFingerprint===sourceFingerprint&&saved.reference?.trim()?saved:null;
-  const nameMatches=execution.filter(a=>programmeTaskPatterns[kind].test(a.name??''));
+  // DMCC-UPD2 #13: names alone caught "Appointment of third party for Testing and Commissioning works",
+  // "Laying of drainage pipe & testing" and trade-to-trade "Handover of Shaft to Elevator Subcontractor".
+  // The programme's own WBS section for the stage is read first; names are the fallback, without
+  // procurement/appointment tasks and handovers between trades.
+  // A stage section is named for the stage itself ("Testing and Commissioning Works"), not a phase that
+  // also holds other stages ("Testing, Commissioning, Authorities Approval, Handing over and Close-out"),
+  // an appointment ("Appointment of Third Party for MEP Testing and Commissioning works") or a trade's
+  // sub-step ("Cabin works/Testing").
+  const wbsSection=kind==='testing'?/^(?:testing|commissioning|pre-?commissioning|t\s*&\s*c)\b|testing (?:and|&) commissioning/i:/^(?:hand(?:ing)?[- ]?over|taking[- ]over)\b/i;
+  const otherStage=kind==='testing'?/authorit|hand(?:ing)?[- ]?over|close-?out|appointment|third part|3rd part|sub-?contract|procure|tender/i:/testing|commissioning|authorit|appointment|sub-?contract/i;
+  const sectionRoots=model.wbs.filter(w=>wbsSection.test(w.name??'')&&!otherStage.test(w.name??''));
+  const sectionIds=new Set<string>(sectionRoots.map(w=>w.wbsId));
+  for(let changed=sectionIds.size>0;changed;){changed=false;for(const w of model.wbs)if(w.parentWbsId&&sectionIds.has(w.parentWbsId)&&!sectionIds.has(w.wbsId)){sectionIds.add(w.wbsId);changed=true;}}
+  const inSection=execution.filter(a=>a.wbsId&&sectionIds.has(a.wbsId));
+  const notStageWork=kind==='testing'
+    ?/appointment|sub-?contract|agreement|procure|tender|award|submittal|approval of|pre-?qualification/i
+    :/\bto\b.*(?:sub-?contractor|works|trade|joinery|elevator|finishes|installation)|clearance hand ?over|hand ?over of (?:shaft|area|slab|room|floor|zone)/i;
+  const byName=execution.filter(a=>programmeTaskPatterns[kind].test(a.name??'')&&!notStageWork.test(a.name??''));
+  const fromWbs=inSection.length>0;
+  const nameMatches=fromWbs?inSection:byName;
+  const sectionNames=[...new Set(sectionRoots.filter(w=>!w.parentWbsId||!sectionIds.has(w.parentWbsId)).map(w=>w.name).filter(Boolean))].slice(0,3);
   const selected=new Set(decision?.activityIds??[]);
   const rows=decision?execution.filter(a=>selected.has(a.activityId)):nameMatches;
   const included=new Set(rows);
   const additionalCandidates=kind==='testing'?execution.filter(a=>/validation/i.test(a.name??'')&&!included.has(a)):[];
-  const rule=kind==='testing'?'Names containing testing, commissioning or the word test':'Names containing handover, taking over, sectional completion or practical completion';
+  const rule=fromWbs?'Activities in the programme\'s '+sectionNames.map(n=>'"'+n+'"').join(', ')+' WBS section'+(sectionNames.length===1?'':'s')
+    :kind==='testing'?'Names containing testing, commissioning or the word test (appointments, subcontracts and approvals excluded)':'Names containing handover, taking over, sectional completion or practical completion (handovers between trades excluded)';
   return {kind,sourceFingerprint,sourceRefs:['schedule:'+schedule.revision.revisionId],sourceFilename:schedule.sourceFilename,model,rows,nameMatches,additionalCandidates,decision,
-   basis:decision?'Reviewed programme task IDs; reference: '+decision.reference:rule+'. This name-based selection has not been confirmed.',
+   basis:decision?'Reviewed programme task IDs; reference: '+decision.reference:rule+(fromWbs?'. This WBS-based selection has not been confirmed.':'. This name-based selection has not been confirmed.'),
    qualification:'Programme task status describes this selected scope; it does not establish test results, commissioning or formal acceptance.'};
  });
 }

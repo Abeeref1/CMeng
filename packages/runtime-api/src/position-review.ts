@@ -89,7 +89,7 @@ export function positionVerdict(result:ModuleRuntimeResult) {
       const finishHeld=typeof independent==='string'||typeof submitted==='string'||typeof canonicalTime?.independentFinishIso?.value==='string';
       if(!contractHeld&&typeof governing?.value!=='string'){
         // Owner rule (3 Nov): answer first. The forecast finish leads; the missing contract date is said once after it.
-        const headline=canonicalTime?.forecastHeadline,day=(iso:string)=>new Date(iso.slice(0,10)+'T00:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+        const headline=canonicalTime?.forecastHeadline,day=(iso:string)=>new Date(iso.slice(0,10)+'T00:00:00Z').toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});// DMCC-UPD2 #22: same "Nov 29, 2027" form as the tiles
         const finishText=headline?.completionIso
           ?(headline.source==='cmeng_calculation'?'CMeng forecasts completion on '+day(headline.completionIso)+'.':'The contractor\'s programme finishes on '+day(headline.completionIso)+'.'+(headline.notReliableReasons?.length?' CMeng\'s own calculation is not used as the headline because '+headline.notReliableReasons.join('; ')+'.':''))
           :'';
@@ -118,7 +118,12 @@ export function positionVerdict(result:ModuleRuntimeResult) {
       const cn=p.position?.claimsNotices??{},claims=cn.sourceClaimCount??cn.lifecycleClaimCount??null;
       text=(gap?gap+' ':'')+(number(claims)?countText(claims,'claim')+' '+(claims===1?'is':'are')+' in the claim register. Reported claim values and dated determinations are shown with their own evidence.':cn.state==='not_submitted'?'No claim register is in the current project documents, so claim values are not established.':'The number of claims is not established. Reported claim values and dated determinations are shown with their own evidence.');
     }
-    nextAction=number(missing)&&missing>0?'Enter the event or awareness date for these '+missing+' events, then reassess notice timing.':'Review notice timing against each event date and applicable contract period.';assignTo='Contracts Manager';
+    // DMCC-UPD2 #12: "Review notice timing against each event date" with no events, notices or contract.
+    const noticeRecords=number(p.noticeCount)?p.noticeCount:null,eventsKnown=number(p.position?.claimsNotices?.eventCount)?p.position.claimsNotices.eventCount:null;
+    const nothingSupplied=(noticeRecords===0||noticeRecords===null)&&(eventsKnown===0||eventsKnown===null)&&!(number(missing)&&missing>0)&&(p.position?.claimsNotices?.state==='not_submitted'||p.position?.claimsNotices?.state==='missing'||p.noticeAssessmentState==='not_assessable_without_delay_events_and_requirements'||noticeRecords===0);
+    nextAction=number(missing)&&missing>0?'Enter the event or awareness date for these '+missing+' events, then reassess notice timing.'
+      :nothingSupplied?'Upload the contract (for its notice periods) and the notice or delay-event register.'
+      :'Review notice timing against each event date and applicable contract period.';assignTo='Contracts Manager';
   } else if(result.key==='windows-analysis') {
     const days=p.projectCompletionMovementDays;
     if(number(days)){rag=days>0?'red':'green';text='Submitted completion '+(days>0?'moved later by '+days:days<0?'improved by '+Math.abs(days):'did not move')+(days===0?'':' calendar days')+'.';nextAction='Review the windows with completion movement and the activities contributing to each change.';}
@@ -130,8 +135,18 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   } else if(result.key==='cash-flow'){
     const currencies=p.position?.performance?.cashFlow?.currencies??[];
     const ready=currencies.length>0&&currencies.every((r:any)=>r.sourceReadiness?.netCashReady);
-    text=ready?'Actual cash is supported by the dated receipt and expenditure records, separated by currency.':'Certificate amounts are available. Provide the advance payment record and dated receipts and payments to establish actual cash.';
-    nextAction=ready?'Review the cash balance and upcoming payments in each currency.':'Add dated cash receipts, expenditure and advance payment records.';assignTo='Commercial Manager';
+    // DMCC-UPD2 #3: the verdict said "Certificate amounts are available" with 0 certificate periods and no
+    // commercial document. It now states what the payment register actually holds.
+    const register=p.position?.foundation?.paymentRegister;
+    const certificates=number(register?.recordCount)?register.recordCount:number(register?.sourceRecordCount)?register.sourceRecordCount:null;
+    text=ready?'Actual cash is supported by the dated receipt and expenditure records, separated by currency.'
+      :certificates&&certificates>0?countText(certificates,'payment certificate period')+' '+(certificates===1?'is':'are')+' supplied. Provide the advance payment record and dated receipts and payments to establish actual cash.'
+      :'No payment certificates or cash records are supplied, so cash flow is not established.';
+    nextAction=ready?'Review the cash balance and upcoming payments in each currency.'
+      :certificates&&certificates>0?'Add dated cash receipts, expenditure and advance payment records.'
+      :'Upload the payment certificates (IPCs) and the dated receipts and payments.';
+    if(!ready&&!(certificates&&certificates>0))rag='unknown';
+    assignTo='Commercial Manager';
   }
   else if(result.key==='resource-utilization'){
     // W6: Resources answers whether demand can be compared with stated capacity.
@@ -144,25 +159,43 @@ export function positionVerdict(result:ModuleRuntimeResult) {
   else if(result.key==='manhour-scurve'){
     // W6: the Man-Hour S-Curve answers how earned hours compare with hours spent.
     const e=p.earnedHours,hours=(v:number)=>Math.round(v).toLocaleString('en-US');
-    text=e?.state==='established'&&number(e.earnedHours)
+    const noProgress=d.projectFacts?.schedule?.programmeState?.progressRecorded===false;
+    // DMCC-UPD2 #11/#12: with only the baseline, "0 earned against 0 spent" and "review available capacity"
+    // say nothing. The planned hours are the answer; spent and earned hours start with the first update.
+    if(noProgress&&number(p.plannedHoursKnown)){text=hours(p.plannedHoursKnown)+' planned labour hours in the programme. Hours spent and earned hours are measured from the first progress update.';nextAction='Upload the first progress update with labour hours spent.';}
+    else text=e?.state==='established'&&number(e.earnedHours)
       ?hours(e.earnedHours)+' earned hours to the Data Date'+(number(e.actualHoursSpent)?' against '+hours(e.actualHoursSpent)+' hours spent':'')+'. Hours cover the dates in the register; they may not cover the full programme.'
       :typeof e?.actualHoursReason==='string'&&e.actualHoursReason?'Earned and spent man-hours are not established. '+e.actualHoursReason
       :'Compare planned, earned and recorded hours over time. Hours cover the dates in the register; they may not cover the full programme.';
   }
   const metrics=p.scopeComparison??p.sourceInterpretation?.progressMeasures?.scopeComparison;
-  if(['progress-scurve','progress-report','master-dashboard','command-center','pmo-analysis'].includes(result.key)&&metrics&&number(metrics.gapPercentagePoints)){const v=metrics.gapPercentagePoints;rag=rag==='red'||v<0?'red':'green';const progressText=v===0?'Schedule progress on the same activities matches baseline plan.':'Schedule progress on the same activities is '+Math.abs(v).toFixed(2)+' percentage points '+(v<0?'behind':'ahead of')+' baseline plan.';text=result.key==='master-dashboard'?text+' '+progressText:progressText;}
+  // DMCC-UPD2 #5: with no progress recorded, "progress matches baseline plan" compared 0% with 0%.
+  // The shared programme state answers instead, once, with the step that makes progress measurable.
+  const programmeState=d.projectFacts?.schedule?.programmeState;
+  const progressPage=['progress-scurve','progress-report','master-dashboard','command-center','pmo-analysis'].includes(result.key);
+  if(progressPage&&programmeState&&programmeState.progressRecorded===false){
+    const statement=String(programmeState.statement);
+    text=['master-dashboard','command-center'].includes(result.key)&&text!=='The results, records and follow-up actions for this view are shown below.'?text+' '+statement:statement;
+    if(['progress-scurve','progress-report'].includes(result.key))rag='unknown';
+    nextAction??=programmeState.baselineOnly?'Upload the first progress update of the programme.':'Upload a programme update with progress recorded.';
+  }else if(progressPage&&metrics&&number(metrics.gapPercentagePoints)){const v=metrics.gapPercentagePoints;rag=rag==='red'||v<0?'red':'green';const progressText=v===0?'Schedule progress on the same activities matches baseline plan.':'Schedule progress on the same activities is '+Math.abs(v).toFixed(2)+' percentage points '+(v<0?'behind':'ahead of')+' baseline plan.';text=result.key==='master-dashboard'?text+' '+progressText:progressText;}
   specific=text!=='The results, records and follow-up actions for this view are shown below.';
   if(counts.system){rag='red';specific=true;text='A CMeng calculation check failed. The affected values need correction before use.';nextAction='CMeng must correct the failed calculation and repeat its checks.';assignTo='CMeng Support';}
   if(d.registerDateReview?.likelyMappingFault&&(!specific||result.key==='source-quality')){rag='amber';specific=true;text=d.registerDateReview.message;nextAction='CMeng must check the date columns and reader before requesting replacement files.';assignTo='CMeng Support';}
   else if(rag==='green'&&(counts.source||counts.pending||counts.review))rag='amber';
   if(!nextAction&&/baseline plan/.test(text))nextAction=/matches baseline plan/.test(text)?'Monitor schedule progress against baseline plan.':'Review the activities behind the progress difference against baseline plan.';
-  if(!nextAction&&/resource|Hours/.test(text))nextAction='Review resource demand, available capacity and the dates covered by the hours.';
+  // DMCC-UPD2 #12: "available capacity" was asked for when no capacity is supplied.
+  if(!nextAction&&/resource|Hours/.test(text))nextAction=/no weekly resource capacity|capacity yet/i.test(text)?'Upload the weekly resource capacity (available labour by trade) to compare it with demand.':'Review resource demand, available capacity and the dates covered by the hours.';
   // Only pair a register action with its own finding. Never attach an arbitrary
   // first issue to a different page headline.
   // Findings qualify the result in supporting details. An arbitrary first finding
   // is never a substitute for the question this page answers.
   // W8: no generic 'review the figures' line; the page lists its own actions.
-  if(!nextAction&&blockedBy==='missing_input')nextAction='Provide the missing inputs listed in Information & Actions.';
+  // DMCC-UPD2 #12: "Information & Actions" is not a page. The missing inputs are listed under Project review.
+  if(!nextAction&&blockedBy==='missing_input'){
+    const deps=Array.isArray(result.dependencies)?result.dependencies.filter(Boolean):[];
+    nextAction=deps.length?'Upload '+deps.slice(0,3).map((d:string)=>String(d).replace(/_+/g,' ').replace(/^governed\s+/i,'')).join('; ')+(deps.length>3?' and the other inputs listed in Project review':'')+'.':'Provide the missing inputs listed in Project review.';
+  }
   assignTo=assignTo.replace(/\s*\(assign a person\)/gi,'').trim();
   return {schemaVersion:'1.0',facts,specific,rag,// The label states the position, never a task: a review decision is shown only where one waits (Project Review).
     label:rag==='red'?'Off target':rag==='green'?'Within the checked target':rag==='unknown'?'Not assessable':'Not fully confirmed',text,

@@ -72,6 +72,10 @@ export interface ProjectFactsSnapshot {
   inputs?:ProjectInputStatus;
   schedule:{
     dataDateIso:ProjectFact<string>;
+    /** DMCC-UPD2 (13 Nov): one shared answer to "is there progress to measure, and a second
+     * programme to compare?". Pages that compare progress, movement or recovery read this
+     * instead of comparing a baseline with itself. */
+    programmeState?:ProgrammeState;
     submittedProgrammeCompletionIso:ProjectFact<string>;
     declaredProjectFinishIso?:ProjectFact<string>;
     /** Canonical management criticality. Deterministic independent CPM governs
@@ -104,7 +108,9 @@ export interface ProjectFactsSnapshot {
     submittedDaysAfterOriginalCompletion?:ProjectFact<number>;
     independentDaysAfterCurrentContract?:ProjectFact<number>;
     /** Owner rule (3 Nov): which finish leads the management headline, and why. */
-    forecastHeadline?:{source:'cmeng_calculation'|'contractor_programme';completionIso:string|null;statement:string;notReliableReasons:string[]}|null;
+    forecastHeadline?:{source:'cmeng_calculation'|'contractor_programme';completionIso:string|null;statement:string;notReliableReasons:string[];
+      /** The Completion Forecast reconciliation: true only when every check passed and nothing qualifies the finish. */
+      reconciled?:boolean;qualifications?:string[]}|null;
     amendmentEotStatements?:Array<{documentId:string;statement:string;sourceRefs:string[];basis:string;sourceAnalyticalUse?:typeof SOURCE_ANALYTICAL_USE;sourceAnalyticalNote?:string}>;
   };
   controls:{
@@ -194,6 +200,25 @@ function cashSeriesSummary(series:import('./dated-cash-series').DatedCashSeries|
     nextForecastPeriod:row.nextForecastPeriod,nextForecast:next?{forecastIncome:next.forecastIncome,forecastExpenditure:next.forecastExpenditure}:null,
     forecastIncomeTotal:row.forecastIncomeTotal,forecastExpenditureTotal:row.forecastExpenditureTotal,
   }};
+}
+
+export interface ProgrammeState {
+  /** Distinct programme files (by content), scenarios excluded. */
+  programmeCount:number;
+  /** Any actual start or finish, progress percentage or started status in the current programme. */
+  progressRecorded:boolean;
+  /** One programme file and no progress: the baseline is the only programme. */
+  baselineOnly:boolean;
+  statement:string;
+}
+export function programmeStateFor(state:Pick<ProjectRuntimeState,'schedules'>,model:{activities:ReadonlyArray<{status?:string|null;actualStartIso?:string|null;actualFinishIso?:string|null;percentComplete?:number|null}>}|null):ProgrammeState|null{
+  if(!model)return null;
+  const programmeCount=new Set(state.schedules.filter(s=>s.role!=='scenario').map(s=>s.sourceHashSha256)).size;
+  const progressRecorded=model.activities.some(a=>Boolean(a.actualStartIso||a.actualFinishIso)||(typeof a.percentComplete==='number'&&a.percentComplete>0)||a.status==='in_progress'||a.status==='completed');
+  const baselineOnly=programmeCount<=1&&!progressRecorded;
+  return {programmeCount,progressRecorded,baselineOnly,
+    statement:baselineOnly?'Only the baseline programme is supplied. Progress and programme movement can be measured after the first update.'
+      :!progressRecorded?'No progress is recorded in the current programme yet.':'Progress is recorded in the current programme.'};
 }
 
 function fact<T>(
@@ -479,6 +504,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     schedule:{
       floatBasis,
       criticalityLabel:governedCriticality.floatLabel,
+      ...(()=>{const programmeState=programmeStateFor(scoped,model);return programmeState?{programmeState}:{};})(),
       dataDateIso:fact(
         dataDateIso,
         'Adopted current programme Data Date.',
@@ -532,7 +558,8 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
     },
     time:{
       amendmentEotStatements,
-      forecastHeadline:forecastGate?{...forecastGate.managementForecast.headline,notReliableReasons:forecastGate.managementForecast.notReliableReasons}:null,
+      forecastHeadline:forecastGate?{...forecastGate.managementForecast.headline,notReliableReasons:forecastGate.managementForecast.notReliableReasons,
+        reconciled:forecastGate.publishable===true,qualifications:forecastGate.managementForecast.qualifications.map(q=>q.text)}:null,
       submittedDaysAfterOriginalCompletion:fact(calendarDifference(submittedFinish?.dateIso,commercial.timeExposure.contractualCompletion.value),'Submitted programme finish minus the recorded original contractual completion, calendar-date comparison only. This is not the award-adjusted deadline or entitlement.','calculated_with_stated_basis'),
       submittedDaysAfterCurrentContract:fact(calendarDifference(submittedFinish?.dateIso,currentContractCompletion),'Submitted finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),
       independentDaysAfterCurrentContract:fact(calendarDifference(independentFinish,currentContractCompletion),'Calendar recalculation finish less contract completion including known awarded EOT, using calendar dates.','calculated_with_stated_basis'),

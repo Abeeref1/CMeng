@@ -237,6 +237,7 @@ details:not(.workspace-drawer){border:1px solid var(--line);border-radius:9px;ba
 @media(max-width:850px){.milestone-date-row{grid-template-columns:1fr}.module-bar-row,.visual-bar-row,.waterfall-row{grid-template-columns:minmax(0,1fr) minmax(55px,1fr) auto!important}}
 
 .planning-primary-grid:has(.pressure-matrix),.planning-primary-grid:has(.float-histogram){grid-template-columns:minmax(0,1fr)!important}
+.workspace-settings{position:relative}.workspace-settings>summary{list-style:none;cursor:pointer}.workspace-settings>summary::-webkit-details-marker{display:none}.workspace-settings-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;display:grid;gap:6px;min-width:220px;padding:10px;background:#fff;border:1px solid #d6dee8;border-radius:8px;box-shadow:0 8px 24px rgba(16,32,56,.12)}
 .planning-kpi strong,.planning-kpi small{overflow-wrap:anywhere;min-width:0}
 .contract-challenge-view .planning-primary-grid{grid-template-columns:minmax(0,1fr)!important}
 
@@ -340,14 +341,19 @@ ${boqPageReviewStyles}
         </div>
         <div class="workspace-actions">
           <button class="btn" id="openProjectActions">Project review</button>
-          <button class="btn small" id="changeProjectPurpose">Live/Test classification</button>
           <button class="btn" id="openLibraryQuick">Documents</button>
           <button class="btn primary" id="openEvidenceTop">Add documents</button>
           <button class="btn" id="runAnalysisTop">Update position</button>
           <button class="btn" id="openAiTop">Ask CMeng</button>
-          <a class="btn" href="/external-ai" target="_blank" rel="noopener">External AI Access</a>
-          <a class="btn" href="/settings/ask-ai" target="_blank" rel="noopener">AI settings</a>
           <button class="btn small" id="refresh">Refresh</button>
+          <!-- DMCC-UPD2 #25: set-up controls sit in one Settings menu, not beside the client's document buttons. -->
+          <details class="workspace-settings"><summary class="btn small">Settings</summary>
+            <div class="workspace-settings-menu">
+              <button class="btn small" id="changeProjectPurpose">Live/Test classification</button>
+              <a class="btn small" href="/external-ai" target="_blank" rel="noopener">External AI Access</a>
+              <a class="btn small" href="/settings/ask-ai" target="_blank" rel="noopener">AI settings</a>
+            </div>
+          </details>
           <span id="projectBadge" class="badge">No project</span>
         </div>
       </div>
@@ -491,6 +497,8 @@ const SUMMARY_PAGE='master-dashboard';
 const pageBlockOwners={
  // F45 earned hours: the Man-Hour S-Curve owns the block; Resources links to it.
  'earned-hours':{owner:'manhour-scurve',heading:'Earned hours against hours spent'},
+ // DMCC-UPD2 #10: the same programme-context block was repeated on three delay pages.
+ 'delay-programme-context':{owner:'delay-claims',heading:'Programme context for delay'},
  'programme-source-records':{owner:'schedule-analytics',heading:'Programme source records'},
  'float-reconciliation-records':{owner:'schedule-analytics',heading:'Submitted and calculated float records'},
  'review-item-records':{owner:'source-quality',heading:'Review item records'},
@@ -2088,15 +2096,18 @@ function renderDelayProgrammeContext(data){
   const count=(value,known)=>value==null?'Not established'+(known==null?'':' · '+fmt(known)+' known'):fmt(value);
   const unresolvedWhy=(n,needs)=>typeof n==="number"&&n>0?fmt(n)+(n===1?" activity needs ":" activities need ")+needs:"";
   const movement=context.projectCompletionMovementDays,rows=Array.isArray(context.pressureRows)?context.pressureRows:[];
+  // DMCC-UPD2 #10: with nothing late and no negative float, the "pressured" milestones are simply the
+  // zero-float (critical) milestones of the programme. They are named so.
+  const nothingLate=context.delayedActivityCount===0&&context.negativeFloatActivityCount===0&&!(typeof movement==="number"&&movement>0);
   const detail=rows.length?'<details class="source-scope"><summary>Review '+escapeHtml(fmt(rows.length))+' leading programme-pressure activities</summary><div class="table-wrap"><table><thead><tr><th>Activity</th><th>Why listed</th><th>WBS</th><th>Baseline finish</th><th>Current / forecast finish</th><th>Movement</th><th>Float</th></tr></thead><tbody>'+rows.map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b><br><span class="muted">'+escapeHtml(row.name||"")+'</span></td><td>'+escapeHtml(row.pressureReason||"—")+'</td><td>'+escapeHtml(row.wbsId||"—")+'</td><td>'+escapeHtml(row.baselineFinishIso?planningShortDate(row.baselineFinishIso):"—")+'</td><td>'+escapeHtml(planningShortDate(row.forecastFinishIso||row.currentFinishIso))+(typeof row.finishOverdueCalendarDays==="number"?'<br><span class="muted">'+escapeHtml('Passed '+fmt(row.finishOverdueCalendarDays)+' calendar days before the Data Date')+'</span>':'')+'</td><td>'+escapeHtml(row.varianceDays===null?"—":sourceWorkingDelay(row,"varianceDays"))+(typeof row.finishOverdueCalendarDays==="number"&&typeof row.varianceAtDataDateDays==="number"?'<br><span class="muted">'+escapeHtml('At least +'+fmt(row.varianceAtDataDateDays)+' calendar days at the Data Date')+'</span>':'')+'</td><td>'+escapeHtml(sourceWorkingFloat(row))+'</td></tr>').join("")+'</tbody></table></div></details>':"";
-  return '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Best available programme context</h4><p><b>Schedule pressure is contextual programme intelligence, not a contractual delay event.</b> It remains visible even when a formal delay-event register is absent, incomplete or quarantined.</p></div></div><div class="planning-panel-body">'+planningKpis([
+  return ownedBlock('delay-programme-context','<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Best available programme context</h4><p><b>Schedule pressure is contextual programme intelligence, not a contractual delay event.</b> It remains visible even when a formal delay-event register is absent, incomplete or quarantined.</p></div></div><div class="planning-panel-body">'+planningKpis([
     ["Project Completion movement",movement===null||movement===undefined?"Not established":(movement>0?"+":"")+fmt(movement)+" d","net submitted first-to-latest movement","",programmeRevisionReason(context.revisionCount,context.windowCount)],
     ["Delayed open execution activities",count(context.delayedActivityCount,context.knownDelayedActivityCount),"unfinished execution work later than baseline","",unresolvedWhy(context.unresolvedDelayedActivityCount,"a baseline and forecast finish date and a clear status")],
     ["Negative-float activities",count(context.negativeFloatActivityCount,context.knownNegativeFloatActivityCount),"programme pressure; not contractual responsibility","",unresolvedWhy(context.unresolvedNegativeFloatActivityCount,"total float and a clear status")],
-    ["Pressured milestones",count(context.pressuredMilestoneCount,context.knownPressuredMilestoneCount),"late and/or non-positive-float milestones and reviewed key dates","",context.milestonePopulationState==="partial"?"Confirm which activities are milestones":unresolvedWhy(context.unresolvedPressuredMilestoneCount,"a baseline date, float and a clear status")],
+    [nothingLate?"Critical milestones":"Pressured milestones",count(context.pressuredMilestoneCount,context.knownPressuredMilestoneCount),nothingLate?"zero float; none is late":"late and/or non-positive-float milestones and reviewed key dates","",context.milestonePopulationState==="partial"?"Confirm which activities are milestones":unresolvedWhy(context.unresolvedPressuredMilestoneCount,"a baseline date, float and a clear status")],
     ["Comparable revisions",count(context.revisionCount),"controlled schedule states"],
     ["Analytical windows",count(context.windowCount),"window availability; causation separate"]
-  ])+detail+'</div></section>';
+  ])+detail+'</div></section>',(nothingLate?'Critical milestones ':'Pressured milestones ')+count(context.pressuredMilestoneCount,context.knownPressuredMilestoneCount));
 }
 function renderDelayEvidenceChain(data){
   const chain=data?.delayEotEvidenceChain||null;if(!chain)return "";
@@ -2651,6 +2662,8 @@ function planningFloatHistogram(rows,limitHours,sourceHistogram=null){
       const hours=(exact?fmt(g.lowerHours):"≥"+fmt(g.lowerHours)+" to "+(g.upperInclusive?"≤":"<")+fmt(g.upperHours))+" original h";
       const days=inDays&&typeof g.lowerWorkingDays==="number"&&typeof g.upperWorkingDays==="number"?
         (exact?fmt(g.lowerWorkingDays)+" "+countUnit(g.lowerWorkingDays,"working days"):"≥"+fmt(g.lowerWorkingDays)+" to "+(g.upperInclusive?"≤":"<")+fmt(g.upperWorkingDays)+" working days")+" · ":"";
+      // DMCC-UPD2 #17: standard planning bands carry their own label; the hours stay as detail.
+      if(!exact&&g.label)return {label:g.label+" · "+(g.lowerHours<0?"<0":fmt(g.lowerHours)+(g.upperHours===g.lowerHours?"":" to "+fmt(g.upperHours)))+" h",count:g.count};
       return {label:days+hours,count:g.count};
     });
   }else if(distinct.length<=10){
@@ -2848,11 +2861,14 @@ function renderMovementConcentration(m,fallback){
   if(!m)return Array.isArray(fallback)?planningSignedBars(fallback,"calendar days"):'<div class="empty-visual">Largest finish movements: Not established. Only a preview of the activity rows was received.</div>';
   const signed=v=>v==null?"Not established":(v>0?"+":"")+fmt(v)+" d";
   const c=m.comparison||{},pop=m.population||{},all=m.maximumRows||[];
+  // DMCC-UPD2 #4: the baseline file was compared with itself (0-day movement) and an alarm raised.
+  // One programme revision has no movement to analyse.
+  if(c.baselineRevisionId&&c.baselineRevisionId===c.currentRevisionId&&!c.previousRevisionId)return '<div class="notice info"><b>One programme revision supplied</b><p>The current programme is the baseline itself, so there is no movement to analyse. Upload a later programme revision to compare finish dates.</p></div>';
   if(m.distribution?.maximum==null)return '<div class="notice info"><b>Maximum movement: Not established</b><p>Activities sharing maximum: Not established. Comparable controlled-baseline and current finish dates are needed to establish a maximum and the activities it covers.</p></div>';
   const rows=all.map(r=>'<tr><td><b>'+escapeHtml(r.activityId)+'</b><br>'+escapeHtml(r.name||"")+'</td><td>'+escapeHtml(humanizeKey(r.activityType))+'</td><td>'+escapeHtml(planningShortDate(r.baselineFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.previousFinishIso))+'</td><td>'+escapeHtml(planningShortDate(r.currentFinishIso))+'</td><td>'+escapeHtml(signed(r.baselineMovementDays))+'</td><td>'+escapeHtml(signed(r.previousMovementDays))+'</td><td>'+escapeHtml(r.sourcePairVerified?"Date pair reconciles":"Review required")+'</td></tr>').join("");
   return '<div class="notice info"><b>Comparison: '+escapeHtml(c.baselineLabel||"Controlled baseline")+' → '+escapeHtml(c.currentLabel||"Current programme")+'</b><br>Activities comparable with the baseline: '+escapeHtml(fmt(pop.denominator))+' / '+escapeHtml(fmt(pop.sourceCount))+' source records · '+escapeHtml(fmt(m.coveragePercent))+'% coverage.</div>'+planningKpis([
     ["Maximum movement",signed(m.distribution?.maximum),"calendar days vs each activity baseline"],["Activities sharing maximum",m.distribution.maximumCount,m.distribution.maximumPercent==null?"Share of comparable activities unresolved":fmt(m.distribution.maximumPercent)+"% of activities comparable with the baseline"],["Verified date pairs",m.sourcePairVerifiedCount,screenCountText(listTotal(all))+" maximum rows inspected"],["Causation","Not established","movement is not attributable delay or EOT"]
-  ])+'<div class="notice warn">'+escapeHtml(m.interpretation)+'</div><p><b>Activity types:</b> '+escapeHtml((m.activityTypes||[]).map(t=>fmt(t.count)+" "+humanizeKey(t.value)).join("; "))+'. <b>Baseline date patterns:</b> '+escapeHtml(screenCountText(listTotal(m.baselineDatePatterns||[])))+'. <b>Current date patterns:</b> '+escapeHtml(screenCountText(listTotal(m.currentDatePatterns||[])))+'. <b>WBS groups:</b> '+escapeHtml(screenCountText(listTotal(m.wbsPatterns||[])))+'. Systematic revision shift: review required.</p>'+planningSignedBars((m.representatives||[]).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.baselineMovementDays})),"calendar days")+'<p>Showing '+escapeHtml(countText((m.representatives||[]).length,'representative',undefined,fmt))+' of '+escapeHtml(screenCountText(listTotal(all)))+' at the maximum. Previous-revision comparison: '+escapeHtml(c.previousLabel||"Not established")+' → '+escapeHtml(c.currentLabel||"Current programme")+'.</p><details class="movement-cohort"><summary>Maximum-movement activities and date pairs · showing '+escapeHtml(fmt(all.length))+' of '+escapeHtml(screenCountText(listTotal(all)))+'</summary>'+sourcePopulationControl(all,'Browse all maximum-movement activities')+'<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Type</th><th>Controlled baseline finish</th><th>Previous revision finish</th><th>Current finish</th><th>Vs baseline</th><th>Vs previous revision</th><th>Source dates</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+  ])+'<div class="notice warn">'+escapeHtml(m.interpretation)+'</div><p><b>Activity types:</b> '+escapeHtml((m.activityTypes||[]).map(t=>fmt(t.count)+" "+humanizeKey(t.value)).join("; "))+'. <b>Baseline date patterns:</b> '+escapeHtml(screenCountText(listTotal(m.baselineDatePatterns||[])))+'. <b>Current date patterns:</b> '+escapeHtml(screenCountText(listTotal(m.currentDatePatterns||[])))+'. <b>WBS groups:</b> '+escapeHtml(screenCountText(listTotal(m.wbsPatterns||[])))+'. '+(m.distribution.maximum===0?'No activity finish moved against the baseline.':'Systematic revision shift: review required.')+'</p>'+planningSignedBars((m.representatives||[]).map(r=>({label:r.activityId+" · "+(r.name||""),value:r.baselineMovementDays})),"calendar days")+'<p>Showing '+escapeHtml(countText((m.representatives||[]).length,'representative',undefined,fmt))+' of '+escapeHtml(screenCountText(listTotal(all)))+' at the maximum. Previous-revision comparison: '+escapeHtml(c.previousLabel||"Not established")+' → '+escapeHtml(c.currentLabel||"Current programme")+'.</p><details class="movement-cohort"><summary>Maximum-movement activities and date pairs · showing '+escapeHtml(fmt(all.length))+' of '+escapeHtml(screenCountText(listTotal(all)))+'</summary>'+sourcePopulationControl(all,'Browse all maximum-movement activities')+'<div class="table-wrap"><table><thead><tr><th>Activity</th><th>Type</th><th>Controlled baseline finish</th><th>Previous revision finish</th><th>Current finish</th><th>Vs baseline</th><th>Vs previous revision</th><th>Source dates</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
 }
 /** Working-day float is only available with its original source activity
  * calendar. Never invent 8-hour days and never discard the source hour audit. */
@@ -4358,7 +4374,9 @@ function renderCommercialVisual(key,data){
   if(!position||!Array.isArray(position.currencies))return"";
   const foundation=position.foundation||null;
   const knownCount=value=>typeof value==="number"&&Number.isFinite(value)&&value>=0;
-  const countPosition=(_state,count,noun)=>{
+  // DMCC-UPD2 #9: a register that was never uploaded showed 0. Unknown is not zero: it is "Not supplied".
+  const countPosition=(state,count,noun)=>{
+    if(state==="not_submitted")return "Not supplied";
     if(!knownCount(count))return "Not established";
     return fmt(count)+" "+countUnit(count,noun);
   };
@@ -4418,7 +4436,7 @@ function renderCommercialVisual(key,data){
         const lines=cols.map(([label,field])=>'<div class="currency-line"><span>'+escapeHtml(commercialFieldLabel(row,field,label))+'</span><strong>'+commercialMetricHtml(row[field],lineCurrency(field),asOf,shared)+'</strong></div>').join("");
         return '<div class="currency-card"><div class="currency-code">'+escapeHtml(row.currency)+'</div>'+lines+(sharedText?'<p class="muted currency-shared-basis">'+escapeHtml(sharedText)+'</p>':'')+'</div>';
       }).join("")
-    : '<div class="empty-visual">No established commercial currency position. Submitted-but-unparsed and missing evidence remain distinct from zero.</div>';
+    : '<div class="empty-visual">No commercial records are supplied, so no currency position is shown.</div>';
   const commercialCharts=position.currencies.length
     ? '<div class="commercial-visual-grid">'+position.currencies.map(row=>renderVisualPanel(
         row.currency+" · "+(names[key]||"Commercial position"),
@@ -4993,8 +5011,10 @@ function renderCommercialVisual(key,data){
         return '<tr><td><b>'+escapeHtml(row.variationId)+'</b> · '+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(exposure)+'</td><td>Not recorded</td><td>Not recorded</td><td>'+escapeHtml(action)+'</td><td>'+escapeHtml(humanizeKey(row.lifecycleStage))+'</td></tr>';
       });
       const si=contractControls.siteInstructions||{};
-      const siteInstructionPopulationEstablished=knownCount(si.recordCount);
-      const siWhy=siteInstructionPopulationEstablished?"":"Needs a site instruction register";
+      // DMCC-UPD2 #9: with no Site Instruction register supplied the counts were 0 and a chart of zeros.
+      const siSupplied=!["missing","not_submitted"].includes(si.state)&&!(si.sourceRecordCount===0&&si.recordCount===0&&si.state!=="established");
+      const siteInstructionPopulationEstablished=siSupplied&&knownCount(si.recordCount);
+      const siWhy=siteInstructionPopulationEstablished?"":siSupplied?"Needs a site instruction register":"Not supplied: no Site Instruction register is in the documents";
       const siteInstructionBreakdownEstablished=siteInstructionPopulationEstablished&&[si.unquotedCount,si.overdueQuotationCount,si.convertedVariationCount].every(knownCount);
       const instructionPressure=renderVisualPanel(
         "Site Instruction conversion & quotation pressure",
@@ -5006,6 +5026,7 @@ function renderCommercialVisual(key,data){
           {label:"Converted to VO",value:si.convertedVariationCount,tone:"success"}
         ],"items"):siteInstructionPopulationEstablished&&si.recordCount===0
           ?'<div class="empty-visual">There are zero confirmed Site Instructions.</div>'
+          :!siSupplied?'<div class="empty-visual">No Site Instruction register is supplied.</div>'
           :'<div class="empty-visual">Site Instruction conversion and quotation counts are not fully established.</div>'
       );
       const siRows=(si.rows||[]).map(row=>'<tr><td><b>'+escapeHtml(row.instructionId)+'</b></td><td>'+escapeHtml(planningShortDate(row.issueDate))+'</td><td>'+escapeHtml(row.description||"")+'</td><td>'+escapeHtml(humanizeKey(row.status))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDueDate?.value))+'</td><td>'+escapeHtml(planningShortDate(row.quotationDate))+'</td><td>'+escapeHtml(humanizeKey(row.quotationTimeliness))+'</td><td>'+escapeHtml(findingValue(row.openAgeDays,"d"))+'</td><td>'+escapeHtml(findingValue(row.estimatedAmount))+'</td><td>'+escapeHtml(row.variationId||"Not linked")+'</td><td>'+escapeHtml([row.claimId,row.paymentId,(row.activityIds||[]).join("; ")].filter(Boolean).join(" · ")||"—")+'</td></tr>');
@@ -5045,10 +5066,10 @@ function renderCommercialVisual(key,data){
         '</div></section>'+
         '<section class="planning-panel"><div class="planning-panel-head"><div><h4>Site Instructions</h4><p>An instruction is not automatically a variation or entitlement. Quotation aging uses actual issue and due dates.</p></div></div><div class="planning-panel-body">'+
         planningKpis([
-          ["Instructions",governedDisplayCount(siteInstructionPopulationEstablished,si.recordCount),"source records","",siWhy],
-          ["Unquoted",governedDisplayCount(siteInstructionPopulationEstablished,si.unquotedCount),"quotation missing","",siWhy],
-          ["Overdue quotations",governedDisplayCount(siteInstructionPopulationEstablished,si.overdueQuotationCount),"past due","",siWhy],
-          ["Converted to VO",governedDisplayCount(siteInstructionPopulationEstablished,si.convertedVariationCount),"explicit link only","",siWhy]
+          ["Instructions",(siSupplied?governedDisplayCount(siteInstructionPopulationEstablished,si.recordCount):"Not supplied"),"source records","",siWhy],
+          ["Unquoted",(siSupplied?governedDisplayCount(siteInstructionPopulationEstablished,si.unquotedCount):"Not supplied"),"quotation missing","",siWhy],
+          ["Overdue quotations",(siSupplied?governedDisplayCount(siteInstructionPopulationEstablished,si.overdueQuotationCount):"Not supplied"),"past due","",siWhy],
+          ["Converted to VO",(siSupplied?governedDisplayCount(siteInstructionPopulationEstablished,si.convertedVariationCount):"Not supplied"),"explicit link only","",siWhy]
         ])+
         instructionPressure+
         table(["Instruction","Issued","Description","Status","Quote due","Quoted","Timeliness","Open age","Estimate","Variation","Other links"],siRows,"No Site Instruction register is established.")+
@@ -5385,7 +5406,8 @@ function renderCommercialVisual(key,data){
   if(key==="payments"){
     const linkage=position.paymentLinkage;
     const linkageHtml=linkage?managementPanel('Payment-to-certificate linkage',linkage.basis,
-      planningKpis([['Payments matched to certificates',linkage.linked,'of '+fmt(linkage.total)+' dated source payments'],['Payment linkage',linkage.coveragePercent==null?'Not established':fmt(linkage.coveragePercent)+'%','exact reference and compatible dates','',linkage.total===0?'Needs dated actual payment records':'']])+
+      // DMCC-UPD2 #9: "0 of 0" with no payment records supplied reads as a checked zero.
+      planningKpis([['Payments matched to certificates',linkage.total===0?'Not supplied':linkage.linked,linkage.total===0?'no dated payment records in the documents':'of '+fmt(linkage.total)+' dated source payments'],['Payment linkage',linkage.total===0?'Not supplied':linkage.coveragePercent==null?'Not established':fmt(linkage.coveragePercent)+'%',linkage.total===0?'no dated payment records in the documents':'exact reference and compatible dates','',linkage.total===0?'':'']])+
       basisTable(['Payment reference','Certificate','Payment date','Match','Basis'],linkage.rows.map(r=>[r.reference,r.certificateReference||r.certificateNumber,planningShortDate(r.paymentDate),humanizeKey(r.state),r.basis])),true):'';
     const paymentTiming=foundation?.paymentRegister;
     const paymentTimingHtml=paymentTiming?planningKpis([
@@ -5726,9 +5748,13 @@ function renderPmcControlRoom(data){
  const awardedDays=data.projectFacts?.time?.awardedEotDays?.value??null;
  const submittedAfterEot=data.projectFacts?.time?.submittedDaysAfterExtendedCompletion?.value??null;
  const constraints=data.scheduleBasisReview?.constraints??[];
- const sourceConstraint=data.scheduleBasisReview
-   ?constraints.length?constraints.slice(0,3).map(c=>humanizeKey(c.type)).join('; '):'No source date constraint identified by this review'
-   :'Programme constraints: confirm on Independent Forecast';
+ // DMCC-UPD2 #18: the dashboard said "No source date constraint identified" while Completion Forecast
+ // listed 16 activity constraints. Both now read the programme's constraint count; the project finish
+ // constraint (none here) is said separately from activity constraints.
+ const activityConstraintCount=typeof data.projectDiagnosis?.anomalies?.constraints==='number'?data.projectDiagnosis.anomalies.constraints:constraints.length||null;
+ const sourceConstraint=constraints.length?constraints.slice(0,3).map(c=>humanizeKey(c.type)).join('; ')+(activityConstraintCount>constraints.length?' · '+countText(activityConstraintCount,'activity constraint',undefined,fmt):'')
+   :typeof activityConstraintCount==='number'?(activityConstraintCount>0?'No project finish constraint; '+countText(activityConstraintCount,'activity constraint',undefined,fmt):'No date constraint in the programme')
+   :data.scheduleBasisReview?'No source date constraint identified by this review':'Programme constraints: confirm on Independent Forecast';
  const timeSummary=originalDate||extendedDate?
    '<div class="notice '+(typeof submittedAfterEot==='number'&&submittedAfterEot>0?'warn':'info')+'"><b>Contract time position</b><p>Original completion: '+escapeHtml(planningShortDate(originalDate))+
    ' · Contract completion including awarded EOT: '+escapeHtml(planningShortDate(extendedDate))+
@@ -5911,7 +5937,9 @@ function renderMcpProgrammeControl(data){
    const sourceWbsCount=Number.isFinite(stage.wbsPathCount)?stage.wbsPathCount:Array.isArray(stage.wbsPaths)?stage.wbsPaths.length:null;
    const packages=(stage.wbsPaths||[]).slice(0,5).join("; ")+(sourceWbsCount!==null&&sourceWbsCount>5?" · "+fmt(sourceWbsCount-5)+" more":"");
    const milestones=(stage.controlMilestoneIds||[]).slice(0,6).join("; ")||"No control milestone identified in this stage";
-   const dependencies=(stage.dependencyStages||[]).map(humanizeKey).join(" → ")||"No incoming cross-stage dependency identified";
+   // DMCC-UPD2 #15: incoming stages are a set, not a sequence: delivery order, comma-separated.
+   const stageOrder=["design","procurement","construction","testing_commissioning","handover","other"];
+   const dependencies=[...(stage.dependencyStages||[])].sort((a,b)=>stageOrder.indexOf(a)-stageOrder.indexOf(b)).map(humanizeKey).join(", ")||"No incoming cross-stage dependency identified";
    const float=pmcDefined(stage.lowestFloatHours)?sourceWorkingFloatField(stage,"lowestFloatHours"):"Not established";
    const blockers=Number.isFinite(stage.readinessBlockerCount)&&stage.readinessBlockerCount>0
      ? fmt(stage.readinessBlockerCount)+" affected activities · "+(stage.readinessBlockerTypes||[]).map(humanizeKey).join(", ")
@@ -5931,7 +5959,7 @@ function renderMcpProgrammeControl(data){
      '<td>'+escapeHtml(stage.latestCurrentFinishIso?planningShortDate(stage.latestCurrentFinishIso):"—")+'</td>'+
      '<td>'+escapeHtml(stage.latestForecastFinishIso?planningShortDate(stage.latestForecastFinishIso):"Not established")+'</td>'+
      '<td>'+escapeHtml(float)+'<br><span class="muted">'+escapeHtml(fmt(stage.criticalOrNegativeFloatCount))+' critical / negative-float activities</span></td>'+
-     '<td>'+escapeHtml(blockers)+(stage.readinessRequiredByIso?'<br><span class="muted">Required by '+escapeHtml(planningShortDate(stage.readinessRequiredByIso))+'</span>':'')+(longLead?'<br><span class="muted">'+escapeHtml(longLead)+'</span>':'')+'</td>'+
+     '<td>'+escapeHtml(blockers)+(stage.readinessRequiredByIso&&stage.readinessBlockerCount>0?'<br><span class="muted">Needed by '+escapeHtml(planningShortDate(stage.readinessRequiredByIso))+' (earliest start of the affected look-ahead work)</span>':'')+(longLead?'<br><span class="muted">'+escapeHtml(longLead)+'</span>':'')+'</td>'+
      '<td>'+escapeHtml(owners)+'</td>'+
      '<td>'+escapeHtml(actions)+'</td></tr>';
  }).join("");
@@ -6102,7 +6130,14 @@ function renderRecoveryAccelerationVisual(data){
   const scenarios=Array.isArray(p.scenarios)?p.scenarios:[],eligibility=p.eligibility||{};
   const assessment=p.eligibilityAssessmentState||(p.calculatedScenarioCount>0?"calculated_options_available":p.assumptionRequiredCount>0?"candidates_need_assumptions":"checked_no_eligible_basis");
   const basisAbsent=assessment==="supporting_basis_absent";
-  const headline=assessment==="calculated_options_available"
+  // DMCC-UPD2 #6: "Recovery candidates exist" on a baseline with no negative float, no late finish and
+  // no required date. With nothing late there is nothing to recover; the page says so first.
+  const facts=data?.projectFacts||{},negativeFloat=facts.schedule?.negativeFloatActivityCount?.value;
+  const lateDays=[facts.time?.submittedDaysAfterCurrentContract?.value,facts.time?.independentDaysAfterCurrentContract?.value].filter(v=>typeof v==="number");
+  const shortfall=p.recoveryTargets?.extended?.workingDays;
+  const noDelay=negativeFloat===0&&!lateDays.some(v=>v>0)&&!(typeof shortfall==="number"&&shortfall>0)&&!(p.calculatedScenarioCount>0);
+  const contractHeld=typeof (facts.time?.governingContractCompletionIso?.value??facts.time?.contractualCompletionIso?.value)==="string";
+  const headline=noDelay?"No delay to recover: no activity has negative float"+(contractHeld?" and the finish is within the contract date.":" and no contract completion date is supplied to be late against.")+" Recovery options are assessed when a delay exists.":assessment==="calculated_options_available"
     ?"Calculated recovery option(s) are available under the stated scenario assumptions."
     :assessment==="candidates_need_assumptions"
       ?"Recovery candidates exist, but quantified recovery needs additional assumptions."
@@ -6124,7 +6159,7 @@ function renderRecoveryAccelerationVisual(data){
   // The page's position statement leads (shared layout: data-page-answer="position"); targets and the sixth-day check follow.
   return '<section class="planning-view recovery-view"><div class="notice '+(assessment==="calculated_options_available"?"info":assessment==="supporting_basis_absent"?"warn":"info")+'" data-page-answer="position"><h4>Recovery & acceleration position</h4><p>'+escapeHtml(headline)+'</p><p>'+escapeHtml(p.managementPosition||"")+'</p><p>Every option remains a scenario until separately approved/adopted.</p></div>'+targetPanel+sixthDayControl+planningKpis([
     ["Calculated recovery options",p.calculatedScenarioCount>0?p.calculatedScenarioCount:basisAbsent?"Not assessable":assessment==="supporting_basis_incomplete"?"Not established":"None qualify","on the CPM path to completion, with a CPM completion gain"],
-    ["Options needing assumptions",p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":"None identified","not quantified until assumptions are established"],
+    ["Options needing assumptions",noDelay?"Not needed":p.assumptionRequiredCount>0?p.assumptionRequiredCount:basisAbsent?"Not assessable":"None identified",noDelay?"no delay to recover":"not quantified until assumptions are established"],
     ["Eligibility checks performed",count(eligibility.actualEligibilityChecksPerformed),"linked activity, package timing and explicit workfront checks","",eligibility.supportingBasisAvailable===false?"Needs quantity, procurement or workfront evidence linked to programme activities":""],
     ["Data Date",planningShortDate(p.dataDateIso),"current project position"]
   ])+'<section class="planning-panel"><div class="planning-panel-head"><div><h4>Eligibility evidence</h4><p>Missing supporting basis is different from a checked zero.</p></div></div><div class="planning-panel-body">'+planningKpis([
@@ -6783,7 +6818,9 @@ function renderModuleResultBody(result){
   const moduleName=readerModuleHeading(result.key);
   const roleLabel=managementSurface?"Management Control":(roleViews[selectedRoleView]?.label||roleViews.overall.label);
   el("moduleTitle").textContent=moduleName;
-  el("moduleSubtitle").textContent=(descriptions[result.key]||"Current position, key changes and actions requiring attention.")+(managementSurface?"":" · "+roleLabel);
+  // DMCC-UPD2 #21: the view name ("Overall Detailed") was printed after the subtitle sentence; the selected
+  // view is already shown by the view buttons.
+  el("moduleSubtitle").textContent=descriptions[result.key]||"Current position, key changes and actions requiring attention.";
   renderModuleWorkspace(result.key);
   if(appView!=="ai")el("topbarModule").textContent=moduleName;
   el("moduleBadge").className="issue-badge "+(result.issueAssessment?.primaryKind||"verification_pending");
@@ -6967,10 +7004,9 @@ function renderStatus(o){
     '<div class="scalar"><b>Current Data Date</b><span>'+fmt(o.latestDataDateIso)+'</span></div>'+
     '<div class="scalar"><b>Project documents</b><span>'+fmt(o.evidenceDocumentCount)+'</span></div>'+
     '<div class="scalar"><b>Documents not fully read</b><span id="documentsUnreadCount">'+fmt(o.documentReading?o.documentReading.unreadCount:null)+'</span></div>'+
-    '<div class="scalar"><b>Navigation views</b><span>'+fmt(moduleRegistry.length)+'</span></div>'+
-    '<div class="scalar"><b>Listed readiness checks passed</b><span>'+escapeHtml(screenCountText(readyChecksPassedCount(o.moduleStates)))+'</span></div>'+
-    '<div class="scalar"><b>Views requiring review</b><span>'+partial+'</span></div>'+
-    '<div class="scalar"><b>Blocked specialist views</b><span>'+blocked+'</span></div>'+
+    // DMCC-UPD2 #19: build counters ("Navigation views 58", "Views requiring review 27", readiness checks,
+    // blocked specialist views) are for CMeng's builders, not the client. They stay in Project review.
+
   '</div>'+documentReadingNotice(o.documentReading);
 }
 function bindQueueRemoval(){
@@ -7334,8 +7370,10 @@ function updateActiveProjectShell(){
   if(appView==="project"||appView==="ai")el("platformContextTitle").textContent=id;
   el("topbarModule").textContent=appView==="ai"?"Ask CMeng":names[selected]||"Project Controls";
   el("activeProjectName").textContent=id||"No project selected";
-  el("activeProjectMeta").textContent=overview?(displayDataDate+" · "+overview.evidenceDocumentCount+" project documents"+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):"")):unloaded;
-  el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate+(overview.releaseCommitSha?" · Release "+overview.releaseCommitSha.slice(0,7):" · Release not supplied")):id+" · "+unloaded;
+  // DMCC-UPD2 #20 and #24: the build number is not shown to the client (it stays on /health), and one
+  // document reads "1 project document".
+  el("activeProjectMeta").textContent=overview?(displayDataDate+" · "+countText(overview.evidenceDocumentCount,"project document",undefined,fmt)):unloaded;
+  el("workspaceProjectMeta").textContent=overview?(id+" · Data Date "+displayDataDate):id+" · "+unloaded;
   el("aiProjectBadge").className="badge";
   el("aiProjectBadge").textContent=id||"No active project";
   el("aiProjectInfo").innerHTML=overview?'<b>'+escapeHtml(id)+'</b><br>'+escapeHtml(overview.evidenceDocumentCount)+' evidence documents<br>'+escapeHtml(overview.revisionCount)+' schedule revisions<br>'+escapeHtml(overview.latestDataDateIso?planningShortDate(overview.latestDataDateIso):"No current data date"):escapeHtml(unloaded);

@@ -128,7 +128,7 @@ export function buildForecastReconciliationGate(input: {
       state: unresolvedCalendarActivities.length === 0 ? "passed" : "review_required",
       detail: unresolvedCalendarActivities.length === 0
         ? "Every calculated execution activity uses a readable source working calendar."
-        : String(unresolvedCalendarActivities.length) + " execution activity(ies) do not have a fully calculated source-calendar result.",
+        : count(unresolvedCalendarActivities.length, "execution activity", "execution activities") + " " + plural(unresolvedCalendarActivities.length, "does", "do") + " not have a fully calculated source-calendar result.",
       count: unresolvedCalendarActivities.length,
     },
     {
@@ -148,8 +148,8 @@ export function buildForecastReconciliationGate(input: {
       detail: sourceConstraintActivities.length === 0
         ? "No source constraints are present."
         : constraintsApplied
-          ? String(sourceConstraintActivities.length) + " activity(ies) have source constraints applied in the calendar calculation."
-          : String(sourceConstraintActivities.length) + " activity(ies) have source constraints that have not been applied; their effect needs calculation.",
+          ? count(sourceConstraintActivities.length, "activity", "activities") + " " + plural(sourceConstraintActivities.length, "has", "have") + " source constraints applied in the calendar calculation."
+          : count(sourceConstraintActivities.length, "activity", "activities") + " " + plural(sourceConstraintActivities.length, "has", "have") + " source constraints that have not been applied; their effect needs calculation.",
       count: unappliedConstraints?sourceConstraintActivities.length:0,
     },
     {
@@ -169,7 +169,7 @@ export function buildForecastReconciliationGate(input: {
         ? "Not tested: no activity has both a calculated finish and a submitted finish to compare."
         : materialDivergences.length === 0
         ? "No calculated activity finish differs from its submitted finish by more than the disclosed CMeng screening threshold."
-        : String(materialDivergences.length) + " activity(ies) differ by more than " + materialActivityScreeningDays + " calendar days and require reconciliation.",
+        : count(materialDivergences.length, "activity", "activities") + " " + plural(materialDivergences.length, "differs", "differ") + " by more than " + materialActivityScreeningDays + " calendar days and " + plural(materialDivergences.length, "requires", "require") + " reconciliation.",
       count: comparedActivities.length === 0 ? null : materialDivergences.length,
     },
     {
@@ -257,6 +257,8 @@ export function buildForecastReconciliationGate(input: {
 }
 
 function plural(count: number, one: string, many: string) { return count === 1 ? one : many; }
+/** DMCC-UPD2 #23: counts in sentences carry separators and a proper plural ("2,335 activities"). */
+function count(value: number, one: string, many: string) { return value.toLocaleString("en-US") + " " + plural(value, one, many); }
 function dayText(days: number) { const n = Math.abs(days); return n + " " + plural(n, "day", "days"); }
 /** The qualifications of a calculated finish, each with the input that would firm it up. */
 export function forecastQualifications(input: {
@@ -291,7 +293,7 @@ export function forecastQualifications(input: {
       action: "Reconcile the logic, durations and calendars behind the difference with the programme owner."});
   if (input.materialDivergences > 0)
     out.push({code: "activity_divergence", count: input.materialDivergences,
-      text: input.materialDivergences + " " + plural(input.materialDivergences, "activity finishes", "activities finish") + " more than " + input.materialActivityScreeningDays + " days away from the submitted date.",
+      text: input.materialDivergences.toLocaleString("en-US") + " " + plural(input.materialDivergences, "activity finishes", "activities finish") + " more than " + input.materialActivityScreeningDays + " days away from the submitted date.",
       action: "Check the listed activities with the planner."});
   if (input.unappliedConstraints > 0)
     out.push({code: "constraints_not_applied", count: input.unappliedConstraints,

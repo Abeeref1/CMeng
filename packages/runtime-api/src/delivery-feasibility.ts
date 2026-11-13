@@ -51,7 +51,7 @@ function computeDeliveryFeasibility(state:ProjectRuntimeState) {
   const missingInputs=[programmeChecks.remainingLaborHours===null?'Complete remaining labour hours by trade':null,!target?'A dated submitted programme finish':null,
     'Approved crew availability, shifts and production rates for a capacity verdict'].filter((v):v is string=>v!==null);
   const feasibilityPosition={state:dailyHours!==null||calculatedSequences.length?'conditional_scenario':'inputs_incomplete',
-    answer:dailyHours!==null?'The submitted labour budget requires '+dailyHours.toFixed(2)+' labour hours per calendar day to the submitted finish. Crew capacity must meet this rate.':calculatedSequences.length?calculatedSequences.length+' source-calendar crew sequences are calculable; their conditional finish effects are shown below.':'A numeric crew-capacity verdict is not established from the supplied hours, calendars and crew data.',
+    answer:dailyHours!==null?'The submitted labour budget requires '+Math.round(dailyHours).toLocaleString('en-US')+' labour hours per calendar day to the submitted finish. Crew capacity must meet this rate.':calculatedSequences.length?calculatedSequences.length+' source-calendar crew sequences are calculable; their conditional finish effects are shown below.':'A numeric crew-capacity verdict is not established from the supplied hours, calendars and crew data.',
     targetFinishIso:target,calendarDaysAvailable:days,requiredLaborHoursPerCalendarDay:dailyHours,
     calculatedSequenceCount:calculatedSequences.length,assumptions,missingInputs,
     capacityVerdict:'Not determined without approved crew capacity in a comparable unit and period',authority:'scenario'};

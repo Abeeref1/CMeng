@@ -103,8 +103,42 @@ const stageRules: Array<{stage:ProgrammeControlStage;label:string;pattern:RegExp
 
 /** The shared programme-stage name rule (activity name, then WBS path text),
  * with the label each stage carries. F38 reuses it, labelled as a name match. */
+// DMCC-UPD2 #15: by activity name alone, "Design & approvals" caught every "ITR Approval by Consultant"
+// and authority approval, so it ran from the Data Date to the project finish. The programme's own WBS
+// phases decide first: the highest WBS level whose name names one stage gives the activity's stage. A
+// phase that names several stages ("Testing, Commissioning, Authorities Approval, Handing over and
+// Close-out") is read one level deeper, and stays within those stages.
+const phaseRules: Array<{stage:ProgrammeControlStage;pattern:RegExp}> = [
+  {stage:'design',pattern:/\bdesign\b|\bengineering\b|\bdrawings?\b|\bsubmittals?\b/i},
+  {stage:'procurement',pattern:/\bprocurement\b|\blong[\s-]?lead\b|\bsub-?assignment\b|\bsub-?contract(?:s|ors?)?\b|\bsuppliers?\b|\bpurchas/i},
+  {stage:'construction',pattern:/\bconstruction\b|\bcivil\b|\bstructur(?:al|e)\b|\bmep\b|\bfinish(?:es|ing)\b|\bexternal works\b|\benabling\b|\bfa[cç]ade\b/i},
+  {stage:'testing_commissioning',pattern:/\btest(?:ing)?\b|\bcommission/i},
+  {stage:'handover',pattern:/\bhand(?:ing)?[\s-]?over\b|\bclose[\s-]?out\b|\bsnag|\bdemobili[sz]ation\b|\bas[\s-]?built\b|\bwarrant|\bo\s*&\s*m\b/i},
+];
+function wbsPhaseStage(model: CanonicalScheduleModel){
+  const nodes=new Map(model.wbs.map(node=>[node.wbsId,node]));
+  const cache=new Map<string,ProgrammeControlStage|null>();
+  return (wbsId:string|null):ProgrammeControlStage|null=>{
+    if(!wbsId)return null;
+    if(cache.has(wbsId))return cache.get(wbsId)!;
+    const chain:typeof model.wbs=[];const seen=new Set<string>();
+    for(let id:string|null=wbsId;id&&!seen.has(id);id=nodes.get(id)?.parentWbsId??null){seen.add(id);const node=nodes.get(id);if(node)chain.unshift(node);}
+    let allowed:ProgrammeControlStage[]|null=null,stage:ProgrammeControlStage|null=null;
+    // Level 1 is the project itself; phases start at level 2.
+    for(const node of chain.slice(chain.length>1?1:0)){
+      const named=phaseRules.filter(rule=>rule.pattern.test(node.name??'')&&(!allowed||allowed.includes(rule.stage))).map(rule=>rule.stage);
+      if(named.length===1){stage=named[0]!;break;}
+      if(named.length>1&&!allowed)allowed=named;
+    }
+    const result=stage??(allowed?allowed[0]!:null);
+    cache.set(wbsId,result);return result;
+  };
+}
 export function programmeControlStageClassifier(model: CanonicalScheduleModel, paths: Map<string,string> = wbsPathById(model)) {
+  const phaseOf=wbsPhaseStage(model);
   return (activity:typeof model.activities[number]):ProgrammeControlStage=>{
+    const phase=phaseOf(activity.wbsId);
+    if(phase)return phase;
     const text=[activity.name,activity.wbsId?paths.get(activity.wbsId):null].filter(Boolean).join(' | ');
     const direct=stageRules.find(rule=>rule.pattern.test(activity.name??''));
     if(direct)return direct.stage;

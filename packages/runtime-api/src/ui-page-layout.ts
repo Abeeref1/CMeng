@@ -44,7 +44,9 @@ const PAGE_LONG_TABLE_ROWS=8;
 const PAGE_ACTION_MAX_PX=220;
 // Containers that only group other blocks: the role view, the analysis area,
 // the page view and its grids. Their blocks are arranged one by one.
-const PAGE_WRAPPER_CLASS=/(?:^|\s)(?:role-view-[a-z-]+|role-primary-analysis|planning-view|planning-primary-grid|visual-chart-grid|experience-preview|management-two-column)(?:\s|$)/;
+// DMCC-UPD2 #8: the Management brief is one tall section; as one block it went whole into More detail and
+// the page opened with only the verdict. Its sections are arranged one by one, its conclusion leading.
+const PAGE_WRAPPER_CLASS=/(?:^|\s)(?:role-view-[a-z-]+|role-primary-analysis|planning-view|planning-primary-grid|visual-chart-grid|experience-preview|management-two-column|management-brief)(?:\s|$)/;
 const PAGE_FIXED='.module-basis,.position-verdict,.view-state-bar,[role="alert"],.experience-notes.error';
 const PAGE_TILE='.planning-kpi,.kpi-card,.kpi,.scalar,.metric-card,.position-card,.experience-kpi,.experience-fact,.management-metric-card,.pmc-domain-card,.currency-card';
 const PAGE_CHART='[data-visual-panel],.visual-chart,.chart-card,svg.svg-chart,.float-histogram,.milestone-date-chart,.lookahead-timeline,.certificate-columns,.date-ladder,.pressure-matrix,.cash-movement-bars,.waterfall-chart,.signed-bars,.status-band,.constraint-bars,.finish-period-bars,.donut-ring,.visual-bars';
@@ -258,7 +260,9 @@ function pageSayUnknownOnce(container){
   const why=v=>bare.test(v.value)?v.note.split('·')[0].trim():v.value;
   const reasons=[...new Set(unknown.map(why).filter(Boolean))];
   const line=document.createElement('p');line.className='page-unknown-once';
-  line.innerHTML='<b>Not established'+(reasons.length===1?' ('+esc(reasons[0])+')':'')+':</b> '+
+  // When every collapsed tile says "Not supplied", the line says so (the register is absent, not unknown).
+  const lead=unknown.every(v=>/^not supplied\.?$/i.test(v.value))?'Not supplied':'Not established';
+  line.innerHTML='<b>'+lead+(reasons.length===1?' ('+esc(reasons[0])+')':'')+':</b> '+
     esc(unknown.map(v=>reasons.length>1&&!bare.test(v.value)?v.label+' ('+v.value+')':v.label).join(', '))+'.';
   grid.parentNode.insertBefore(line,grid.nextSibling);
   for(const v of unknown)v.tile.classList.add('page-said-once');
