@@ -1,3 +1,4 @@
+import {estimateAiReading} from './ai-reading-estimate';
 import {runRegisterReaders,readerConsumedColumns} from './reader-consumption';
 import {scheduleAuthorityReview,programmeDocumentAuthority} from './schedule-authority';
 import {linkCandidatesRequest} from './link-candidates';
@@ -1293,10 +1294,30 @@ async function route(
   // M16.1: finish AI column reading for tables read without AI. Paid calls run
   // only when the gateway allows them for this request (x-cmeng-paid-ai); the
   // answer names the real next step and never quotes a cost.
+  // 13 Nov point 5: the estimate shown before owner approval, built from the requests a
+  // reading would send (planning mode): nothing is called and nothing in the project changes.
+  const aiEstimateMatch=/^\/api\/projects\/([^/]+)\/evidence\/ai-reading\/estimate$/.exec(url.pathname);
+  if(req.method==="GET"&&aiEstimateMatch){
+    const projectId=decodeURIComponent(aiEstimateMatch[1]!);
+    if(!runtimeProjects.get(projectId)){json(res,404,{error:"project_not_found"});return;}
+    const planned=await runtimeProjects.planAiReading(projectId);
+    json(res,200,{projectId,state:planned.state,estimate:estimateAiReading(planned.events)});
+    return;
+  }
   const aiReadingMatch=/^\/api\/projects\/([^/]+)\/evidence\/ai-reading$/.exec(url.pathname);
   if(req.method==="POST"&&aiReadingMatch){
     const projectId=decodeURIComponent(aiReadingMatch[1]!);
     if(!runtimeProjects.get(projectId)){json(res,404,{error:"project_not_found"});return;}
+    // The owner approves an estimate; if the work has grown since, the reading does not start.
+    const body=Buffer.from(await readBody(req)).toString('utf8').trim();
+    let approvedCeilingUsd:number|null=null;
+    if(body){try{const parsed=JSON.parse(body);if(parsed&&parsed.approvedCeilingUsd!==undefined&&parsed.approvedCeilingUsd!==null){approvedCeilingUsd=Number(parsed.approvedCeilingUsd);if(!Number.isFinite(approvedCeilingUsd)||approvedCeilingUsd<0){json(res,400,{error:'approved_ceiling_invalid'});return;}}}catch{json(res,400,{error:'invalid_json'});return;}}
+    if(approvedCeilingUsd!==null){
+      const current=estimateAiReading((await runtimeProjects.planAiReading(projectId)).events);
+      if(current.ceilingForPlannedCalls.usd!==null&&current.ceilingForPlannedCalls.usd>approvedCeilingUsd+1e-9){
+        json(res,409,{error:'estimate_changed',message:'The work has changed since the estimate you approved. Review the new estimate before any paid call.',estimate:current});return;
+      }
+    }
     const result=await runtimeProjects.finishAiTableReading(projectId,{allowSemanticAi:req.headers['x-cmeng-paid-ai']==='1'});
     const message=result.state==='not_allowed'?'AI is not switched on for this visit. The owner can allow AI; no paid call was made.'
       :result.state==='not_set_up'?'AI is not set up on this service. The columns stay unread; their source values are kept.'

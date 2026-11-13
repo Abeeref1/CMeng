@@ -53,16 +53,22 @@ test('T03 the spending cap is checked before each call and the run stops cleanly
  let fetches=0;
  const fakeFetch=(async()=>{fetches++;return new Response('{}',{status:500});}) as unknown as typeof fetch;
  try{
-  // One call reserves the full context upper bound (about USD 0.027 at the published rate); the cap allows one.
+  // Each call reserves its own ceiling (its payload plus the full output allowance; 13 Nov) and
+  // keeps it, because a 500 answer may have been charged. The cap of USD 0.03 is reached
+  // part-way: no provider request is made once the next reservation would exceed it.
   const model=new OpenAiAskModel('fake-key','gpt-4.1-mini',fakeFetch,configuredModelLimits({}),{},{CMENG_AI_USAGE_DIR:dir,CMENG_AI_MONTHLY_USD:'0.03'});
   const steps:any[]=[],diagnostics:string[]=[];
-  await enrichRegisterSheetSemantics(workbook(['S1','S2','S3']),{resolver:new GroundedTableSemanticAiResolver(model),requested:true,steps,diagnostics});
-  assert.equal(fetches,1,'no provider request after the cap is reached');
+  await enrichRegisterSheetSemantics(workbook(['S1','S2','S3','S4','S5']),{resolver:new GroundedTableSemanticAiResolver(model),requested:true,steps,diagnostics,maxAiCalls:10});
+  const ledger=JSON.parse(readFileSync(join(dir,readdirSync(dir).find(name=>name.endsWith('.json'))!),'utf8'));
+  const perCall=ledger.reservedMicros/fetches;
+  assert.ok(fetches>=1&&fetches<5,'the run stops before the last sheet');
+  assert.ok(ledger.reservedMicros<=30000&&ledger.reservedMicros+perCall>30000,'stopped exactly where the next reservation would pass the cap');
+  assert.equal(steps.filter(step=>step.status==='stopped_at_cap').length,5-fetches,'every sheet after the cap waits, unpaid');
   // The fake provider answers HTTP 500, which the provider reads as MODEL_PROVIDER_UNAVAILABLE: a provider error.
-  assert.deepEqual(steps.map(step=>step.status),['provider_error','stopped_at_cap','stopped_at_cap']);
-  assert.deepEqual(steps.map(step=>step.attempted),[true,false,false]);
-  assert.ok(steps.slice(1).every(step=>/spending cap/.test(step.note)));
-  assert.equal(diagnostics.filter(line=>/stopped at the spending cap/.test(line)).length,2);
+  assert.deepEqual(steps.map(step=>step.status),[...Array(fetches).fill('provider_error'),...Array(5-fetches).fill('stopped_at_cap')]);
+  assert.deepEqual(steps.map(step=>step.attempted),[...Array(fetches).fill(true),...Array(5-fetches).fill(false)]);
+  assert.ok(steps.slice(fetches).every(step=>/spending cap/.test(step.note)));
+  assert.equal(diagnostics.filter(line=>/stopped at the spending cap/.test(line)).length,5-fetches);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -100,7 +106,7 @@ test('T03 the cost shown before AI is switched on equals what the ledger reserve
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-test('T03 R5: incomplete reading with AI set up is stated with the cost to finish; AI-read steps are not counted as read',()=>{
+test('T03 R5: incomplete reading with AI set up says the cost is shown before the run; AI-read steps are not counted as read',()=>{
  const docs=[{sourceHashSha256:'A',semanticAiSteps:[
   {sourceHashSha256:'A',status:'disabled',attempted:false},{sourceHashSha256:'A',status:'stopped_at_cap',attempted:false},
   {sourceHashSha256:'A',status:'unresolved',attempted:true},{sourceHashSha256:'A',status:'validated',attempted:true},
@@ -108,8 +114,10 @@ test('T03 R5: incomplete reading with AI set up is stated with the cost to finis
  const on=aiReadingCoverage(docs,{providerConfigured:true,estimatedMaxUsdPerCall:0.0272});
  assert.equal(on.incompleteSteps,3);
  assert.equal(on.stepsAwaitingAi,2);
- assert.equal(on.estimatedMaxUsdToFinish,0.0544);
- assert.match(on.statement!,/Reading is incomplete: 3 source steps are not fully read\. AI is set up\. .*at most USD 0\.0544.*Owner permission is required/);
+ // 13 Nov: no "steps x largest call" figure (that is a safety ceiling, not the cost).
+ assert.equal(on.estimatedMaxUsdToFinish,null);
+ assert.match(on.statement!,/Reading is incomplete: 3 source steps are not fully read\. AI is set up\. Finish AI reading first shows the AI calls needed after reuse, the expected cost, the ceiling and this month's spend\. Owner permission is required/);
+ assert.doesNotMatch(on.statement!,/USD/);
  const off=aiReadingCoverage(docs,{providerConfigured:false,estimatedMaxUsdPerCall:null});
  assert.match(off.statement!,/AI is not set up\./);
  assert.equal(off.estimatedMaxUsdToFinish,null);

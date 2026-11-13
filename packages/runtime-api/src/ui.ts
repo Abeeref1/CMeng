@@ -7182,9 +7182,26 @@ async function loadEvidence(){
     }).join("")+'</tbody></table></div>';
     // M16.1: one explicit action finishes AI column reading; the answer names the real outcome.
     const finishAi=el('finishAiReading');
+    // 13 Nov: the estimate built from the actual requests is shown first; nothing is paid
+    // until the owner confirms that estimate.
     if(finishAi)finishAi.onclick=async()=>{finishAi.disabled=true;const out=el('finishAiReadingResult');
-      try{const r=await api('/api/projects/'+encodeURIComponent(project())+'/evidence/ai-reading',{method:'POST'});if(out)out.textContent=' '+(r.message||'');await loadEvidence();}
-      catch(error){if(out)out.textContent=' '+String(error?.message||error);finishAi.disabled=false;}};
+      try{
+        if(out)out.textContent=' Working out the cost from the actual requests…';
+        const planned=await api('/api/projects/'+encodeURIComponent(project())+'/evidence/ai-reading/estimate');const e=planned.estimate||{};
+        if(!e.pendingParts){if(out)out.textContent=' '+(e.statement||'Nothing is waiting for AI reading.');finishAi.disabled=false;return;}
+        const usd=v=>v===null||v===undefined?'not priced':'USD '+(v>0&&v<0.01?Number(v).toFixed(4):Number(v).toFixed(2));
+        const rows=[['Parts not fully read',fmt(e.pendingParts)],['Unique structures',fmt(e.uniqueStructures)],['AI calls after reuse',fmt(e.aiCalls)+(e.reusedFromValidatedCache?' ('+fmt(e.reusedFromValidatedCache)+' answered from earlier validated readings)':'')],
+          ['Expected tokens',fmt(e.expected?.inputTokens)+' in · '+fmt(e.expected?.outputTokens)+' out'],['Expected cost',usd(e.expected?.usd)],['Ceiling for these calls',usd(e.ceilingForPlannedCalls?.usd)],
+          ['Worst case (every part called alone)',usd(e.worstCase?.usd)],['Spent this month',e.month?usd(e.month.committedUsd)+' of '+usd(e.month.capUsd):'No ledger'],['Left this month',e.month?usd(e.month.remainingUsd):'No ledger']];
+        if(out)out.innerHTML='<div class="ai-estimate"><table>'+rows.map(r=>'<tr><th>'+escapeHtml(r[0])+'</th><td>'+escapeHtml(r[1])+'</td></tr>').join('')+'</table><p class="muted">'+escapeHtml(e.basis||'')+'</p>'+
+          (e.fitsRemainingCap===false?'<p class="notice warn">The ceiling is above what is left this month; reading stops at the cap and resumes next month.</p>':'')+
+          '<button class="btn small" type="button" id="confirmAiReading">Run AI reading</button> <button class="btn small" type="button" id="cancelAiReading">Cancel</button></div>';
+        el('cancelAiReading').onclick=()=>{if(out)out.textContent='';finishAi.disabled=false;};
+        el('confirmAiReading').onclick=async()=>{const confirm=el('confirmAiReading');confirm.disabled=true;
+          try{const r=await api('/api/projects/'+encodeURIComponent(project())+'/evidence/ai-reading',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({approvedCeilingUsd:e.ceilingForPlannedCalls?.usd??null})});
+            if(out)out.textContent=' '+(r.message||'');await loadEvidence();}
+          catch(error){if(out)out.textContent=' '+String(error?.message||error);finishAi.disabled=false;}};
+      }catch(error){if(out)out.textContent=' '+String(error?.message||error);finishAi.disabled=false;}};
     el('evidenceLibrary').querySelectorAll('.document-relationship').forEach(button=>button.onclick=()=>{
       const d=data.documents.find(d=>d.documentId===button.dataset.documentId),container=button.parentElement;
       const targets=data.documents.filter(x=>x.documentId!==d.documentId&&['active','additive'].includes(x.basisState));

@@ -23,7 +23,7 @@ test('M16.1: upload without AI, then Finish AI reading reads the remaining table
   assert.ok((document.semanticAiSteps??[]).some(s=>s.status==='disabled'),'AI was not used at upload');
   assert.deepEqual(calls,[],'no AI call at upload');
   const before=aiReadingCoverage(state.evidenceDocuments,{providerConfigured:true,estimatedMaxUsdPerCall:0.01});
-  assert.match(before.statement!,/Use Finish AI reading to read them/,'the status names the real action');
+  assert.match(before.statement!,/Finish AI reading first shows the AI calls needed after reuse, the expected cost, the ceiling and this month's spend/,'the status names the real action and that the cost comes first');
 
   const refused=await store.finishAiTableReading(state.projectId,{allowSemanticAi:false});
   assert.equal(refused.state,'not_allowed');assert.deepEqual(calls,[],'no paid call without permission');
@@ -43,5 +43,9 @@ test('M16.1: upload without AI, then Finish AI reading reads the remaining table
 test('M16.1: the document screen offers Finish AI reading only when AI is set up and steps await it',()=>{
   const script=cmengUatHtml();
   assert.match(script,/data\.aiReading\.aiSetUp&&data\.aiReading\.stepsAwaitingAi>0\?' <button class="btn small" type="button" id="finishAiReading">Finish AI reading<\/button>/);
-  assert.match(script,/\/evidence\/ai-reading',\{method:'POST'\}/);
+  // 13 Nov: the estimate is fetched and shown first; the paid reading starts only on confirm,
+  // carrying the ceiling the owner saw.
+  assert.match(script,/\/evidence\/ai-reading\/estimate'\)/);
+  assert.match(script,/id="confirmAiReading">Run AI reading<\/button>/);
+  assert.match(script,/\/evidence\/ai-reading',\{method:'POST',headers:\{'content-type':'application\/json'\},body:JSON\.stringify\(\{approvedCeilingUsd:e\.ceilingForPlannedCalls\?\.usd\?\?null\}\)\}/);
 });

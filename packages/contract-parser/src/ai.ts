@@ -198,13 +198,18 @@ export async function collectAiHeadingOverrides(
         .find((candidate) => candidate.text.trim())
         ?.text ?? null;
 
-    if (stoppedAtCap && !prior.has(lineKey(span) + "|" + span.text)) {
+    const input: ContractAiHeadingInput = { sourceSpan: span, previousSection, nextText };
+    const priorKey = lineKey(span) + "|" + span.text;
+    // A heading answered before (this span's earlier reading, an identical heading earlier
+    // in this reading, or the shared validated cache) needs no call, so no limit stops it.
+    const reusable = prior.has(priorKey) || resolver.canReuse?.(input) === true;
+    if (stoppedAtCap && !reusable) {
       const code = "CONTRACT_AI_SPENDING_CAP_REACHED:" + span.sourceKind + ":" + span.sourceIndex + ":" + span.start;
       diagnostics.push(code);
       options.onStep?.({sourceSpan: span, status: "stopped_at_cap", attempted: false, diagnostics: [code]});
       continue;
     }
-    if (aiCalls >= maxCalls && !prior.has(lineKey(span) + "|" + span.text)) {
+    if (aiCalls >= maxCalls && !reusable) {
       const code = "CONTRACT_AI_CALL_LIMIT_REACHED";
       diagnostics.push(
         code +
@@ -225,17 +230,22 @@ export async function collectAiHeadingOverrides(
     }
 
     let proposal: ContractAiHeadingProposal | null = null;
-    const priorKey = lineKey(span) + "|" + span.text;
-    const reused = prior.has(priorKey);
-    if (!reused) aiCalls += 1;
+    let reuse: "prior" | "run" | "cache" | null = prior.has(priorKey) ? "prior" : null;
+    let called = false;
     try {
-      proposal = reused
-        ? prior.get(priorKey) ?? null
-        : await resolver.resolveHeading({
-            sourceSpan: span,
-            previousSection,
-            nextText,
-          });
+      if (reuse === "prior") proposal = prior.get(priorKey) ?? null;
+      else if (resolver.resolveHeadingWithReceipt) {
+        const receipt = await resolver.resolveHeadingWithReceipt(input);
+        called = receipt.call;
+        if (receipt.call) aiCalls += 1;
+        reuse = receipt.call ? null : receipt.reuse;
+        if (receipt.error !== undefined) throw receipt.error;
+        proposal = receipt.result;
+      } else {
+        called = true;
+        aiCalls += 1;
+        proposal = await resolver.resolveHeading(input);
+      }
     } catch (error) {
       const code =
         "CONTRACT_AI_RESOLVER_ERROR:" +
@@ -247,16 +257,18 @@ export async function collectAiHeadingOverrides(
       if (status === "stopped_at_cap") {
         // The ledger refused before any provider request: no paid call, and no later call either.
         stoppedAtCap = true;
-        aiCalls -= 1;
+        if (called) aiCalls -= 1;
+        called = false;
       }
       options.onStep?.({
         sourceSpan: span,
         status,
-        attempted: status !== "stopped_at_cap",
+        attempted: called,
         diagnostics: [code],
       });
       continue;
     }
+    const reused = reuse !== null;
 
     const assessment = assessContractAiHeadingProposal(
       {
@@ -283,10 +295,10 @@ export async function collectAiHeadingOverrides(
       options.onStep?.({
         sourceSpan: span,
         status: "unresolved",
-        attempted: !reused,
+        attempted: called,
         diagnostics: [...assessment.diagnostics],
         proposal,
-        ...(reused ? { reused: true } : {}),
+        ...(reused ? { reused: true, reuse: reuse! } : {}),
       });
       continue;
     }
@@ -295,10 +307,10 @@ export async function collectAiHeadingOverrides(
     options.onStep?.({
       sourceSpan: span,
       status: "validated",
-      attempted: !reused,
+      attempted: called,
       diagnostics: [],
       proposal,
-      ...(reused ? { reused: true } : {}),
+      ...(reused ? { reused: true, reuse: reuse! } : {}),
     });
     previousSection = {
       kind: assessment.heading.kind,

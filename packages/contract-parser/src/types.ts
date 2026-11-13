@@ -137,6 +137,13 @@ export interface ContractAiResolver {
   resolveHeading(
     input: ContractAiHeadingInput,
   ): Promise<ContractAiHeadingProposal | null>;
+  /** True when an answer for an identical heading (same text, same preceding section, same
+   * reader version) is already held, so this heading needs no new call. */
+  canReuse?(input: ContractAiHeadingInput): boolean;
+  /** Same answer as resolveHeading, plus whether a provider call was made for it. */
+  resolveHeadingWithReceipt?(
+    input: ContractAiHeadingInput,
+  ): Promise<{ result: ContractAiHeadingProposal | null; call: boolean; reuse: null | "run" | "cache"; error?: unknown }>;
 }
 
 export type ContractAiStepStatus =
@@ -157,6 +164,9 @@ export interface ContractAiStepReceipt {
   proposal?: ContractAiHeadingProposal | null;
   /** True when the answer came from an earlier reading of the same source span, so no call was made. */
   reused?: boolean;
+  /** Where a reused answer came from: this span's earlier reading (prior), an identical
+   * heading earlier in this reading (run), or the shared validated cache (cache). */
+  reuse?: "prior" | "run" | "cache";
 }
 
 /** An earlier AI answer for one exact source span of the same document. */

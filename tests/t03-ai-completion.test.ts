@@ -75,8 +75,9 @@ test('T03 end to end with a fake provider: full population once, resume, clean s
   assert.equal(first.diagnostics.filter(line=>/stopped at the spending cap/.test(line)).length,3);
   const c1=coverage(first.steps);
   assert.equal(c1.incompleteSteps,5);assert.equal(c1.stepsAwaitingAi,3);
-  assert.equal(c1.estimatedMaxUsdToFinish,Math.round(perCall*3*1e6)/1e6);
-  assert.match(c1.statement!,/Reading is incomplete: 5 source steps are not fully read\. AI is set up\. Reading the remaining 3 with AI would cost at most USD/);
+  // 13 Nov: no "parts x largest call" figure; the estimate from the actual requests is shown before the run.
+  assert.equal(c1.estimatedMaxUsdToFinish,null);
+  assert.match(c1.statement!,/Reading is incomplete: 5 source steps are not fully read\. AI is set up\. Finish AI reading first shows the AI calls needed after reuse, the expected cost, the ceiling and this month's spend\./);
 
   // Run 2 (re-read, same cap): no paid call is repeated and nothing new is spent.
   const second=await read(first.steps);
@@ -90,7 +91,7 @@ test('T03 end to end with a fake provider: full population once, resume, clean s
   assert.deepEqual(calls,sheets,'every eligible sheet attempted exactly once');
   assert.ok(third.steps.every(s=>s.status==='unresolved'&&s.attempted));
   const c3=coverage(third.steps);
-  assert.equal(c3.stepsAwaitingAi,0);assert.equal(c3.estimatedMaxUsdToFinish,0);
+  assert.equal(c3.stepsAwaitingAi,0);assert.equal(c3.estimatedMaxUsdToFinish,null);
   assert.match(c3.statement!,/AI has already read the rest; they need review\./);
 
   // Run 4: nothing left to call.

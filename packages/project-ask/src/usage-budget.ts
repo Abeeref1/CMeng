@@ -6,7 +6,10 @@ import {randomUUID} from 'node:crypto';
 // Unknown providers/models require explicit rates; they never get a free pass.
 const rates:Record<string,[number,number]>={'gpt-4.1-mini':[0.4,1.6],'gpt-4.1-mini-2025-04-14':[0.4,1.6]};
 interface Ledger {schema:1;month:string;reservedMicros:number;calls:number;inputTokens:number;outputTokens:number}
-export interface BudgetReservation {finish(inputTokens:number|null,outputTokens:number|null):void}
+/** finish: the provider answered (usage known: reconcile to actual; unknown: keep the whole
+ * reservation). release: the request never left this server (no paid call): the whole
+ * reservation and its call count are returned. */
+export interface BudgetReservation {finish(inputTokens:number|null,outputTokens:number|null):void;release():void}
 const write=(path:string,value:unknown)=>{const temp=path+'.'+randomUUID()+'.tmp';writeFileSync(temp,JSON.stringify(value),{mode:0o600});const fd=openSync(temp,'r');try{fsyncSync(fd);}finally{closeSync(fd);}renameSync(temp,path);};
 /** Upper-bound cost in USD of one call, at the same rates and token bounds the ledger reserves.
  * Null when no price is known for the model: the cost is then unknown, never zero. */
@@ -38,11 +41,28 @@ export function reserveModelUsage(model:string,inputUpper:number,outputUpper:num
   }finally{closeSync(fd);rmSync(lock,{force:true});}
  };
  transact(v=>{if(v.reservedMicros+upper>Math.floor(cap*1e6))throw Error('MODEL_MONTHLY_BUDGET_EXHAUSTED');v.reservedMicros+=upper;v.calls++;});
- let finished=false;return {finish(input,output){if(finished)return;finished=true;
+ let finished=false;return {release(){if(finished)return;finished=true;
+  try{transact(v=>{v.reservedMicros=Math.max(0,v.reservedMicros-upper);v.calls=Math.max(0,v.calls-1);});}catch{/* On contention the reservation stays: conservative. */}
+ },finish(input,output){if(finished)return;finished=true;
   // Keep the entire reservation if usage is absent, a call fails, or its process
   // is interrupted. An uncertain charge never releases budget for another call.
   if(input===null||output===null||!Number.isSafeInteger(input)||!Number.isSafeInteger(output)||input<0||output<0)return;
   const actual=Math.ceil(input*rate[0]!+output*rate[1]!);
   try{transact(v=>{v.reservedMicros=Math.max(0,v.reservedMicros-upper+actual);v.inputTokens+=input;v.outputTokens+=output;});}catch{/* Conservative reservation is retained on accounting contention. */}
  }};
+}
+
+/** Month-to-date AI spending from the durable ledger, for the estimate shown before owner
+ * approval. committed = everything the cap counts (reconciled actual cost plus reservations
+ * still held for calls whose usage is unknown); actual = cost of the reconciled calls only. */
+export interface MonthlyAiUsage {month:string;capUsd:number;committedUsd:number;actualUsd:number;heldReservationUsd:number;remainingUsd:number;calls:number;inputTokens:number;outputTokens:number}
+export function monthlyAiUsage(model:string,env:NodeJS.ProcessEnv=process.env):MonthlyAiUsage|null{
+ const directory=env.CMENG_AI_USAGE_DIR;if(!directory)return null;
+ const cap=Number(env.CMENG_AI_MONTHLY_USD??20);if(!Number.isFinite(cap)||cap<0||cap>20)return null;
+ const month=new Date().toISOString().slice(0,7);
+ let v:Ledger={schema:1,month,reservedMicros:0,calls:0,inputTokens:0,outputTokens:0};
+ try{const read=JSON.parse(readFileSync(join(directory,month+'.json'),'utf8'));if(read?.schema===1&&read.month===month)v=read;}catch{/* No ledger yet: nothing spent this month. */}
+ const actualMicros=Math.ceil(callUpperBoundUsd(model,v.inputTokens,v.outputTokens,env)!==null?callUpperBoundUsd(model,v.inputTokens,v.outputTokens,env)!*1e6:0);
+ const committed=v.reservedMicros/1e6,actual=Math.min(committed,actualMicros/1e6);
+ return {month,capUsd:cap,committedUsd:committed,actualUsd:actual,heldReservationUsd:Math.max(0,committed-actual),remainingUsd:Math.max(0,cap-committed),calls:v.calls,inputTokens:v.inputTokens,outputTokens:v.outputTokens};
 }

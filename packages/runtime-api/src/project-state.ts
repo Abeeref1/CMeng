@@ -118,6 +118,7 @@ import {
   csv as truthCsv,
   inferTableSemanticRoute,
   prepareEvidenceRows,
+  type EvidenceTableSemantic,
 } from "../../truth-kernel/src";
 import {
   analyzeCsvEvidence,
@@ -138,7 +139,8 @@ import {
   evidenceFamily,
   rebuildEvidenceFamily,
 } from "./evidence-control";
-import {aiEligibleColumns,aiReadingCoverage,configuredTableSemanticAiResolver,tableNeedsSemanticReading,configuredContractHeadingAiResolver,type TableSemanticAiResolver} from './evidence-semantic-ai';
+import {configuredSemanticAiCache} from './semantic-ai-cache';
+import {aiEligibleColumns,aiReadingCoverage,configuredTableSemanticAiResolver,tableNeedsSemanticReading,configuredContractHeadingAiResolver,resolveTableReceipt,tableCanReuse,GroundedTableSemanticAiResolver,GroundedContractHeadingAiResolver,type TableSemanticAiResolver,type AiReceipt,type AiRequestEvent} from './evidence-semantic-ai';
 import {
   deriveReadinessFromCsv,
   rebuildReadinessEvidence,
@@ -250,13 +252,16 @@ function readerInterpretation(project:ProjectRuntimeState|null,rows:readonly str
 }
 export async function enrichRegisterSheetSemantics(
   read:NonNullable<StoredEvidenceDocument['tabularRead']>,
-  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[];requested?:boolean;steps?:NonNullable<StoredEvidenceDocument['semanticAiSteps']>;priorSteps?:StoredEvidenceDocument['semanticAiSteps'];project?:ProjectRuntimeState|null}={},
+  options:{resolver?:TableSemanticAiResolver|null;cached?:StoredEvidenceDocument['tabularRead'];diagnostics?:string[];requested?:boolean;steps?:NonNullable<StoredEvidenceDocument['semanticAiSteps']>;priorSteps?:StoredEvidenceDocument['semanticAiSteps'];project?:ProjectRuntimeState|null;
+    /** The owner-approved Finish AI reading (and its estimate) reads every pending sheet: the
+     * per-file limit bounds only automatic reading at upload. */
+    maxAiCalls?:number}={},
 ){
   let aiCalls=0,stoppedAtCap=false;
   // Resume: a paid call already made for this exact source sheet is never repeated.
   const alreadyRead=new Set((options.priorSteps??[]).filter(step=>step.sourceHashSha256===read.sourceHashSha256&&step.attempted&&step.status==='unresolved').map(step=>step.sheetName));
   const configuredAiCalls=Number(process.env.CMENG_SEMANTIC_AI_MAX_CALLS_PER_FILE??8);
-  const maxAiCalls=Number.isInteger(configuredAiCalls)?Math.max(0,Math.min(20,configuredAiCalls)):8;
+  const maxAiCalls=options.maxAiCalls!==undefined?options.maxAiCalls:Number.isInteger(configuredAiCalls)?Math.max(0,Math.min(20,configuredAiCalls)):8;
   for(const sheet of read.sheets){
     const cached=options.cached?.sourceHashSha256===read.sourceHashSha256
       ?options.cached.sheets.find(item=>item.name===sheet.name)?.semantic
@@ -292,27 +297,42 @@ export async function enrichRegisterSheetSemantics(
     }else if(stoppedAtCap){
       options.diagnostics?.push('Worksheet '+sheet.name+': AI reading stopped at the spending cap. Unresolved source columns remain available for review.');
       options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'stopped_at_cap',attempted:false,note:'AI spending cap reached before this sheet; no paid call was made. Reading resumes here when budget is available.'});
-    }else if(options.resolver&&aiCalls<maxAiCalls){
-      aiCalls++;
+    }else if(options.resolver&&(aiCalls<maxAiCalls||tableCanReuse(options.resolver,{sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
+      hintedDocumentType:sheet.semantic?.documentType??null,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})}))){
+      let receipt:AiReceipt<EvidenceTableSemantic>;
       try{
-        const resolved=await options.resolver.resolveTable({sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
+        receipt=await resolveTableReceipt(options.resolver,{sourceHashSha256:read.sourceHashSha256,sheetName:sheet.name,rows:sheet.rows,
           hintedDocumentType:sheet.semantic?.documentType??null,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})});
-        const accepted=!!resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType);
-        if(accepted)sheet.semantic=resolved!;
-        else options.diagnostics?.push('Worksheet '+sheet.name+': AI reading could not establish the remaining column meanings. Source values are retained.');
-        options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:accepted?'validated':'unresolved',attempted:true,note:accepted?'AI reading passed independent structural and source-column validation.':'AI reading could not validate the remaining original columns.'});
+        if(receipt.call)aiCalls++;
       }catch(error){
+        // The provider call itself failed or the ledger refused it.
         const errorStatus=classifyAiCallError(error);
         if(errorStatus==='stopped_at_cap'){
           // The ledger refused the reservation before any provider request: no paid call was made.
-          stoppedAtCap=true;aiCalls--;
+          stoppedAtCap=true;
           options.diagnostics?.push('Worksheet '+sheet.name+': AI reading stopped at the spending cap. Unresolved source columns remain available for review.');
           options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:'stopped_at_cap',attempted:false,note:'AI spending cap reached before this sheet; no paid call was made. Reading resumes here when budget is available.'});
           continue;
         }
+        aiCalls++;
         options.diagnostics?.push('Worksheet '+sheet.name+': AI reading failed. Unresolved source columns remain available for review.');
         options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:errorStatus,attempted:true,note:aiErrorNote(errorStatus,'original columns are preserved for review.')});
+        continue;
       }
+      if(receipt.error!==undefined){
+        // The identical structure's call failed in this reading: no repeat call, same status.
+        const errorStatus=classifyAiCallError(receipt.error);if(errorStatus==='stopped_at_cap')stoppedAtCap=true;
+        options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:errorStatus,attempted:false,
+          note:'A sheet with the identical structure could not be read by AI in this reading; no repeat call was made. '+aiErrorNote(errorStatus,'original columns are preserved for review.')});
+        continue;
+      }
+      const resolved=receipt.result,accepted=!!resolved&&!sheetSemanticExcludedTypes.has(resolved.documentType);
+      if(accepted)sheet.semantic=resolved!;
+      else options.diagnostics?.push('Worksheet '+sheet.name+': AI reading could not establish the remaining column meanings. Source values are retained.');
+      options.steps?.push({sheetName:sheet.name,sourceHashSha256:read.sourceHashSha256,status:accepted?'validated':'unresolved',attempted:receipt.call,
+        note:receipt.call?(accepted?'AI reading passed independent structural and source-column validation.':'AI reading could not validate the remaining original columns.')
+          :accepted?'The validated AI reading of an identical table structure was reused and passed the same validation against this sheet\'s own columns; no new call was made.'
+          :'A sheet with the identical structure was already read by AI and not validated; no repeat call was made. Source values are retained.'});
     }else{
       const status=options.resolver?'call_limit':options.requested?'provider_unavailable':'disabled';
       options.diagnostics?.push('Worksheet '+sheet.name+': some source column meanings remain unresolved. '+(status==='call_limit'?'The per-file AI reading limit was reached.':'AI reading was not enabled or available for this read.'));
@@ -2567,15 +2587,29 @@ export class RuntimeProjectStore {
    * allowed to make paid AI calls, uses the same reading steps as upload (a sheet
    * AI already read is never called again) and keeps every source value. Refresh
    * never calls AI on its own; this route is the explicit way to finish. */
-  async finishAiTableReading(projectId:string,input:{allowSemanticAi:boolean}):Promise<{state:'not_allowed'|'not_set_up'|'nothing_to_read'|'read';documentsRead:number;stoppedAtCap?:boolean;steps:Array<{documentId:string;sheetName:string;status:string}>}>{
-    const state=this.projects.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
+  async finishAiTableReading(projectId:string,input:{allowSemanticAi:boolean;
+    /** Estimate only: the same reading with a planning model that records each request and
+     * answers "unresolved". Nothing is called, nothing in the project changes. */
+    plan?:boolean;observe?:(event:AiRequestEvent)=>void}):Promise<{state:'not_allowed'|'not_set_up'|'nothing_to_read'|'read';documentsRead:number;stoppedAtCap?:boolean;steps:Array<{documentId:string;sheetName:string;status:string}>}>{
+    const state=this.get(projectId);if(!state)throw new Error('PROJECT_NOT_FOUND');
     // P4: also the documents read before AI steps were recorded (no step at all).
-    const candidates=aiBackfillCandidates(state),pending=candidates.tables;
-    if(!pending.length&&!candidates.contracts.length)return {state:'nothing_to_read',documentsRead:0,steps:[]};
-    if(!input.allowSemanticAi)return {state:'not_allowed',documentsRead:0,steps:[]};
-    const resolver=this.semanticAiResolver??configuredTableSemanticAiResolver();
-    const contractResolver=this.contractAiResolver??configuredContractHeadingAiResolver();
-    if(!resolver&&!contractResolver)return {state:'not_set_up',documentsRead:0,steps:[]};
+    const candidates=aiBackfillCandidates(state);
+    if(!candidates.tables.length&&!candidates.contracts.length)return {state:'nothing_to_read',documentsRead:0,steps:[]};
+    if(!input.allowSemanticAi&&!input.plan)return {state:'not_allowed',documentsRead:0,steps:[]};
+    const plan=input.plan===true,cache=configuredSemanticAiCache(),readingOptions={cache,...(input.observe?{observe:input.observe}:{})};
+    // One reader pair per reading, so identical structures in this project are read once.
+    const configuredTable=this.semanticAiResolver??configuredTableSemanticAiResolver(readingOptions);
+    const configuredContract=this.contractAiResolver??configuredContractHeadingAiResolver(readingOptions);
+    if(!configuredTable&&!configuredContract)return {state:'not_set_up',documentsRead:0,steps:[]};
+    const planningModel={async structured(name:string){return name==='cmeng_table_semantic_resolution'?{sourceHashSha256:'',sheetName:'',documentType:'unresolved',confidence:0,columns:[]}:null;}};
+    const resolver=plan?(configuredTable?new GroundedTableSemanticAiResolver(planningModel,readingOptions):null):configuredTable;
+    const contractResolver=plan?(configuredContract?new GroundedContractHeadingAiResolver(planningModel,readingOptions):null):configuredContract;
+    // The estimate works on copies: no step, reading or contract result of the project changes.
+    const own=(document:StoredEvidenceDocument)=>plan?structuredClone(document):document;
+    const pending=candidates.tables.map(own);
+    // The owner approves the estimate of every pending part, so this reading is not stopped
+    // by the per-file limit that bounds automatic reading at upload; the monthly cap still applies.
+    const unlimited=Number.MAX_SAFE_INTEGER;
     const out:Array<{documentId:string;sheetName:string;status:string}>=[];let documentsRead=0,capped=false;
     for(const document of resolver?pending:[]){
       // At the monthly cap no further call is made; a CSV still waiting records that.
@@ -2586,18 +2620,21 @@ export class RuntimeProjectStore {
       const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];const diagnostics:string[]=[];
       if(/spreadsheetml|ms-excel|macroEnabled/.test(document.mediaType)){
         document.tabularRead=await enrichRegisterSheetSemantics(await readRegisterWorkbook(bytes,document.sourceHashSha256,document.documentType),
-          {project:state,resolver:resolver!,requested:true,steps,cached:document.tabularRead,priorSteps:current,diagnostics});
+          {project:state,resolver:resolver!,requested:true,steps,cached:document.tabularRead,priorSteps:current,diagnostics,maxAiCalls:unlimited});
       }else if(isCsvEvidence(document)){
         const rows=truthCsv(Buffer.from(bytes).toString('utf8').replace(/^\uFEFF/,''));
         const route=inferTableSemanticRoute(rows,document.documentType);
         const interpretation=route?readerInterpretation(state,rows,route.documentType,route.category,'CSV',[]):null;
-        let status:NonNullable<StoredEvidenceDocument['semanticAiSteps']>[number]['status']='not_required',attempted=false;
+        let status:NonNullable<StoredEvidenceDocument['semanticAiSteps']>[number]['status']='not_required',attempted=false,reusedCsv=false;
         if(!document.csvSemantic&&(!route||tableNeedsSemanticReading(interpretation!))&&capped)status='stopped_at_cap';
         else if(!document.csvSemantic&&(!route||tableNeedsSemanticReading(interpretation!))){
           attempted=true;
           try{
             // P4: only columns that can carry a field meaning are sent (no placeholder or comment column).
-            const proposed=await resolver!.resolveTable({sourceHashSha256:document.sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??document.documentType,...(interpretation?{unconsumedColumns:aiEligibleColumns(interpretation.unconsumed)}:{})});
+            const receipt=await resolveTableReceipt(resolver!,{sourceHashSha256:document.sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??document.documentType,...(interpretation?{unconsumedColumns:aiEligibleColumns(interpretation.unconsumed)}:{})});
+            attempted=receipt.call;if(!receipt.call)reusedCsv=receipt.error===undefined;
+            if(receipt.error!==undefined)throw receipt.error;
+            const proposed=receipt.result;
             if(proposed){
               document.csvSemantic=proposed;status='validated';
               // Applied as upload applies it: the grounded reading establishes the register role.
@@ -2609,7 +2646,10 @@ export class RuntimeProjectStore {
           }catch(error){const code=classifyAiCallError(error);status=code==='stopped_at_cap'?'stopped_at_cap':code??'failed';if(code==='stopped_at_cap'){attempted=false;capped=true;}}
         }else if(document.csvSemantic?.method==='ai_grounded')status='reused';
         steps.push({sheetName:'CSV',sourceHashSha256:document.sourceHashSha256,status,attempted,
-          note:status==='validated'?'Validated against original CSV headers and content.':status==='unresolved'?'AI call did not validate the unmatched source columns.':status==='reused'?'Previously grounded source reading reused without another call.':status==='not_required'?'Rule-based CSV column reading is sufficient.':aiErrorNote(status as Parameters<typeof aiErrorNote>[0],'original CSV retained.')});
+          note:reusedCsv&&status==='validated'?'The validated AI reading of an identical table structure was reused and passed the same validation against this file\'s own columns; no new call was made.':
+            reusedCsv&&status==='unresolved'?'A file with the identical structure was already read by AI and not validated; no repeat call was made.':
+            !attempted&&status!=='not_required'&&status!=='reused'&&status!=='stopped_at_cap'&&status!=='validated'&&status!=='unresolved'?'A file with the identical structure could not be read by AI in this reading; no repeat call was made. '+aiErrorNote(status as Parameters<typeof aiErrorNote>[0],'original CSV retained.'):
+            status==='validated'?'Validated against original CSV headers and content.':status==='unresolved'?'AI call did not validate the unmatched source columns.':status==='reused'?'Previously grounded source reading reused without another call.':status==='not_required'?'Rule-based CSV column reading is sufficient.':aiErrorNote(status as Parameters<typeof aiErrorNote>[0],'original CSV retained.')});
       }
       document.semanticAiSteps=[...kept,...steps];documentsRead++;
       for(const step of steps)out.push({documentId:document.documentId,sheetName:step.sheetName,status:step.status});
@@ -2617,21 +2657,24 @@ export class RuntimeProjectStore {
     // P4: a contract read without AI (AI off, no provider, or read before AI steps were
     // recorded) is read again with the same contract reader and AI heading reading.
     // Only headings the rules could not resolve are sent; every page stays retained.
-    for(const document of contractResolver&&!capped?candidates.contracts:[]){
+    for(const document of contractResolver&&!capped?candidates.contracts.map(own):[]){
       const index=state.contractDocuments.findIndex(item=>item.documentId===document.documentId);if(index<0)continue;
       const bytes=readFileSync(document.storedPath);if(hashBytes(bytes)!==document.sourceHashSha256)continue;
       const kept=(document.semanticAiSteps??[]).filter(step=>step.sourceHashSha256!==document.sourceHashSha256);
       const steps:NonNullable<StoredEvidenceDocument['semanticAiSteps']>=[];
-      const configured=Number(process.env.CMENG_CONTRACT_AI_MAX_CALLS_PER_FILE??8),aiMaxCalls=Number.isFinite(configured)?Math.max(0,Math.floor(configured)):8;
+      const aiMaxCalls=unlimited;
       // An earlier answer for the same text is reused without a call, so this reading continues
       // with the headings the earlier reading could not reach (for example past the per-file limit).
       const priorAnswers=(document.contractAiAnswers??[]).filter(answer=>answer.sourceHashSha256===document.sourceHashSha256);
       const answers=new Map(priorAnswers.map(answer=>[answer.key+'|'+answer.text,answer] as const));
       const onAiStep=(step:import("../../contract-parser/src").ContractAiStepReceipt)=>{
-        if(step.proposal!==undefined&&!step.reused){const key=contractAiSpanKey(step.sourceSpan);answers.set(key+'|'+step.sourceSpan.text,{sourceHashSha256:document.sourceHashSha256,key,text:step.sourceSpan.text,proposal:step.proposal});}
+        if(step.proposal!==undefined&&step.reuse!=='prior'){const key=contractAiSpanKey(step.sourceSpan);answers.set(key+'|'+step.sourceSpan.text,{sourceHashSha256:document.sourceHashSha256,key,text:step.sourceSpan.text,proposal:step.proposal});}
         const where=step.sourceSpan.page!==null?'page '+step.sourceSpan.page:step.sourceSpan.sourceKind.replace(/_/g,' ')+' '+step.sourceSpan.sourceIndex;
         steps.push({sheetName:'Contract heading · '+where,sourceHashSha256:document.sourceHashSha256,status:step.status,attempted:step.attempted,
-          note:step.reused?'The earlier AI answer for this exact heading text was reused; no new call was made.':
+          note:step.reuse==='run'||step.reuse==='cache'?(step.status==='validated'
+              ?'The validated AI answer for an identical heading (same text, same preceding section) was reused and checked against this exact span; no new call was made.'
+              :'An identical heading was already read by AI'+(step.status==='unresolved'?' and not validated':'')+'; no repeat call was made.'):
+            step.reused?'The earlier AI answer for this exact heading text was reused; no new call was made.':
             step.status==='validated'?'AI heading reading was validated against the exact retained source span.':
             step.status==='call_limit'?'Per-file contract AI call limit reached; the original heading remains unresolved for review.':
             step.status==='failed'||step.status==='stopped_at_cap'||step.status==='provider_error'||step.status==='invalid_response'?aiErrorNote(step.status,'the original contract text remains retained.'):
@@ -2648,13 +2691,20 @@ export class RuntimeProjectStore {
       if(parsed){
         if(!steps.length)steps.push({sheetName:'Contract headings',sourceHashSha256:document.sourceHashSha256,status:'not_required',attempted:false,
           note:'Rule-based contract heading reading found no unresolved heading that required an AI call.'});
-        state.contractDocuments[index]={...state.contractDocuments[index]!,result:parsed};
+        if(!plan)state.contractDocuments[index]={...state.contractDocuments[index]!,result:parsed};
       }
       document.semanticAiSteps=[...kept,...steps];document.contractAiAnswers=[...answers.values()];documentsRead++;
       for(const step of steps)out.push({documentId:document.documentId,sheetName:step.sheetName,status:step.status});
     }
-    if(documentsRead){this.touch(state);}
+    if(documentsRead&&!plan){this.touch(state);}
     return {state:'read',documentsRead,...(capped?{stoppedAtCap:true}:{}),steps:out};
+  }
+  /** Point 5: the parts a Finish AI reading would send, found by running the same reading in
+   * planning mode. Every request is built exactly as it would be sent. */
+  async planAiReading(projectId:string):Promise<{state:'not_set_up'|'nothing_to_read'|'read';events:AiRequestEvent[]}>{
+    const events:AiRequestEvent[]=[];
+    const result=await this.finishAiTableReading(projectId,{allowSemanticAi:false,plan:true,observe:event=>events.push(event)});
+    return {state:result.state==='not_allowed'?'not_set_up':result.state,events};
   }
   /** P4: the document screen's AI reading line, counting documents read before AI steps were recorded. */
   aiReadingCoverage(projectId:string,provider:{providerConfigured:boolean;estimatedMaxUsdPerCall:number|null}){
@@ -4857,11 +4907,15 @@ export class RuntimeProjectStore {
         // M2.1: the canonical reader interpretation decides what is unread (the same as the column report).
         const interpretation=route?readerInterpretation(existingState,rows,route.documentType,route.category,'CSV',[]):null;
         const needsSemanticReading=!route||tableNeedsSemanticReading(interpretation!);
-        let csvAiAttempted=false,csvAiFailed=false,csvAiError:ReturnType<typeof classifyAiCallError>|null=null;
+        let csvAiAttempted=false,csvAiFailed=false,csvAiReused=false,csvAiError:ReturnType<typeof classifyAiCallError>|null=null;
         if(!csvSemantic&&semanticResolver&&needsSemanticReading){
           csvAiAttempted=true;
           try{
-            const proposed=await semanticResolver.resolveTable({sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})});
+            const receipt=await resolveTableReceipt(semanticResolver,{sourceHashSha256,sheetName:'CSV',rows,hintedDocumentType:route?.documentType??documentType,...(interpretation?{unconsumedColumns:interpretation.unconsumed}:{})});
+            // A validated answer for an identical structure (shared cache) is reused without a call.
+            if(!receipt.call){csvAiAttempted=false;csvAiReused=receipt.error===undefined;}
+            if(receipt.error!==undefined)throw receipt.error;
+            const proposed=receipt.result;
             if(proposed)csvSemantic=proposed;
             else identification.diagnostics.push('AI reading could not establish the remaining column meanings. Source values are retained.');
           }catch(error){
@@ -4871,12 +4925,14 @@ export class RuntimeProjectStore {
           }
         }
         const status:NonNullable<StoredEvidenceDocument['semanticAiSteps']>[number]['status']=
-          csvAiError==='stopped_at_cap'?'stopped_at_cap':csvAiFailed?csvAiError??'failed':csvAiAttempted?(csvSemantic?'validated':'unresolved'):
+          csvAiError==='stopped_at_cap'?'stopped_at_cap':csvAiFailed?csvAiError??'failed':csvAiAttempted||csvAiReused?(csvSemantic?'validated':'unresolved'):
           csvSemantic?.method==='ai_grounded'?'reused':
           !needsSemanticReading?'not_required':
           !input.allowSemanticAi?'disabled':'provider_unavailable';
         semanticAiSteps.push({sheetName:'CSV',sourceHashSha256,status,attempted:csvAiAttempted,
-          note:status==='validated'?'Validated against original CSV headers and content.':
+          note:csvAiReused&&status==='validated'?'The validated AI reading of an identical table structure was reused and passed the same validation against this file\'s own columns; no new call was made.':
+            csvAiReused&&status==='unresolved'?'A file with the identical structure was already read by AI and not validated; no repeat call was made.':
+            status==='validated'?'Validated against original CSV headers and content.':
             status==='reused'?'Previously grounded source reading reused without another call.':
             status==='not_required'?'Rule-based CSV column reading is sufficient.':
             status==='stopped_at_cap'||status==='failed'||status==='provider_error'||status==='invalid_response'?aiErrorNote(status,'original CSV retained.'):
