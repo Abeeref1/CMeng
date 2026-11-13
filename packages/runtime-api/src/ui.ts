@@ -5957,7 +5957,11 @@ function renderMcpProgrammeControl(data){
  const context=data.managementContext||{},stages=context.schedule?.programmeStages||[],vc=data.visualControl||{};
  const stageRows=stages.map(stage=>{
    const sourceWbsCount=Number.isFinite(stage.wbsPathCount)?stage.wbsPathCount:Array.isArray(stage.wbsPaths)?stage.wbsPaths.length:null;
-   const packages=(stage.wbsPaths||[]).slice(0,5).join("; ")+(sourceWbsCount!==null&&sourceWbsCount>5?" · "+fmt(sourceWbsCount-5)+" more":"");
+   // DMCC-UPD2 #14: whole WBS paths of 300+ characters filled one cell. Each path shows its last two levels;
+   // the full paths stay on hover.
+   const shortWbs=path=>{const parts=String(path||"").split(/\s+[\/>]\s+/).filter(Boolean);return parts.length>2?"… / "+parts.slice(-2).join(" / "):parts.join(" / ");};
+   const packages=(stage.wbsPaths||[]).slice(0,5).map(shortWbs).join("; ")+(sourceWbsCount!==null&&sourceWbsCount>5?" · "+fmt(sourceWbsCount-5)+" more":"");
+   const packagesTitle=(stage.wbsPaths||[]).slice(0,5).join("\n");
    const milestones=(stage.controlMilestoneIds||[]).slice(0,6).join("; ")||"No control milestone identified in this stage";
    // DMCC-UPD2 #15: incoming stages are a set, not a sequence: delivery order, comma-separated.
    const stageOrder=["design","procurement","construction","testing_commissioning","handover","other"];
@@ -5974,7 +5978,7 @@ function renderMcpProgrammeControl(data){
    const owners=(stage.owners||[]).join("; ")||"Not recorded";
    const actions=(stage.actions||[]).slice(0,3).join("; ")||"No stage-specific action recorded";
    return '<tr><td><b>'+escapeHtml(stage.label)+'</b><br><span class="muted">'+escapeHtml(fmt(stage.openActivityCount))+' open of '+escapeHtml(countText(stage.activityCount,'activity','activities',fmt))+'</span></td>'+
-     '<td>'+escapeHtml(packages||"Observed package/WBS not established")+'</td>'+
+     '<td title="'+escapeHtml(packagesTitle)+'">'+escapeHtml(packages||"Observed package/WBS not established")+'</td>'+
      '<td>'+escapeHtml(milestones)+'</td>'+
      '<td>'+escapeHtml(dependencies)+'</td>'+
      '<td>'+escapeHtml(stage.earliestCurrentStartIso?planningShortDate(stage.earliestCurrentStartIso):"—")+'</td>'+
