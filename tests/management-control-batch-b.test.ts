@@ -42,7 +42,8 @@ test('Master Dashboard uses schedule WBS long-lead evidence instead of an unesta
     data,fmtExecutive:String,fmt:String,planningShortDate:String,
     managementModuleLink:(_key:string,label:string)=>label,escapeHtml:(value:any)=>String(value??''),overview:{latestDataDateIso:'2026-09-14'}
   });
-  assert.match(output,/49 schedule\/WBS long-lead candidates/);
+  // DMCC-UPD2 #7: the Dashboard and the Long Lead page name the same figure: programme long-lead activities.
+  assert.match(output,/49 programme long-lead activities/);
   assert.doesNotMatch(output,/0 procurement source \/ scope items/);
   assert.match(output,/Control gaps/,'missing domains remain available as secondary gaps');
   assert.ok(output.indexOf('Procurement / Long Lead')<output.indexOf('Control gaps'),'available long-lead evidence must precede missing domains');
