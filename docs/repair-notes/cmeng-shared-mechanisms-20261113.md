@@ -70,3 +70,20 @@ on 16cfeb85); on an idle local machine 7.5 / 8.1 s (f77811a2) against 8.5 / 8.4 
 - `headline_consistency.py`: per project, the finish headline, Data Date, criticality and submitted finish read on
   Dashboard, Command Center, Brief, Completion Forecast, Completion History, Cash Flow and Payments. Live f77811a2:
   all 20 projects consistent.
+
+## Live result (24ed6e42, deployed 13 Nov 2026 23:53 Dubai)
+
+CI on 24ed6e42: regression, raster, concurrency, acceptance, independent and the focused set passed; operations
+failed only on the cold-project gate (slowest of four 6,946 ms against 5,000 ms). Data check before and after: 20
+projects, 472 documents, nothing lost. DMCC XER unchanged; DMCC P6 parity unchanged (25,629 of 25,629, 547 / 1,059 /
+0). No project's forecast changed against f77811a2.
+
+| Check (live) | f77811a2 | 24ed6e42 |
+|---|---|---|
+| DMCC-UPD2 page defects passed (27) | 3 | 26 (#26 partly: Look-Ahead 247 to 45 sections in the page, Actions required 223 to 76; 15 and 19 closed at load) |
+| UPTOWN-100 page checks (10) | 2 | 8 (one plural sentence on Near-Critical; Actions required 81 nested sections) |
+| QAT-VLC1 page checks (10) | 3 | 7 (one plural sentence on Completion Forecast, "activity(ies)" on Resources, nested sections) |
+| Shared facts on 7 pages, 20 projects | 20 consistent | 20 consistent |
+
+The plural sentences are fixed at source and by the shared number reader in 287054ac (CI pending at the time of
+writing).
