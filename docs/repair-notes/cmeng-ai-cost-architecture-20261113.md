@@ -33,7 +33,35 @@ downgrade the model, skip documents or raise the USD 20 cap. Branch `fix/ai-cost
 
 Tests: `tests/ai-cost-architecture.test.ts` (9), updated P4, M16.1, T03.
 
+## Deployed: b5ace23c (deployment 7687315f)
+
+Data check before and after (every document paged, not the first 25): 20 projects, 472 documents, saved decisions
+identical. PASS. Rollback point: bd0fa164 (fc35588b).
+
+Correction to the earlier report: on 13 Nov the first Finish run also started on DMM-HDC-P2 (the script stopped
+waiting after 16 s; the server finished). One CSV became delay_eot_claims_register (AI validated); answers 14 to
+13, gaps 6 to 7. Told to the owner.
+
+## Estimate fix (df9b0122)
+
+Live estimate for ORBIT on b5ace23c: 292 contract headings, 1 unique structure, 1 call. The 292 are one sentence
+repeated through the PDF ("Clause 20.2.1 is amended so that the initial notice of claim shall be given within 21
+days after the"). A heading is asked with its preceding section, and a validated heading becomes the next heading's
+preceding section, so the reading asks that sentence at least twice. The plan answered "unresolved" and froze the
+section, so it could count fewer calls than the reading makes (A, B, A: plan 2, reading 3).
+
+- Planning model: a contract heading is answered by a validated stand-in whose identity depends on its text, so
+  the plan moves the preceding section as the reading does. Stand-ins are never stored in the shared cache.
+- Approval is the most the reading can cost (every pending part called alone); expected calls are a forecast and
+  can be a few more when AI names the same heading differently under different sections (the first reading named
+  clause 20.2.1 two ways) or when a reuse fails validation.
+- Test 1d: planned calls equal the reading's calls (A,B,A; six identical headings: 2; two identical documents).
+
+## Gateway log (fbd4af9e)
+
+A failed project request (the 503) and a project process error are now logged with project, method, path and
+error message, so the ORBIT 503 can be diagnosed if it recurs.
+
 ## Next action
 
-CI green (speed gate aside) → deploy to cmeng-main with the data check → GET the ORBIT estimate and send the owner:
-292 parts, unique structures, calls after reuse, expected cost, worst case, month spend → run only after that.
+CI on fbd4af9e → deploy with the data check → ORBIT estimate to the owner → run → report the result.
