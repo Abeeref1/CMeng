@@ -201,12 +201,26 @@ function shiftByLag(
   anchorMs: number,
   lagHours: number,
 ): number {
+  // 13 Nov P6 parity (DMCC-UPD2), applied to the reference on purpose: the
+  // engine's results changed by design, its speed structure did not.
+  if (lagHours === 0) return anchorMs;
   return addWorkingHours(
     calendar.calendar,
     anchorMs,
     lagHours,
   );
 }
+
+// 13 Nov P6 parity: a finish milestone may sit at the close of a working
+// period; an FF/SF finish in nonworking time moves to the next working time.
+function placedFinish(calendar: WorkingCalendarResolution, instantMs: number): number {
+  return previousWorkingInstant(calendar.calendar, instantMs) === instantMs ? instantMs : nextWorkingInstant(calendar.calendar, instantMs);
+}
+function placedEarlyStart(calendar: WorkingCalendarResolution, finishMilestone: boolean, candidateMs: number): number {
+  return finishMilestone ? placedFinish(calendar, candidateMs) : addWorkingHours(calendar.calendar, candidateMs, 0);
+}
+const isFinishMilestone = (activity: {activityType?: string | null}, durationHours: number | null) =>
+  activity.activityType === "finish_milestone" && durationHours === 0;
 
 function forwardConstraintStart(
   relation: EffectiveRelationship,
@@ -655,8 +669,8 @@ export function calculateCpm(
 
       if (candidate !== null) {
         const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
-        candidates.push({relation,start:candidate,finish:finishAnchor===null?null:relation.lagHours===0?finishAnchor:
-          shiftByLag(context.calendar,finishAnchor,relation.lagHours)});
+        candidates.push({relation,start:candidate,finish:finishAnchor===null?null:placedFinish(context.calendar,relation.lagHours===0?finishAnchor:
+          shiftByLag(context.calendar,finishAnchor,relation.lagHours))});
       } else {
         context.diagnostics.push(
           "CPM_PREDECESSOR_TIMING_UNRESOLVED:" +
@@ -678,13 +692,9 @@ export function calculateCpm(
       }
     }
 
-    let earlyStart =
-      addWorkingHours(
-        context.calendar.calendar,
-        startCandidate,
-        0,
-      );
-    const workFinish =
+    const finishMilestone=isFinishMilestone(context.activity,context.durationHours);
+    let earlyStart = placedEarlyStart(context.calendar, finishMilestone, startCandidate);
+    const workFinish = finishMilestone ? earlyStart :
       addWorkingHours(
         context.calendar.calendar,
         earlyStart,
@@ -710,7 +720,7 @@ export function calculateCpm(
     });
     // Calendar normalization may make several links bind at the same start.
     // Retain every tie instead of selecting an arbitrary single predecessor.
-    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(addWorkingHours(context.calendar!.calendar,c.start,0)-earlyStart)<1||c.finish!==null&&Math.abs(c.finish-earlyFinish)<1).map(c=>c.relation));
+    bindingPredecessors.set(activityId,candidates.filter(c=>Math.abs(placedEarlyStart(context.calendar!,finishMilestone,c.start)-earlyStart)<1||c.finish!==null&&Math.abs(c.finish-earlyFinish)<1).map(c=>c.relation));
 
     if (
       context.activity.status ===
@@ -762,8 +772,8 @@ export function calculateCpm(
         const predecessor=forward.get(relation.predecessorActivityId);if(!predecessor)return false;
         const start=forwardConstraintStart(relation,predecessor,context.durationHours!,context.calendar!);
         const finishAnchor=relation.type==='FF'?predecessor.earlyFinishMs:relation.type==='SF'?predecessor.earlyStartMs:null;
-        const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(context.calendar!,finishAnchor,relation.lagHours);
-        return start!==null&&Math.abs(addWorkingHours(context.calendar!.calendar,start,0)-early.earlyStartMs!)<1||finish!==null&&Math.abs(finish-early.earlyFinishMs!)<1;
+        const finish=finishAnchor===null?null:placedFinish(context.calendar!,relation.lagHours===0?finishAnchor:shiftByLag(context.calendar!,finishAnchor,relation.lagHours));
+        return start!==null&&Math.abs(placedEarlyStart(context.calendar!,isFinishMilestone(context.activity,context.durationHours),start)-early.earlyStartMs!)<1||finish!==null&&Math.abs(finish-early.earlyFinishMs!)<1;
       }));
     }
   }
@@ -777,6 +787,7 @@ export function calculateCpm(
 
   const latePassFinish =
     requiredFinish ??
+    (model.projectEndDateForFloat?.value === true ? requiredFinishInstant(model.declaredProjectFinishIso) : null) ??
     calculatedFinish;
 
   const backward = new Map<

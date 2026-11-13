@@ -776,14 +776,38 @@ function canonicalScheduleFromXerRead(
   // P6 project option "Calendar for scheduling Relationship Lag" and the
   // project default calendar it may name (PROJECT.clndr_id).
   // The default calendar is read only when the option is stated.
-  const lagCalendarValues=projectRows.map(row=>xerField(row,"sched_calendar_on_relationship_lag"));
+  // Older exports carry the option on PROJECT; P6 releases that write a
+  // SCHEDOPTIONS table (24.x) carry it there, one row per project (proj_id).
+  // Reading only PROJECT left DMCC-UPD2's stated rcal_Predecessor unread, so
+  // lags were counted on the successor calendar: a 61-day false finish gap.
+  const scheduleOptionRows=xerRows(result,"SCHEDOPTIONS").filter(currentScope);
+  const optionOf=(project:XerRow)=>{
+    const stated=xerField(project,"sched_calendar_on_relationship_lag");
+    if(stated!==null)return {value:stated,ref:"XER PROJECT.sched_calendar_on_relationship_lag"};
+    const projectKey=xerField(project,"proj_id");
+    const options=scheduleOptionRows.filter(row=>projectKey===null||xerField(row,"proj_id")===projectKey)
+      .map(row=>xerField(row,"sched_calendar_on_relationship_lag")).filter((value):value is string=>value!==null);
+    return new Set(options).size===1?{value:options[0]!,ref:"XER SCHEDOPTIONS.sched_calendar_on_relationship_lag"}:{value:null,ref:null};
+  };
+  const lagCalendarOptions=projectRows.map(optionOf);
+  const lagCalendarValues=lagCalendarOptions.map(option=>option.value);
+  const lagCalendarRefs=[...new Set(lagCalendarOptions.map(option=>option.ref).filter((ref):ref is string=>ref!==null))];
+  // P6 "use project end date for float" (SCHEDOPTIONS); read only for a single
+  // current project, and only Y/N. Anything else is not guessed.
+  const floatOption=projectRows.length===1?(()=>{
+    const key=xerField(firstProject!,"proj_id");
+    const values=[...new Set(scheduleOptionRows.filter(row=>key===null||xerField(row,"proj_id")===key)
+      .map(row=>xerField(row,"sched_use_project_end_date_for_float")).filter((value):value is string=>value!==null))];
+    return values.length===1&&/^[YN]$/i.test(values[0]!)?{value:values[0]!.toUpperCase()==="Y",sourceValue:values[0]!,sourceRef:"XER SCHEDOPTIONS.sched_use_project_end_date_for_float"}:null;
+  })():null;
   const lagCalendar=statedLagCalendar(lagCalendarValues,
-    lagCalendarValues.some(value=>value!==null)?projectRows.map(row=>xerField(row,"clndr_id")):[],"XER PROJECT.sched_calendar_on_relationship_lag");
+    lagCalendarValues.some(value=>value!==null)?projectRows.map(row=>xerField(row,"clndr_id")):[],lagCalendarRefs.join(", ")||"XER PROJECT.sched_calendar_on_relationship_lag");
   return {
     projectId,
     source: "xer",
     sourceRevisionId: input.sourceRevisionId,
     ...(lagCalendar.value?{relationshipLagCalendar:lagCalendar.value}:{}),
+    ...(floatOption?{projectEndDateForFloat:floatOption}:{}),
     declaredProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"plan_end_date")):null,
     // PROJECT.scd_end_date is the finish P6 computed at the last schedule
     // run. It is held apart from the declared (plan_end_date) finish and

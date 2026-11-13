@@ -15,6 +15,14 @@
 //    start before the instant. A start at position p is the start of working
 //    hour p; a finish at position p is the end of working hour p-1. A zero
 //    duration activity (milestone) uses the start instant for both dates.
+// 3b. A zero-duration FINISH milestone (input type 'finish_milestone') is a
+//    finish event (P6, checked on the DMCC-UPD2 baseline, 13 Nov 2026): its
+//    instant is the latest instant its predecessors reach (and the data
+//    date's opening). It stays at that instant when the instant is inside or
+//    at the close of one of its calendar's working hours (Fri 16:00, not Mon
+//    08:00); an instant in nonworking time moves to the next opening. Its
+//    position, and so its float, is unchanged by this. Its late event is the
+//    close of the working hour before its late position.
 // 4. Relationship lag is counted in working hours of the SUCCESSOR calendar,
 //    in both passes, unless input.lagCalendar states another calendar (4b).
 //    Predecessor events are read on the successor calendar:
@@ -98,6 +106,13 @@ function slotStart(cal, p) {
 }
 function startInstant(cal, p) { return slotStart(cal, p); }
 function finishInstant(cal, p, duration) { return duration > 0 ? slotStart(cal, p - 1) + HOUR : slotStart(cal, p); }
+// Rule 3b placement: x kept when it is a working instant or the close of a
+// working hour; otherwise the next opening.
+function finishPlace(cal, x) {
+  const p = pos(cal, x);
+  if (p > 0 && slotStart(cal, p - 1) + HOUR >= x) return x;
+  return slotStart(cal, p);
+}
 
 function solve(input) {
   const dataDate = parseInstant(input.dataDate, 'data date');
@@ -120,8 +135,10 @@ function solve(input) {
     const remaining = status === 'in_progress' ? wholeHours(a.remaining, a.id + ' remaining duration') : status === 'completed' ? 0 : duration;
     const constraint = a.constraint || null;
     if (constraint && !['start_on_or_after', 'finish_on_or_before'].includes(constraint.type)) fail('constraint type not supported: ' + constraint.type);
+    if (a.type !== undefined && !['task', 'finish_milestone'].includes(a.type)) fail('activity type not supported: ' + a.type);
+    if (a.type === 'finish_milestone' && duration !== 0) fail('finish milestone ' + a.id + ' must have zero duration');
     acts.set(a.id, {
-      id: a.id, cal, status, duration, remaining, constraint,
+      id: a.id, cal, status, duration, remaining, constraint, finishMilestone: a.type === 'finish_milestone',
       actualStart: a.actualStart ? parseInstant(a.actualStart, a.id + ' actual start') : null,
       actualFinish: a.actualFinish ? parseInstant(a.actualFinish, a.id + ' actual finish') : null,
       preds: [], succs: [],
@@ -148,6 +165,15 @@ function solve(input) {
     return pos(s, x);
   }
 
+  // Rule 3b: the instant (not the position) a predecessor event t reaches.
+  function reachInstant(l, t) {
+    if (l.lag === 0) return t;
+    if (lagRule === '24_hour') return t + l.lag * HOUR;
+    const L = lagRule === 'successor' ? l.succ.cal : lagRule === 'predecessor' ? l.pred.cal : defaultCal;
+    const p = pos(L, t);
+    return l.lag > 0 ? slotStart(L, p + l.lag - 1) + HOUR : slotStart(L, p + l.lag);
+  }
+
   // Topological order (Kahn). A loop is an error.
   const indegree = new Map([...acts.values()].map(a => [a, a.preds.length]));
   const queue = [...acts.values()].filter(a => a.preds.length === 0);
@@ -159,8 +185,8 @@ function solve(input) {
   if (order.length !== acts.size) fail('network has a loop');
 
   // Event instants of an activity at its early dates.
-  const startEvent = a => a.status === 'not_started' ? startInstant(a.cal, a.es) : a.actualStart;
-  const finishEvent = a => a.status === 'completed' ? a.actualFinish : finishInstant(a.cal, a.ef, a.remaining);
+  const startEvent = a => a.status === 'not_started' ? (a.event ?? startInstant(a.cal, a.es)) : a.actualStart;
+  const finishEvent = a => a.status === 'completed' ? a.actualFinish : (a.event ?? finishInstant(a.cal, a.ef, a.remaining));
 
   // Forward pass.
   for (const a of order) {
@@ -176,6 +202,16 @@ function solve(input) {
       if (l.type === 'SF') s = Math.max(s, reach(l, startEvent(p)) - d);
     }
     a.es = s; a.ef = s + d;
+    if (a.finishMilestone && a.status === 'not_started') {
+      let x = startInstant(a.cal, pos(a.cal, dataDate));
+      if (a.constraint && a.constraint.type === 'start_on_or_after') x = Math.max(x, startInstant(a.cal, pos(a.cal, parseInstant(a.constraint.date, a.id + ' constraint date'))));
+      for (const l of a.preds) {
+        const t = l.type === 'FS' || l.type === 'FF' ? finishEvent(l.pred) : startEvent(l.pred);
+        x = Math.max(x, finishPlace(a.cal, reachInstant(l, t)));
+      }
+      a.event = x;
+      if (pos(a.cal, x) !== s) fail('finish milestone ' + a.id + ' placement left its position');
+    }
   }
   let projectFinish = -Infinity;
   for (const a of acts.values()) projectFinish = Math.max(projectFinish, finishEvent(a));
@@ -255,8 +291,11 @@ function solve(input) {
     const ff = freeFloat(a);
     activities.push({ id: a.id, status: a.status, calendar: a.cal.id,
       actualStart: a.actualStart === null ? null : iso(a.actualStart),
-      earlyStart: iso(startInstant(a.cal, a.es)), earlyFinish: iso(finishInstant(a.cal, a.ef, a.remaining)),
-      lateStart: iso(startInstant(a.cal, a.ls)), lateFinish: iso(finishInstant(a.cal, a.lf, a.remaining)),
+      earlyStart: iso(a.event ?? startInstant(a.cal, a.es)), earlyFinish: iso(a.event ?? finishInstant(a.cal, a.ef, a.remaining)),
+      // Rule 3b, late side: a finish milestone's late event is the close of the
+      // working hour before its position (Fri 16:00, not Mon 08:00).
+      lateStart: iso(a.finishMilestone ? slotStart(a.cal, a.lf - 1) + HOUR : startInstant(a.cal, a.ls)),
+      lateFinish: iso(a.finishMilestone ? slotStart(a.cal, a.lf - 1) + HOUR : finishInstant(a.cal, a.lf, a.remaining)),
       totalFloatHours: tf, freeFloatHours: ff,
       totalFloatDays: tf / a.cal.hoursPerDay, freeFloatDays: ff / a.cal.hoursPerDay,
       critical: tf <= 0 });

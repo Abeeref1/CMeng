@@ -200,12 +200,35 @@ function shiftByLag(
   anchorMs: number,
   lagHours: number,
 ): number {
+  // P6: a zero lag does not move the event, on any calendar. The successor's
+  // own calendar places it (a start rolls to the next working time; a finish
+  // milestone may sit at the close of a working period). Rolling it forward on
+  // the lag calendar here moved finish milestones a period late (DMCC-UPD2).
+  if (lagHours === 0) return anchorMs;
   return addWorkingHours(
     calendar.calendar,
     anchorMs,
     lagHours,
   );
 }
+
+/** Where an activity's early start lands on its calendar. A start rolls to the
+ * next working time. A zero-duration finish milestone is a finish: P6 keeps it
+ * at the close of a working period (17:00, or 11:00 on a short day) instead of
+ * moving it to the next morning; only inside nonworking time does it move to
+ * the next working time. */
+function placedEarlyStart(calendar: WorkingCalendarResolution, finishMilestone: boolean, candidateMs: number): number {
+  return finishMilestone ? placedFinish(calendar, candidateMs) : addWorkingHours(calendar.calendar, candidateMs, 0);
+}
+/** A finish on an activity's calendar: inside working time or at the close of a
+ * working period it stays; inside nonworking time it moves to the next working
+ * time (P6: an FF link ending on a day the successor does not work gives a
+ * finish at the successor's next working start, not on the nonworking day). */
+function placedFinish(calendar: WorkingCalendarResolution, instantMs: number): number {
+  return previousWorkingInstant(calendar.calendar, instantMs) === instantMs ? instantMs : nextWorkingInstant(calendar.calendar, instantMs);
+}
+const isFinishMilestone = (activity: {activityType?: string | null}, durationHours: number | null) =>
+  activity.activityType === "finish_milestone" && durationHours === 0;
 
 function forwardConstraintStart(
   relation: EffectiveRelationship,
@@ -852,8 +875,8 @@ function calculateCpmOnce(
           candidateHasFinish[candidates] = 0;
         } else {
           candidateHasFinish[candidates] = 1;
-          candidateFinish[candidates] = relation.lagHours===0?finishAnchor:
-            shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours);
+          candidateFinish[candidates] = placedFinish(calendar,relation.lagHours===0?finishAnchor:
+            shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours));
         }
         candidates += 1;
       } else {
@@ -880,13 +903,10 @@ function calculateCpmOnce(
       }
     }
 
-    let earlyStart =
-      addWorkingHours(
-        calendar.calendar,
-        startCandidate,
-        0,
-      );
-    const workFinish =
+    const finishMilestone=isFinishMilestone(context.activity,durationHours);
+    let earlyStart = placedEarlyStart(calendar, finishMilestone, startCandidate);
+    // A finish milestone finishes where it is placed (no work to add).
+    const workFinish = finishMilestone ? earlyStart :
       addWorkingHours(
         calendar.calendar,
         earlyStart,
@@ -926,7 +946,7 @@ function calculateCpmOnce(
     bindingStart[index] = bindingLinks.length;
     for (let candidate = 0; candidate < candidates; candidate += 1) {
       if (
-        Math.abs(addWorkingHours(calendar.calendar,candidateStart[candidate]!,0)-earlyStart)<1||
+        Math.abs(placedEarlyStart(calendar,finishMilestone,candidateStart[candidate]!)-earlyStart)<1||
         candidateHasFinish[candidate] === 1&&Math.abs(candidateFinish[candidate]!-earlyFinish)<1
       ) {
         bindingLinks.push(candidateLink[candidate]!);
@@ -1009,8 +1029,8 @@ function calculateCpmOnce(
         const predecessorStart=relationStartOf(predecessorIndex),predecessorFinish=forwardFinishOf(predecessorIndex);
         const start=forwardConstraintStart(relation,predecessorStart,predecessorFinish,durationHours,calendar,lagCalendarOf(link,calendar));
         const finishAnchor=relation.type==='FF'?predecessorFinish:relation.type==='SF'?predecessorStart:null;
-        const finish=finishAnchor===null?null:relation.lagHours===0?finishAnchor:shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours);
-        if(start!==null&&Math.abs(addWorkingHours(calendar.calendar,start,0)-early.start)<1||finish!==null&&Math.abs(finish-early.finish)<1)bindingLinks.push(link);
+        const finish=finishAnchor===null?null:placedFinish(calendar,relation.lagHours===0?finishAnchor:shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours));
+        if(start!==null&&Math.abs(placedEarlyStart(calendar,isFinishMilestone(context.activity,durationHours),start)-early.start)<1||finish!==null&&Math.abs(finish-early.finish)<1)bindingLinks.push(link);
       }
       bindingCount[index]=bindingLinks.length-bindingStart[index]!;
     };
@@ -1024,8 +1044,17 @@ function calculateCpmOnce(
   const calculatedFinish =
     maxForwardFinish();
 
+  // P6 counts total float to the project's Must Finish By when the programme
+  // states "use project end date for float" (DMCC-UPD2: 29 Nov 17:00, while the
+  // network finishes at 11:00 that day). A required finish given by the caller
+  // (contract comparison) still takes precedence.
+  const sourceFloatFinish =
+    model.projectEndDateForFloat?.value === true
+      ? requiredFinishInstant(model.declaredProjectFinishIso)
+      : null;
   const latePassFinish =
     requiredFinish ??
+    sourceFloatFinish ??
     calculatedFinish;
 
   // Backward state, with the same three states as the forward pass.

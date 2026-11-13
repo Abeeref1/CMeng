@@ -230,10 +230,14 @@ test('finish dependencies preserve chronological bounds across a different-calen
   const result=calculateCpm(model),pre=result.activities[0]!,post=result.activities[1]!;
   assert.equal(pre.earlyFinishIso,'2026-01-07T18:00:00.000Z');
   assert.equal(post.earlyStartIso,'2026-01-07T14:00:00.000Z');
-  assert.equal(post.earlyFinishIso,pre.earlyFinishIso,'FF completion is held to the predecessor event, even after working time ends.');
+  // P6 (13 Nov, DMCC-UPD2 Approved Baseline, 10 activities): an FF finish that falls in
+  // the successor's nonworking time is placed at the successor's next working time
+  // (Sat 17:00 on a Mon-Fri calendar gave Mon 08:00), never on the nonworking hour.
+  assert.equal(post.earlyFinishIso,'2026-01-08T08:00:00.000Z','FF completion is not before the predecessor event and lies on the successor working time.');
+  assert.ok(Date.parse(post.earlyFinishIso!)>=Date.parse(pre.earlyFinishIso!));
   assert.equal(post.lateFinishIso,post.earlyFinishIso);assert.equal(post.totalFloatHours,0);
   assert.equal(workingHoursBetween(fiveDayCalendar(),Date.parse(post.earlyStartIso!),Date.parse(post.earlyFinishIso!)),2);
-  assert.equal(result.projectFinishIso,pre.earlyFinishIso);
+  assert.equal(result.projectFinishIso,post.earlyFinishIso);
   const deadline=calculateCpm(model,{requiredFinishIso:'2026-01-07T15:00:00.000Z'});
   assert.ok(deadline.activities.every(a=>Date.parse(a.lateFinishIso!)<=Date.parse('2026-01-07T15:00:00.000Z')));
   assert.ok(deadline.activities[0]!.totalFloatHours!<0);

@@ -10,7 +10,9 @@ import type {ProjectRuntimeState,StoredScheduleRevision} from './project-state-t
 // XER v5: also the project option "Calendar for scheduling Relationship Lag"
 // (PROJECT.sched_calendar_on_relationship_lag) and the project default
 // calendar it may name, so stored programmes use the stated lag calendar.
-export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-v5';
+// XER v6 (13 Nov 2026, DMCC-UPD2): the same option and "use project end date
+// for float" as P6 24.x writes them, in the SCHEDOPTIONS table.
+export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-schedoptions-v6';
 /** P6 XML calendar working time (StandardWorkWeek, HolidayOrExceptions) read
  * into the shared P6 calendar model; v2 also the project option
  * Project.RelationshipLagCalendar; v3 plain-number durations, float and lag
@@ -18,9 +20,11 @@ export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-
 export const P6XML_CALENDAR_READER_VERSION='p6xml-calendar-work-time-lagcal-hours-v3';
 /** Activity values that come only from the P6 XML duration fields. */
 const P6XML_DURATION_KEYS=['originalDurationHours','remainingDurationHours','totalFloatHours'] as const;
-/** The stated lag calendar option of a fresh read replaces the stored one (absent stays absent). */
+/** The stated scheduling options of a fresh read replace the stored ones (absent stays absent):
+ * the relationship lag calendar and "use project end date for float". */
 function refreshLagCalendar(old:StoredScheduleRevision['revision']['model'],fresh:StoredScheduleRevision['revision']['model']){
   if(fresh.relationshipLagCalendar)old.relationshipLagCalendar=fresh.relationshipLagCalendar;else delete old.relationshipLagCalendar;
+  if(fresh.projectEndDateForFloat)old.projectEndDateForFloat=fresh.projectEndDateForFloat;else delete old.projectEndDateForFloat;
 }
 const isCalendarDiagnostic=(value:string)=>value.startsWith('CALENDAR_');
 

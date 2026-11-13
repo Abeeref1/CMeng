@@ -142,7 +142,7 @@ function xmlFile(baseline=false):Buffer{
 function independent(){
   const iso=(value:string)=>value.replace(' ','T')+':00Z';
   return solve({dataDate:iso(DATA_DATE),calendars:CALS.map(c=>({id:c.id,workDays:c.workDays,startHour:c.startHour,hoursPerDay:c.hoursPerDay,holidays:c.holidays})),
-    activities:ACTS.map(a=>({id:a.id,calendar:a.cal,duration:a.original,...(a.status==='in_progress'?{remaining:a.remaining}:{}),
+    activities:ACTS.map(a=>({id:a.id,calendar:a.cal,duration:a.original,type:a.type,...(a.status==='in_progress'?{remaining:a.remaining}:{}),
       ...(a.actual?.[0]?{actualStart:iso(a.actual[0])}:{}),...(a.actual?.[1]?{actualFinish:iso(a.actual[1])}:{})})),
     relationships:LINKS.map(l=>({pred:l.pred,succ:l.succ,type:l.type,lag:l.lag}))});
 }

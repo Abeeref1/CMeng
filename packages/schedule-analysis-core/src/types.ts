@@ -178,6 +178,11 @@ export interface CanonicalScheduleModel {
    * (XER PROJECT.clndr_id, P6 XML Project.ActivityDefaultCalendarObjectId).
    * Absent when the file does not state the option. Additive. */
   relationshipLagCalendar?: SourceRelationshipLagCalendar;
+  /** P6 schedule option "use project end date for float" as stated in the file
+   * (XER SCHEDOPTIONS.sched_use_project_end_date_for_float). When true, P6 counts
+   * total float to the project's Must Finish By (declaredProjectFinishIso) rather
+   * than to the calculated finish. Absent when the file does not state it. */
+  projectEndDateForFloat?: {value: boolean; sourceValue: string; sourceRef: string};
   activities: CanonicalScheduleActivity[];
   relationships: CanonicalScheduleRelationship[];
   wbs: CanonicalWbsNode[];
