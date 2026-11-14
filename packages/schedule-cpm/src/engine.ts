@@ -803,9 +803,9 @@ function calculateCpmOnce(
   // keeps the calculated start.
   const actualStartMs = new Float64Array(activityCount).fill(NaN);
   // P6 option "Calculate start-to-start lag from Early Start" (XER
-  // SCHEDOPTIONS.sched_lag_early_start_flag = Y): SS/SF links count from the
-  // predecessor's remaining early start instead (DMINFRA-101).
-  if (config.durationBasis === "remaining" && !ssFromEarlyStart) {
+  // SCHEDOPTIONS.sched_lag_early_start_flag = Y): see linkBound; the backward
+  // pass then also bounds a started predecessor through its SS/SF links.
+  if (config.durationBasis === "remaining") {
     for (let index = 0; index < activityCount; index += 1) {
       const activity = model.activities[index]!;
       if (activity.status !== "in_progress") continue;
@@ -818,7 +818,7 @@ function calculateCpmOnce(
     return forwardState[index] === 2 && !Number.isNaN(actual) && actual <= earlyStartMs[index]! ? actual : null;
   };
   const relationStartOf = (index: number): number | null =>
-    startedAt(index) ?? forwardStartOf(index);
+    (ssFromEarlyStart ? null : startedAt(index)) ?? forwardStartOf(index);
   // Binding (driving) predecessor links of each activity, as link numbers.
   // A later retrace appends a fresh list and repoints the activity to it.
   const bindingStart = new Int32Array(activityCount);
@@ -840,7 +840,14 @@ function calculateCpmOnce(
     }
     const predecessorStart = relationStartOf(predecessorIndex);
     const predecessorFinish = forwardFinishOf(predecessorIndex);
-    const start = forwardConstraintStart(relation, predecessorStart, predecessorFinish, durationHours, calendar, lagCalendarOf(link, calendar));
+    // From Early Start (DMINFRA-101), an in-progress predecessor's SS/SF lag still runs from its actual start, but
+    // the link never allows a start before the predecessor's remaining early start: CON-Z5-TEL-DU-1060 (SS 0) follows
+    // DU-1050's remaining start, CON-Z2A-RDW-1070 (SS +16 h after 51 h done) is not held 16 h after it.
+    const started = ssFromEarlyStart && (relation.type === 'SS' || relation.type === 'SF') ? startedAt(predecessorIndex) : null;
+    let start = started === null
+      ? forwardConstraintStart(relation, predecessorStart, predecessorFinish, durationHours, calendar, lagCalendarOf(link, calendar))
+      : Math.max(forwardConstraintStart(relation, started, predecessorFinish, durationHours, calendar, lagCalendarOf(link, calendar))!,
+          forwardConstraintStart({...relation, lagHours: 0}, predecessorStart, predecessorFinish, durationHours, calendar, calendar)!);
     if (start === null) return null;
     const finishAnchor = relation.type === 'FF' ? predecessorFinish : relation.type === 'SF' ? predecessorStart : null;
     const finish = finishAnchor === null ? null : placedFinish(calendar, relation.lagHours === 0 ? finishAnchor :
@@ -1180,7 +1187,7 @@ function calculateCpmOnce(
 
       // A started predecessor's start is fixed in the past: an SS/SF link
       // cannot move it, so it gives no late bound (T06 D2, retained logic).
-      if ((relation.type === "SS" || relation.type === "SF") && (startedAt(index) !== null || completedLogic && !ssFromEarlyStart)) continue;
+      if ((relation.type === "SS" || relation.type === "SF") && (!ssFromEarlyStart && startedAt(index) !== null || completedLogic && !ssFromEarlyStart)) continue;
       const successorKnown = backwardState[successorIndex] === 2;
       const candidate =
         backwardConstraintFinish(

@@ -106,6 +106,13 @@ test('SS from an in-progress predecessor counts from its remaining start when th
   const fromEarly = run(model(acts, links, true)).a;
   assert.equal(fromEarly.get('Q')!.earlyFinishIso, '2031-01-07T16:00:00.000Z');
   assert.ok(at(fromEarly.get('Q')!.earlyStartIso) - at(dataDate) >= 8 * H - 1);
+  // A lag already run since the actual start does not hold the successor again
+  // (P started 3 Jan; SS +16 h ends 4 Jan, before its remaining start).
+  const lagged = run(model(acts, [['X', 'P', 'FS', 0], ['P', 'Q', 'SS', 16]], true)).a;
+  assert.equal(lagged.get('Q')!.earlyFinishIso, '2031-01-07T16:00:00.000Z');
+  // A lag longer than the time since the actual start still counts from it.
+  const long = run(model(acts, [['X', 'P', 'FS', 0], ['P', 'Q', 'SS', 48]], true)).a;
+  assert.equal(long.get('Q')!.earlyFinishIso, '2031-01-09T16:00:00.000Z');
 });
 
 test('the XER reader takes "Calculate start-to-start lag from" from SCHEDOPTIONS', () => {
