@@ -101,9 +101,22 @@ parity unchanged; no project's forecast changed; shared facts consistent on all 
 The one check left on each is the number of sections inside the page when nested and hidden ones are counted
 (Actions required 75-81; Look-Ahead 45-64; Contract Particulars 63 on QAT). Closed sections shown at load: 15 to 19.
 
+## 14 Nov 2026 (aed0fea0)
+
+- Actions required: the per-page calculation checks are one table (29 sections, 28 of them hidden behind a picker,
+  before). DMCC-UPD2 locally 76 to 48 sections in the page.
+- Look-Ahead: labour cells and cells with one or two records show them in the cell (QAT-VLC1 had 43 closed sections).
+- Contract Particulars: each obligation's wording and its references are in the row (QAT-VLC1 had 42 closed sections);
+  "1 source occurrence", "1 document reference".
+- Programme gaps classified and two defects repaired: docs/repair-notes/cmeng-programme-gaps-20261114.md.
+
 ## Open
 
-- Actions required: nested sections (76 on DMCC). Look-Ahead reduced from 247 to 45.
 - Locations without a location code are grouped by WBS level 2 (for DMCC, phases such as "Construction"), per the
   SW-27 rule; changing it needs the owner's decision.
-- G: the 5-second cold-project gate.
+- G: the 5-second cold-project gate. Four cold 8,100 to 8,900-activity projects requested together on a 4-core CI
+  runner: slowest 6,964 ms (14e59b4a), 7,702 ms (aed0fea0); each project's calculation 5.8 to 6.5 s in the server.
+  One cold project alone: 2.6 to 3.4 s locally (bundle 1.6 to 2.0 s across about 30 parts of 30 to 180 ms each,
+  module resolution 0.7 to 1.0 s, facts and actions 0.4 s); two at once on two cores: 3.4 to 4.2 s each. The response
+  is 6.5 MB. A larger young heap did not help under concurrency. Closing it needs the single-project cold path
+  cut by about a third.

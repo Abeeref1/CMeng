@@ -19,7 +19,7 @@ export function completionPosition(data:any, forecast:any=data, names:Map<string
     else if(!['SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION'].includes(assumption))limitations.push({key:assumption,text:assumption.toLowerCase().replaceAll('_',' ').replaceAll(':',': ')});
   }
   const assumed=(forecast.assumedCalendarOpenActivityIds??[]).length;
-  if(assumed)limitations.push({key:'assumed-calendar',text:assumed+' open '+(assumed===1?'activity has':'activities have')+' no readable working calendar; CMeng assumed continuous working for '+(assumed===1?'it':'them')+'. Supply the calendar to firm up the finish.'});
+  if(assumed)limitations.push({key:'assumed-calendar',text:assumed.toLocaleString('en-US')+' open '+(assumed===1?'activity has':'activities have')+' no readable working calendar; CMeng assumed continuous working for '+(assumed===1?'it':'them')+'. Supply the calendar to firm up the finish.'});
   if(!calculated)limitations.push({key:'incomplete-calculation',text:'The full network finish is unavailable because the programme logic cannot be calculated. Available submitted dates remain usable.'});
   const independent=calculated;
   const elapsed=typeof forecast.calculatedVarianceDays==='number'?forecast.calculatedVarianceDays:typeof forecast.forecastVarianceDays==='number'?forecast.forecastVarianceDays:data.forecast?.varianceDays;

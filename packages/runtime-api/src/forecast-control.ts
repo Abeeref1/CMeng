@@ -289,7 +289,7 @@ export function forecastQualifications(input: {
   const out: ForecastQualification[] = [];
   const assumed = forecast.assumedCalendarOpenActivityIds ?? [];
   if (assumed.length) out.push({code: "assumed_calendar", count: assumed.length,
-    text: assumed.length + " open " + plural(assumed.length, "activity has", "activities have") + " no readable working calendar; CMeng assumed continuous working for " + plural(assumed.length, "it", "them") + ".",
+    text: assumed.length.toLocaleString("en-US") + " open " + plural(assumed.length, "activity has", "activities have") + " no readable working calendar; CMeng assumed continuous working for " + plural(assumed.length, "it", "them") + ".",
     action: assumedCalendarAction(input.model, assumed)});
   const messages = [...(forecast.diagnostics ?? []), ...(forecast.assumptions ?? [])];
   // M6.3: once the planner has confirmed the duration basis, the pattern is answered (stated in calendarBasis).
