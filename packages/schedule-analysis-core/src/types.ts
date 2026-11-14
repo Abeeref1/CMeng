@@ -183,6 +183,10 @@ export interface CanonicalScheduleModel {
    * total float to the project's Must Finish By (declaredProjectFinishIso) rather
    * than to the calculated finish. Absent when the file does not state it. */
   projectEndDateForFloat?: {value: boolean; sourceValue: string; sourceRef: string};
+  /** P6 schedule option "Calculate start-to-start lag from": true for Early
+   * Start, false for Actual Start (XER SCHEDOPTIONS.sched_lag_early_start_flag).
+   * Absent when the file does not state it (Actual Start is then used). */
+  startToStartLagFromEarlyStart?: {value: boolean; sourceValue: string; sourceRef: string};
   activities: CanonicalScheduleActivity[];
   relationships: CanonicalScheduleRelationship[];
   wbs: CanonicalWbsNode[];

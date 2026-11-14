@@ -12,7 +12,9 @@ import type {ProjectRuntimeState,StoredScheduleRevision} from './project-state-t
 // calendar it may name, so stored programmes use the stated lag calendar.
 // XER v6 (13 Nov 2026, DMCC-UPD2): the same option and "use project end date
 // for float" as P6 24.x writes them, in the SCHEDOPTIONS table.
-export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-schedoptions-v6';
+// XER v7 (14 Nov 2026, DMINFRA-101): "Calculate start-to-start lag from"
+// (SCHEDOPTIONS.sched_lag_early_start_flag).
+export const XER_CALENDAR_READER_VERSION='p6-source-aliases-links-finish-lagcal-schedoptions-sslag-v7';
 /** P6 XML calendar working time (StandardWorkWeek, HolidayOrExceptions) read
  * into the shared P6 calendar model; v2 also the project option
  * Project.RelationshipLagCalendar; v3 plain-number durations, float and lag
@@ -25,6 +27,7 @@ const P6XML_DURATION_KEYS=['originalDurationHours','remainingDurationHours','tot
 function refreshLagCalendar(old:StoredScheduleRevision['revision']['model'],fresh:StoredScheduleRevision['revision']['model']){
   if(fresh.relationshipLagCalendar)old.relationshipLagCalendar=fresh.relationshipLagCalendar;else delete old.relationshipLagCalendar;
   if(fresh.projectEndDateForFloat)old.projectEndDateForFloat=fresh.projectEndDateForFloat;else delete old.projectEndDateForFloat;
+  if(fresh.startToStartLagFromEarlyStart)old.startToStartLagFromEarlyStart=fresh.startToStartLagFromEarlyStart;else delete old.startToStartLagFromEarlyStart;
 }
 const isCalendarDiagnostic=(value:string)=>value.startsWith('CALENDAR_');
 

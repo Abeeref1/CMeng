@@ -31,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           node --test --test-concurrency=1 \
+            dist/tests/p6-out-of-sequence-progress.test.js \
             dist/tests/t08-ncr-unclear-and-need-date.test.js \
             dist/tests/t09-actions-navigation.test.js \
             dist/tests/g3-unknown-value-states.test.js \

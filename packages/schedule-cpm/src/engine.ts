@@ -776,13 +776,36 @@ function calculateCpmOnce(
     forwardState[index] === 2 ? earlyStartMs[index]! : null;
   const forwardFinishOf = (index: number): number | null =>
     forwardState[index] === 2 ? earlyFinishMs[index]! : null;
+  // P6 retained logic, out-of-sequence progress: a completed activity with an
+  // unfinished predecessor (directly or through another such completed
+  // activity) carries that logic on as zero work: a start event at the latest
+  // instant its FS/SS predecessors allow and a finish event no earlier than
+  // that and its FF/SF predecessors (their lags included), never before the
+  // data date. Its successors follow from those events without the link's
+  // lag (FS/FF from the finish event, SS/SF from the start event), and the
+  // backward pass runs through it the same way. SS/SF links use the start
+  // event only when the programme counts start-to-start lag from Early Start;
+  // from Actual Start they count from its actual start, which carries nothing.
+  // Its reported dates stay the actual dates. (DMINFRA-101: 120 such
+  // activities, UPTOWN-100: 317; the contractor's P6 dates follow this rule,
+  // including the dropped lag.)
+  const ssFromEarlyStart = model.startToStartLagFromEarlyStart?.value === true;
+  const logicStartMs = new Float64Array(activityCount).fill(NaN);
+  const logicMs = new Float64Array(activityCount).fill(NaN);
+  const carriesLogic = (index: number): boolean => !Number.isNaN(logicMs[index]!);
+  const carriedEvent = (predecessorIndex: number, relation: EffectiveRelationship): number | null =>
+    !carriesLogic(predecessorIndex) ? null : relation.type === "FS" || relation.type === "FF" ? logicMs[predecessorIndex]! :
+      ssFromEarlyStart ? logicStartMs[predecessorIndex]! : null;
   // Retained logic: work that has started has a fixed start event. An SS/SF
   // successor counts its lag from the predecessor's actual start, not from
   // the remaining-work start at the data date (T06 D2). Only a recorded
   // actual start no later than the remaining start is used; anything else
   // keeps the calculated start.
   const actualStartMs = new Float64Array(activityCount).fill(NaN);
-  if (config.durationBasis === "remaining") {
+  // P6 option "Calculate start-to-start lag from Early Start" (XER
+  // SCHEDOPTIONS.sched_lag_early_start_flag = Y): SS/SF links count from the
+  // predecessor's remaining early start instead (DMINFRA-101).
+  if (config.durationBasis === "remaining" && !ssFromEarlyStart) {
     for (let index = 0; index < activityCount; index += 1) {
       const activity = model.activities[index]!;
       if (activity.status !== "in_progress") continue;
@@ -805,6 +828,58 @@ function calculateCpmOnce(
   const candidateStart = new Float64Array(maxIncoming);
   const candidateFinish = new Float64Array(maxIncoming);
   const candidateHasFinish = new Uint8Array(maxIncoming);
+  // The start (and, for FF/SF, the finish) one predecessor link requires.
+  const linkBound = (link: number, durationHours: number, calendar: WorkingCalendarResolution): {start: number; finish: number | null} | null => {
+    const relation = linked[link]!, predecessorIndex = linkedPredecessor[link]!;
+    // A carried event replaces the completed predecessor's actual dates and
+    // the link's lag (an actual finish after the data date included).
+    const carried = carriedEvent(predecessorIndex, relation);
+    if (carried !== null) {
+      const start = forwardConstraintStart({...relation, lagHours: 0}, carried, carried, durationHours, calendar, calendar)!;
+      return {start, finish: relation.type === 'FF' || relation.type === 'SF' ? placedFinish(calendar, carried) : null};
+    }
+    const predecessorStart = relationStartOf(predecessorIndex);
+    const predecessorFinish = forwardFinishOf(predecessorIndex);
+    const start = forwardConstraintStart(relation, predecessorStart, predecessorFinish, durationHours, calendar, lagCalendarOf(link, calendar));
+    if (start === null) return null;
+    const finishAnchor = relation.type === 'FF' ? predecessorFinish : relation.type === 'SF' ? predecessorStart : null;
+    const finish = finishAnchor === null ? null : placedFinish(calendar, relation.lagHours === 0 ? finishAnchor :
+      shiftByLag(lagCalendarOf(link, calendar), finishAnchor, relation.lagHours));
+    return {start, finish};
+  };
+  const carryCompletedLogic = (index: number, calendar: WorkingCalendarResolution): void => {
+    let candidates = 0;
+    let latestStart = anchor ?? -Infinity;
+    let latestFinish = -Infinity;
+    for (let slot = incomingStart[index]!; slot < incomingStart[index + 1]!; slot += 1) {
+      const link = incomingLinks[slot]!;
+      const predecessorIndex = linkedPredecessor[link]!;
+      if (forwardState[predecessorIndex] !== 2) continue;
+      if (model.activities[predecessorIndex]!.status === "completed" && carriedEvent(predecessorIndex, linked[link]!) === null) continue;
+      const bound = linkBound(link, 0, calendar);
+      if (bound === null) continue;
+      candidateLink[candidates] = link;
+      candidateStart[candidates] = bound.start;
+      candidateHasFinish[candidates] = bound.finish === null ? 0 : 1;
+      if (bound.finish !== null) candidateFinish[candidates] = bound.finish;
+      candidates += 1;
+      if (bound.finish === null) latestStart = Math.max(latestStart, bound.start);
+      else latestFinish = Math.max(latestFinish, bound.finish);
+    }
+    if (!candidates) return;
+    const placedStart = latestStart === -Infinity ? null : placedFinish(calendar, latestStart);
+    const placedEnd = latestFinish === -Infinity ? null : placedFinish(calendar, latestFinish);
+    const start = placedStart ?? placedEnd!;
+    const finish = Math.max(start, placedEnd ?? start);
+    logicStartMs[index] = start;
+    logicMs[index] = finish;
+    bindingStart[index] = bindingLinks.length;
+    for (let candidate = 0; candidate < candidates; candidate += 1) {
+      const event = candidateHasFinish[candidate] ? candidateFinish[candidate]! : candidateStart[candidate]!;
+      if (Math.abs(placedFinish(calendar, event) - finish) < 1) bindingLinks.push(candidateLink[candidate]!);
+    }
+    bindingCount[index] = bindingLinks.length - bindingStart[index]!;
+  };
 
   for (let position = 0; position < activityCount; position += 1) {
     const index = order[position]!;
@@ -831,6 +906,7 @@ function calculateCpmOnce(
         earlyStartMs[index] = fixed.earlyStartMs!;
         earlyFinishMs[index] = fixed.earlyFinishMs!;
         forwardState[index] = 2;
+        if (config.durationBasis === "remaining") carryCompletedLogic(index, context.calendar);
       } else {
         context.diagnostics.push(
           "CPM_COMPLETED_ACTIVITY_FINISH_UNRESOLVED",
@@ -855,28 +931,16 @@ function calculateCpmOnce(
 
       if (forwardState[predecessorIndex] === 0) continue;
 
-      const predecessorStart = relationStartOf(predecessorIndex);
-      const predecessorFinish = forwardFinishOf(predecessorIndex);
-      const candidate =
-        forwardConstraintStart(
-          relation,
-          predecessorStart,
-          predecessorFinish,
-          durationHours,
-          calendar,
-          lagCalendarOf(link, calendar),
-        );
+      const bound = linkBound(link, durationHours, calendar);
 
-      if (candidate !== null) {
-        const finishAnchor=relation.type==='FF'?predecessorFinish:relation.type==='SF'?predecessorStart:null;
+      if (bound !== null) {
         candidateLink[candidates] = link;
-        candidateStart[candidates] = candidate;
-        if (finishAnchor === null) {
+        candidateStart[candidates] = bound.start;
+        if (bound.finish === null) {
           candidateHasFinish[candidates] = 0;
         } else {
           candidateHasFinish[candidates] = 1;
-          candidateFinish[candidates] = placedFinish(calendar,relation.lagHours===0?finishAnchor:
-            shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours));
+          candidateFinish[candidates] = bound.finish;
         }
         candidates += 1;
       } else {
@@ -1018,6 +1082,7 @@ function calculateCpmOnce(
     // unfinished-activity ties. Completed activities bypass that pass's trace,
     // so retain their original fixed-date link inspection in either case.
     const retrace=(index:number)=>{
+      if(carriesLogic(index))return;
       const context=contexts[index]!;
       if(!context.calendar||context.durationHours===null||forwardState[index]!==2)return;
       const calendar=context.calendar,durationHours=context.durationHours;
@@ -1026,10 +1091,8 @@ function calculateCpmOnce(
       for(let slot=incomingStart[index]!;slot<incomingStart[index+1]!;slot++){
         const link=incomingLinks[slot]!,relation=linked[link]!,predecessorIndex=linkedPredecessor[link]!;
         if(forwardState[predecessorIndex]===0)continue;
-        const predecessorStart=relationStartOf(predecessorIndex),predecessorFinish=forwardFinishOf(predecessorIndex);
-        const start=forwardConstraintStart(relation,predecessorStart,predecessorFinish,durationHours,calendar,lagCalendarOf(link,calendar));
-        const finishAnchor=relation.type==='FF'?predecessorFinish:relation.type==='SF'?predecessorStart:null;
-        const finish=finishAnchor===null?null:placedFinish(calendar,relation.lagHours===0?finishAnchor:shiftByLag(lagCalendarOf(link,calendar),finishAnchor,relation.lagHours));
+        const bound=linkBound(link,durationHours,calendar);
+        const start=bound?.start??null,finish=bound?.finish??null;
         if(start!==null&&Math.abs(placedEarlyStart(calendar,isFinishMilestone(context.activity,durationHours),start)-early.start)<1||finish!==null&&Math.abs(finish-early.finish)<1)bindingLinks.push(link);
       }
       bindingCount[index]=bindingLinks.length-bindingStart[index]!;
@@ -1081,21 +1144,19 @@ function calculateCpmOnce(
       continue;
     }
 
-    if (
-      context.activity.status ===
-      "completed"
-    ) {
+    const completedLogic = context.activity.status === "completed";
+    if (completedLogic && !carriesLogic(index)) {
       backwardState[index] = 1;
       continue;
     }
 
     const calendar = context.calendar;
-    const durationHours = context.durationHours;
-    const earlyFinishOfActivity = earlyFinishMs[index]!;
+    const durationHours = completedLogic ? 0 : context.durationHours;
+    const earlyFinishOfActivity = completedLogic ? logicMs[index]! : earlyFinishMs[index]!;
     let lateFinishCandidate = latePassFinish;
     let startBound = Infinity;
     let hasStartBound = false;
-    const sourceBounds=(constraintsByActivity.get(context.activity)??noConstraints).constraints;
+    const sourceBounds=completedLogic?[]:(constraintsByActivity.get(context.activity)??noConstraints).constraints;
     for(const bound of sourceBounds){
       if(bound.date===null)continue;
       if(['start_on','start_before'].includes(bound.kind)){
@@ -1119,11 +1180,11 @@ function calculateCpmOnce(
 
       // A started predecessor's start is fixed in the past: an SS/SF link
       // cannot move it, so it gives no late bound (T06 D2, retained logic).
-      if ((relation.type === "SS" || relation.type === "SF") && startedAt(index) !== null) continue;
+      if ((relation.type === "SS" || relation.type === "SF") && (startedAt(index) !== null || completedLogic && !ssFromEarlyStart)) continue;
       const successorKnown = backwardState[successorIndex] === 2;
       const candidate =
         backwardConstraintFinish(
-          relation,
+          completedLogic && relation.lagHours !== 0 ? {...relation, lagHours: 0} : relation,
           successorKnown ? lateStartMs[successorIndex]! : null,
           successorKnown ? lateFinishMs[successorIndex]! : null,
           durationHours,

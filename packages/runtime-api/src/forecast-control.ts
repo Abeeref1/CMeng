@@ -260,6 +260,21 @@ function plural(count: number, one: string, many: string) { return count === 1 ?
 /** DMCC-UPD2 #23: counts in sentences carry separators and a proper plural ("2,335 activities"). */
 function count(value: number, one: string, many: string) { return value.toLocaleString("en-US") + " " + plural(value, one, many); }
 function dayText(days: number) { const n = Math.abs(days); return n + " " + plural(n, "day", "days"); }
+/** The exact working-time information missing for the activities on an assumed calendar:
+ * each calendar by name with what the file does give (RYD-NME-PKG-C "6D-10H": 10 h a day,
+ * 60 h a week, but no working days or shift times). */
+function assumedCalendarAction(model: CanonicalScheduleModel, assumedIds: readonly string[]): string {
+  const calendarOf = new Map(model.activities.map(a => [a.activityId, a.calendarId]));
+  const calendars = new Map((model.calendars ?? []).map(c => [c.calendarId, c]));
+  const named = [...new Set(assumedIds.map(id => calendarOf.get(id) ?? null))].map(id => {
+    const c = id === null ? undefined : calendars.get(id);
+    if (!c) return id === null ? "activities with no calendar" : "calendar " + id + " (not in the file)";
+    const day = c.sourceConversionDayHours, week = c.sourceConversionWeekHours;
+    return "\u201c" + (c.name || c.calendarId) + "\u201d" + (day ? " (the file gives " + day + " h a day" + (week ? " and " + week + " h a week" : "") + " only)" : " (the file gives no working time)");
+  });
+  const shown = named.slice(0, 6).join("; ") + (named.length > 6 ? "; and " + (named.length - 6) + " more" : "");
+  return "Supply the working days, shift start and finish times and holidays for " + shown + ".";
+}
 /** The qualifications of a calculated finish, each with the input that would firm it up. */
 export function forecastQualifications(input: {
   forecast: IndependentForecastProjection;
@@ -275,7 +290,7 @@ export function forecastQualifications(input: {
   const assumed = forecast.assumedCalendarOpenActivityIds ?? [];
   if (assumed.length) out.push({code: "assumed_calendar", count: assumed.length,
     text: assumed.length + " open " + plural(assumed.length, "activity has", "activities have") + " no readable working calendar; CMeng assumed continuous working for " + plural(assumed.length, "it", "them") + ".",
-    action: "Supply the working calendar (days and shift hours) for " + plural(assumed.length, "this activity", "these activities") + "."});
+    action: assumedCalendarAction(input.model, assumed)});
   const messages = [...(forecast.diagnostics ?? []), ...(forecast.assumptions ?? [])];
   // M6.3: once the planner has confirmed the duration basis, the pattern is answered (stated in calendarBasis).
   if (!input.model.calendarBasisDecision?.durationBasis && messages.some(message => message.includes("SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION")))

@@ -794,12 +794,14 @@ function canonicalScheduleFromXerRead(
   const lagCalendarRefs=[...new Set(lagCalendarOptions.map(option=>option.ref).filter((ref):ref is string=>ref!==null))];
   // P6 "use project end date for float" (SCHEDOPTIONS); read only for a single
   // current project, and only Y/N. Anything else is not guessed.
-  const floatOption=projectRows.length===1?(()=>{
+  const yesNoOption=(field:string)=>projectRows.length===1?(()=>{
     const key=xerField(firstProject!,"proj_id");
     const values=[...new Set(scheduleOptionRows.filter(row=>key===null||xerField(row,"proj_id")===key)
-      .map(row=>xerField(row,"sched_use_project_end_date_for_float")).filter((value):value is string=>value!==null))];
-    return values.length===1&&/^[YN]$/i.test(values[0]!)?{value:values[0]!.toUpperCase()==="Y",sourceValue:values[0]!,sourceRef:"XER SCHEDOPTIONS.sched_use_project_end_date_for_float"}:null;
+      .map(row=>xerField(row,field)).filter((value):value is string=>value!==null))];
+    return values.length===1&&/^[YN]$/i.test(values[0]!)?{value:values[0]!.toUpperCase()==="Y",sourceValue:values[0]!,sourceRef:"XER SCHEDOPTIONS."+field}:null;
   })():null;
+  const floatOption=yesNoOption("sched_use_project_end_date_for_float");
+  const startToStartOption=yesNoOption("sched_lag_early_start_flag");
   const lagCalendar=statedLagCalendar(lagCalendarValues,
     lagCalendarValues.some(value=>value!==null)?projectRows.map(row=>xerField(row,"clndr_id")):[],lagCalendarRefs.join(", ")||"XER PROJECT.sched_calendar_on_relationship_lag");
   return {
@@ -808,6 +810,7 @@ function canonicalScheduleFromXerRead(
     sourceRevisionId: input.sourceRevisionId,
     ...(lagCalendar.value?{relationshipLagCalendar:lagCalendar.value}:{}),
     ...(floatOption?{projectEndDateForFloat:floatOption}:{}),
+    ...(startToStartOption?{startToStartLagFromEarlyStart:startToStartOption}:{}),
     declaredProjectFinishIso:projectRows.length===1?xerDate(xerField(firstProject!,"plan_end_date")):null,
     // PROJECT.scd_end_date is the finish P6 computed at the last schedule
     // run. It is held apart from the declared (plan_end_date) finish and

@@ -106,11 +106,18 @@ function randomModel(seed:number):{model:CanonicalScheduleModel;config:Partial<C
 //     the previous closing instant, giving cross-calendar false negative float).
 // D2: an SS/SF link from an in-progress predecessor counts from its actual
 //     start (bd851ecc used the remaining start at the data date).
+// D3 (14 Nov 2026, DMINFRA-101 / UPTOWN-100, the contractor's own P6 dates):
+//     out-of-sequence progress. A completed activity with an unfinished
+//     predecessor carries that logic on to its successors (P6 retained
+//     logic); bd851ecc held it at its actual dates. Its own reported dates
+//     are unchanged.
 function d1d2Triggers(model:CanonicalScheduleModel,config:Partial<CpmConfig>,expected:ReturnType<typeof referenceCalculateCpm>|undefined){
   const d1=(expected?.activities??[]).some(a=>a.status==='calculated'&&a.durationHours===0&&a.lateStartIso!==a.lateFinishIso);
   const started=new Set(model.activities.filter(a=>a.status==='in_progress'&&a.actualStartIso).map(a=>a.activityId));
   const d2=(config.durationBasis??'remaining')==='remaining'&&model.relationships.some(r=>(r.type==='SS'||r.type==='SF')&&started.has(r.predecessorActivityId));
-  return {d1,d2};
+  const status=new Map(model.activities.map(a=>[a.activityId,a.status]));
+  const d3=(config.durationBasis??'remaining')==='remaining'&&model.relationships.some(r=>status.get(r.successorActivityId)==='completed'&&status.has(r.predecessorActivityId)&&status.get(r.predecessorActivityId)!=='completed');
+  return {d1,d2,d3};
 }
 function assertCorrectedD1D2(actual:ReturnType<typeof calculateCpm>,expected:ReturnType<typeof referenceCalculateCpm>,label:string){
   // Same population, identifiers, order, calendars, durations and project start.
@@ -142,8 +149,14 @@ test('T11 CPM engine: 200 random networks give results identical to the bd851ecc
     if(expected.result&&actual.result&&expected.result.projectFinishIso===null&&actual.result.diagnostics.some(d=>/^CPM_(LOOP_LINK|DUPLICATE_ACTIVITY_ID)_LEFT_OUT:/.test(d))){
       assert.equal(actual.result.complete,false,'seed '+seed);repaired++;notCalculable++;continue;
     }
+    if(expected.result){
+      calculated+=expected.result.activities.filter(a=>a.status==='calculated').length;
+      if(expected.result.diagnostics.some(d=>d.startsWith('SOURCE_CONSTRAINTS_APPLIED')))constrained++;
+      if((expected.result.drivingNetwork?.relationships.length??0)>0)driving++;
+      if(expected.result.activities.some(a=>a.diagnostics.includes('CPM_NETWORK_NOT_CALCULABLE')))notCalculable++;
+    }
     const triggers=d1d2Triggers(model,config,expected.result);
-    if((triggers.d1||triggers.d2)&&expected.result&&actual.result&&JSON.stringify(actual)!==JSON.stringify(expected)){
+    if((triggers.d1||triggers.d2||triggers.d3)&&expected.result&&actual.result&&JSON.stringify(actual)!==JSON.stringify(expected)){
       assertCorrectedD1D2(actual.result,expected.result,'seed '+seed);
       corrected++;
       continue;
@@ -151,12 +164,6 @@ test('T11 CPM engine: 200 random networks give results identical to the bd851ecc
     identical++;
     assert.deepStrictEqual(actual,expected,'seed '+seed);
     assert.equal(JSON.stringify(actual),JSON.stringify(expected),'seed '+seed+' key order');
-    if(expected.result){
-      calculated+=expected.result.activities.filter(a=>a.status==='calculated').length;
-      if(expected.result.diagnostics.some(d=>d.startsWith('SOURCE_CONSTRAINTS_APPLIED')))constrained++;
-      if((expected.result.drivingNetwork?.relationships.length??0)>0)driving++;
-      if(expected.result.activities.some(a=>a.diagnostics.includes('CPM_NETWORK_NOT_CALCULABLE')))notCalculable++;
-    }
   }
   // The random population genuinely exercises the calculated, constrained,
   // driving-path and not-calculable branches.
@@ -164,8 +171,10 @@ test('T11 CPM engine: 200 random networks give results identical to the bd851ecc
   assert.ok(constrained>20,'constrained networks '+constrained);
   assert.ok(driving>50,'networks with driving links '+driving);
   assert.ok(notCalculable>3,'not calculable networks '+notCalculable);
-  // Most networks have neither situation and remain byte-identical.
-  assert.ok(identical>=150,'identical networks '+identical+', corrected '+corrected);
+  // Most networks have none of these situations and remain byte-identical.
+  // (Random progress states give out-of-sequence completion (D3) in about a
+  // third of the networks; 150 before D3, 113 with it.)
+  assert.ok(identical>=105,'identical networks '+identical+', corrected '+corrected);
 });
 
 test('T11 CPM engine: a profile-scale network (8,900 activities, 6 calendars) is identical', () => {
