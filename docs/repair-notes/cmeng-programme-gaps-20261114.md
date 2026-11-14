@@ -45,3 +45,25 @@ Tests: tests/p6-out-of-sequence-progress.test.ts; tests/t11-cpm-engine-different
   Treating the first as the previous close made 6,469 dates differ, so the existing rule stays. DMINFRA-101: one start
   point gives 5.
 - Synthetic programmes: their dates are generated as elapsed days; no CMeng change can or should match them.
+
+## Live result (ca738611, deployed 14 Nov 2026 17:01 Dubai)
+
+b2edf1da deployed first (16:06), then ca738611 for the three pages the 20-project check still found over 60 sections
+(Contract Particulars on ABB-100, DMM-HDC-P2, ORBIT-JED-PLH-P3; Actions required on ORBIT) and the old page name on
+the four empty Dashboards. CI on ca738611: regression, raster, concurrency, acceptance, independent and the focused
+set passed; operations failed only on the cold-project gate (slowest 7,262 ms against 5,000 ms).
+
+| Check (live) | e9685aa3 | ca738611 |
+|---|---|---|
+| Data | 20 projects / 472 documents | unchanged, nothing lost |
+| DMCC-UPD2 P6 parity | 25,629 of 25,629 | unchanged (547 / 1,059 / 0; finish 29 Nov 2027 11:00) |
+| DMCC-UPD2 page defects (27) | 26 | 27 |
+| Generic page checks (10 each) | 3 projects checked | all 20 projects pass all 10 |
+| Shared facts on 7 pages | 20 consistent | 20 consistent |
+| UPTOWN-100 activities > 14 days from P6 | 1,007 | 0 (finish equal) |
+| DMINFRA-101 activities > 14 days from P6 | 978 (finish 08:48 vs 10:00) | 0 (finish equal) |
+
+Other forecasts: unchanged headlines. JBL-GAUC-EPC1 8,280 to 8,282 activities differ from the contractor (contractor
+leads). ABB-100: CMeng's own (not headlined) finish moved from 2055 to 2284, because the file's logic now carries
+through its completed activities with unfinished predecessors; the page states it covers 21.6% of activities, that no
+open activity has a calendar, and that it is outside the credibility limit.
