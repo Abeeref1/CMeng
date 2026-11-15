@@ -290,7 +290,9 @@ function pageRoleLensContext(data){
     ['Negative-float activities',facts.schedule?.negativeFloatActivityCount,''],
     ['Awarded EOT',facts.time?.awardedEotDays,'d'],
     ['Open actions',facts.actions?.openCount,'']
-  ].filter(row=>row[1]).map(([label,field,unit])=>({label,value:value(field),unit,basis:field.basis,health:value(field)===null?'unavailable':'See source basis'}));
+  ].filter(row=>row[1]).map(([label,field,unit])=>field.valueState==='checking'
+    ?{label,value:'Checking pages',unit:'',basis:field.basis,health:'Not checked yet'}
+    :{label,value:value(field),unit,basis:field.basis,health:value(field)===null?'unavailable':'See source basis'});
   // Contract values are held in the page facts per currency. Each currency is
   // placed on its own row and never summed across currencies. No currency rows
   // means the commercial position is not established, not zero positions.
@@ -313,9 +315,9 @@ function pageRoleLensContext(data){
   const decisions=!baseDecisions.length&&Array.isArray(actions)?actions.slice(0,8).map(action=>({description:action.issue??null,accountableOwner:action.owner??null,accountableOwnerState:action.ownerState??null,accountableRole:action.accountableRole??null,dueDate:action.dueIso??null,sourceDueIso:action.sourceDueIso??null,sourceOverdueDays:action.sourceOverdueDays??null,requiredAuthority:action.authority??null,dependencyParty:action.organisation??null,state:'open'})):null;
   return {...base,planning:{...base.planning,criticalCount:value(facts.schedule?.criticalActivityCount),nearCriticalCount:value(facts.schedule?.nearCriticalActivityCount),negativeFloatCount:value(facts.schedule?.negativeFloatActivityCount),...(network?{drivingNetworkState:network.state,drivers:(network.rows||[]).map(row=>({...row,wbs:row.wbs??row.wbsPath,calculatedFinishIso:row.calculatedFinishIso??row.finishIso,totalFloatHours:row.totalFloatHours??row.independentTotalFloatHours,totalFloatWorkingDays:row.totalFloatHours!=null?row.totalFloatWorkingDays:row.independentTotalFloatWorkingDays}))}:{}),...(diagnosis?.revision?{revision:diagnosis.revision}:{})},
     controls:{...base.controls,submittedCompletionIso:submitted,...(progress?{progress}:{}),...(completion?{forecastCompletionIso:forecast??null,scheduleVarianceDays:completion.differenceElapsedDays??null}:{}),...(diagnosis?.revision?{revision:diagnosis.revision}:{})},
-    projectDirector:{...base.projectDirector,openActionCount:value(facts.actions?.openCount),...(Array.isArray(actions)?{actions}:{})},
+    projectDirector:{...base.projectDirector,openActionCount:facts.actions?.openCount?.valueState==='checking'?'checking':value(facts.actions?.openCount),...(Array.isArray(actions)?{actions}:{})},
     programDirector:{...base.programDirector,...(management?.schedule?.programmeStages?{programmeStages:management.schedule.programmeStages}:{}),...(interfaces?.rows?{interfaces:interfaces.rows}:{})},
-    executive:{...base.executive,contractualCompletionIso:contractual,...(extended!==null&&extended!==contractual?{currentContractCompletionIso:extended}:{}),submittedCompletionIso:submitted,...(completion?{forecastCompletionIso:forecast??null}:{}),metrics,commercialByCurrency:currencies,openActionCount:value(facts.actions?.openCount),...(decisions?{decisions}:{})}};
+    executive:{...base.executive,contractualCompletionIso:contractual,...(extended!==null&&extended!==contractual?{currentContractCompletionIso:extended}:{}),submittedCompletionIso:submitted,...(completion?{forecastCompletionIso:forecast??null}:{}),metrics,commercialByCurrency:currencies,openActionCount:facts.actions?.openCount?.valueState==='checking'?'checking':value(facts.actions?.openCount),...(decisions?{decisions}:{})}};
 }
 function experienceRoleLensContext(role,data){
   const context=pageRoleLensContext(data);
@@ -355,7 +357,7 @@ function experienceRoleLensContext(role,data){
     const rows=(context.projectDirector?.actions||[]).slice(0,8);
     return '<section class="experience-brief role-lens-context"><div class="experience-brief-heading"><h4>Delivery consequences, ownership & required action</h4><span>Project Director</span></div>'+
       roleLensTable('Priority management actions',[['severity','Severity'],['issue','Issue'],['consequence','Consequence'],['affectedScope','Affected scope'],['owner','Owner'],['requiredAction','Required action'],['dueIso','Action due','date'],['sourceDueIso','Earliest source due','date'],['sourceOverdueDays','Source days overdue'],['escalation','Escalation']],rows)+
-      (!rows.length?'<p>'+escapeHtml(context.projectDirector?.openActionCount>0?context.projectDirector.openActionCount+' open management actions are recorded. Open Management Brief for the project action list.':context.projectDirector?.openActionCount===0?'No open management actions are recorded.':'Management actions are not established in this page response.')+'</p>':'')+'</section>';
+      (!rows.length?'<p>'+escapeHtml(context.projectDirector?.openActionCount==='checking'?'Checking pages. The shared action list appears when the complete page check finishes.':context.projectDirector?.openActionCount>0?context.projectDirector.openActionCount+' open management actions are recorded. Open Management Brief for the project action list.':context.projectDirector?.openActionCount===0?'No open management actions are recorded.':'Management actions are not established in this page response.')+'</p>':'')+'</section>';
   }
   if(role==='program-director'){
     const p=context.programDirector||{},stages=(p.programmeStages||[]).slice(0,8),interfaces=(p.interfaces||[]).slice(0,8);
@@ -378,7 +380,7 @@ function experienceRoleLensContext(role,data){
       ])+
       roleLensTable('Priority management metrics',[['label','Metric'],['value','Value'],['unit','Unit'],['health','Health'],['basis','Basis']],metricRows)+
       roleLensTable('Decisions requiring ownership',[['description','Decision'],['accountableOwner','Owner'],['dueDate','Action due','date'],['sourceDueIso','Earliest source due','date'],['sourceOverdueDays','Source days overdue'],['requiredAuthority','Required authority'],['dependencyParty','Dependency'],['state','State']],decisions)+
-      (!decisions.length&&e.openActionCount!==undefined?'<p>'+escapeHtml(e.openActionCount>0?e.openActionCount+' open management actions are recorded. Open Management Brief for the project action list.':e.openActionCount===0?'No open management actions are recorded.':'Management actions are not established in this page response.')+'</p>':'')+
+      (!decisions.length&&e.openActionCount!==undefined?'<p>'+escapeHtml(e.openActionCount==='checking'?'Checking pages. The shared action list appears when the complete page check finishes.':e.openActionCount>0?e.openActionCount+' open management actions are recorded. Open Management Brief for the project action list.':e.openActionCount===0?'No open management actions are recorded.':'Management actions are not established in this page response.')+'</p>':'')+
       '</section>';
   }
   return '';

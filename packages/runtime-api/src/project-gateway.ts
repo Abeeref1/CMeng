@@ -14,6 +14,7 @@ const pageRoute=(key:string)=>pageDataRoute(moduleRegistry.find(page=>page.key==
 import {normalizeProjectCode} from './project-identity';
 import {loadProjectCatalog,projectDirectory,atomicJson,release,calculationRelease,type CatalogEntry} from './project-catalog';
 import {projectWorkerCapacity} from './project-worker-capacity';
+import {readProgrammeManifest,programmeManifestCurrent} from './programme-results';
 import {abortProjectProxyOnDisconnect} from './project-proxy-cancellation';
 import {ProjectReadCache,clearDerivedReadCaches,cacheableProjectRead,MAX_PROJECT_READ_BYTES} from './project-read-cache';
 import {sendHttpBody,forwardHttpBody} from './http-response';
@@ -186,6 +187,38 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(catalog.has(id))return;
     catalog.set(id,{projectId:id,metadata:null,summary:null,summaryRelease:null});await saveCatalog();
   }
+  const workerScript=join(__dirname,'project-http-worker.js');
+  function workerOptions(directory:string){
+    const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret,CMENG_EXTERNAL_WORKER_KEY:externalWorkerKey,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory};
+    if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
+    // A larger young generation cuts collection pauses in a project's first full
+    // calculation (an allocation-heavy burst); 24 GB live leaves ample room.
+    const youngGenerationMb=Number(process.env.CMENG_WORKER_YOUNG_GENERATION_MB??64);
+    return {env,...(options.workerExecArgv?{execArgv:[...options.workerExecArgv]}:{}),
+      ...(Number.isFinite(youngGenerationMb)&&youngGenerationMb>0?{resourceLimits:{maxYoungGenerationSizeMb:youngGenerationMb}}:{})};
+  }
+  // Mechanism 14: pre-started workers. Loading the program code takes about half
+  // a second per worker; a few workers are started ahead, while the service is
+  // idle, holding the code but no project and no calculation.
+  const standbyTarget=Math.max(0,Math.min(4,maxWorkers,Number(process.env.CMENG_STANDBY_WORKERS??4)));
+  const standbyWorkers:Array<{worker:Worker;ready:boolean}>=[];
+  function spawnStandbyWorker(){
+    const directory=join(root,'standby-worker');
+    const worker=new Worker(workerScript,{workerData:{standby:true},...workerOptions(directory)});
+    const entry={worker,ready:false};
+    standbyWorkers.push(entry);
+    const drop=()=>{const index=standbyWorkers.indexOf(entry);if(index>=0)standbyWorkers.splice(index,1);};
+    worker.once('message',message=>{if(message?.type==='standby')entry.ready=true;else drop();});
+    worker.once('error',error=>{drop();console.warn('[standby-worker] '+String(error).slice(0,200));});
+    worker.once('exit',drop);
+  }
+  function takeStandbyWorker():Worker|null{
+    const index=standbyWorkers.findIndex(entry=>entry.ready);
+    if(index<0)return null;
+    const [entry]=standbyWorkers.splice(index,1);
+    entry!.worker.removeAllListeners('exit');entry!.worker.removeAllListeners('error');entry!.worker.removeAllListeners('message');
+    return entry!.worker;
+  }
   async function acquire(id:string):Promise<Lane>{
     if(closing)throw new Error('SERVICE_RESTARTING');
     const existing=lanes.get(id);if(existing){existing.pending++;return existing;}
@@ -207,15 +240,19 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         }
       }finally{if(waiting){workerQueue.splice(workerQueue.indexOf(ticket),1);signal();waitingForWorker--;queueMicrotask(publishIdleLanes);}}
       const directory=projectDirectory(root,id);
-      const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:directory,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'1',CMENG_PROFILE_PERF:'1',CMENG_AUDIT_SECRET:auditSecret,CMENG_EXTERNAL_WORKER_KEY:externalWorkerKey,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory};
-      if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
-      const worker=new Worker(join(__dirname,'project-http-worker.js'),{workerData:{projectId:id,directory},env,...(options.workerExecArgv?{execArgv:[...options.workerExecArgv]}:{})});
+      // Mechanism 14: a pre-started worker (program code loaded, no project) is
+      // given this project; otherwise a new worker starts for it.
+      const pooled=takeStandbyWorker();
+      const worker=pooled??new Worker(workerScript,{workerData:{projectId:id,directory},...workerOptions(directory)});
+      if(pooled)pooled.postMessage({type:'assign',projectId:id,directory});
       const lane:Lane={worker,ready:Promise.resolve(0),tail:Promise.resolve(),pending:1,lastUsed:Date.now()};
+      const workerStarted=Date.now();
       lane.ready=new Promise<number>((resolve,reject)=>{
         const timer=setTimeout(()=>{reject(new Error('PROJECT_START_TIMEOUT'));void worker.terminate();},120000);timer.unref();
         worker.on('message',message=>{
           if(message.type==='initializing')timer.refresh();
-          if(message.type==='ready'){clearTimeout(timer);resolve(message.port);}
+          if(message.type==='ready'){clearTimeout(timer);resolve(message.port);
+            if(process.env.CMENG_PROFILE_PERF?.trim()==='1')console.log(JSON.stringify({event:'project_worker_ready',projectId:id,ms:Date.now()-workerStarted,prestarted:Boolean(pooled)}));}
           if(message.type==='progress')progress.set(id+'::'+message.progress.uploadId,message.progress);
           if(message.type==='documents')documentRegisters.set(id,{version:message.version,documents:message.documents});
           if(message.type==='metadata'){
@@ -267,7 +304,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         await work(id,async port=>{
           if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version||
             Date.now()-lastForegroundProjectRequestAt<3000)return;
-          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000)});
+          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000),
+            headers:route.endsWith(pageRoute('master-dashboard'))?{'x-cmeng-page-check':'run'}:{}});
+          if(page.headers.get('x-cmeng-page-check')==='pending'){await page.arrayBuffer().catch(()=>{});return;}
           if(!page.ok)return;
           const bytes=Buffer.from(await page.arrayBuffer());
           const responseVersion=Number(page.headers.get('x-cmeng-project-version'));
@@ -392,7 +431,11 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         const upstream=request({host:'127.0.0.1',port,path,method:req.method,headers:{...req.headers,...actorHeaders.get(req),host:'127.0.0.1:'+port,'accept-encoding':'identity','x-cmeng-paid-ai':allowPaidModel}},incoming=>{
           succeeded=(incoming.statusCode??500)<400;
           const version=Number(incoming.headers['x-cmeng-project-version']);
-          const retain=cacheableProjectRead(req.method,path)&&incoming.statusCode===200&&Number.isInteger(version)&&version>=0;
+          // Mechanism 14: an answer-first Dashboard waiting for its complete page
+          // check is not a finished page; it is never kept, and the check is queued.
+          const pageCheckPending=incoming.headers['x-cmeng-page-check']==='pending';
+          if(pageCheckPending&&Number.isInteger(version))queuePageCheck(id,version);
+          const retain=cacheableProjectRead(req.method,path)&&incoming.statusCode===200&&Number.isInteger(version)&&version>=0&&!pageCheckPending;
           let bytes=0;const chunks:Buffer[]=[];
           if(retain)incoming.on('data',(chunk:Buffer)=>{bytes+=chunk.length;if(bytes<=MAX_PROJECT_READ_BYTES)chunks.push(Buffer.from(chunk));else chunks.length=0;});
           incoming.on('error',reject);incoming.on('aborted',()=>reject(new Error('PROJECT_RESPONSE_INTERRUPTED')));
@@ -438,7 +481,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // previous release, the deployment is not ready, so the platform keeps
     // traffic away until every first Overview and Dashboard is calculated.
     if(req.method==='GET'&&url.pathname==='/health'&&releasePreparation.state==='preparing'){send(res,503,{status:'preparing',service:'cmeng',release:release(),calculationVersion:calculationRelease(),preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',releasePreparation:{state:releasePreparation.state,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs},service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',releasePreparation:{state:releasePreparation.state,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs},programmeResults:programmeMigrationSummary(),service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
@@ -476,9 +519,14 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       const progressMatch=/^\/evidence\/upload-progress\/([^/]+)$/.exec(match[2]??'');
       if(req.method==='GET'&&progressMatch){const p=progress.get(id+'::'+decodeURIComponent(progressMatch[1]!));send(res,p?200:404,p??{error:'upload_progress_not_found'});return;}
       if(!catalog.has(id)){if(req.method==='GET'||(match[2]??'').startsWith('/intelligence')){send(res,404,{error:'project_not_found'});return;}applicationAccess.administrator(principal);await register(id);}
+      // Programme-result status is answered by the gateway from the saved manifest.
+      if(req.method==='GET'&&match[2]==='/programme-results'){send(res,200,programmeResultsStatus(id));return;}
       // A browser request takes priority over background project warm-up.
       // Retained analyses of unchanged versions stay available from the volume.
-      lastForegroundProjectRequestAt=Date.now();lastUsedAt.set(id,lastForegroundProjectRequestAt);
+      // A Dashboard poll waiting for its page check is not navigation: it must
+      // not keep the check (background work) from starting.
+      const pageCheckPoll=req.headers['x-cmeng-page-check-poll']==='1';
+      if(!pageCheckPoll){lastForegroundProjectRequestAt=Date.now();lastUsedAt.set(id,lastForegroundProjectRequestAt);}
       const projectPath='/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search;
       // A completed calculation may already have reached the browser while its
       // durable Overview snapshot is still being published. Never return the
@@ -511,9 +559,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
           // project; fall through to the live worker and compute /overview directly.
         }
       }
-      activeForegroundRequests++;
+      if(!pageCheckPoll)activeForegroundRequests++;
       try{await proxy(id,req,res,'/api/projects/'+encodeURIComponent(id)+(match[2]??'')+url.search);}
-      finally{activeForegroundRequests=Math.max(0,activeForegroundRequests-1);}
+      finally{if(!pageCheckPoll)activeForegroundRequests=Math.max(0,activeForegroundRequests-1);}
       return;
     }
     if(url.pathname.startsWith('/api/')){if(!(req.method==='GET'&&/^\/api\/(?:schedule|commercial|delivery)\/modules$/.test(url.pathname)))applicationAccess.administrator(principal);await mkdir(projectDirectory(root,'_SYSTEM'),{recursive:true});await proxy('_SYSTEM',req,res);return;}
@@ -526,9 +574,99 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   // the former one-at-a-time 22-project cold-start queue.
   let activeSummaryWarmups=0;
   const maxSummaryWarmups=Math.max(1,Math.min(3,maxWorkers-1));
+  // ---- Mechanism 14: saved programme results (migration) and the complete page check.
+  // Server readiness is separate from project calculation readiness: projects
+  // whose saved programme results are missing or from older programme code are
+  // prepared one by one in the background, never blocking the service. The
+  // complete page check of an answer-first Dashboard runs only when no browser
+  // request is active, so it never competes with a user's page.
+  const programmeFolder=(id:string)=>join(projectDirectory(root,id),'programme-results');
+  const programmePreparing=new Set<string>();
+  const programmeFailures=new Map<string,number>();
+  function programmeResultsCurrent(id:string){
+    const version=catalog.get(id)?.metadata?.version;
+    return version!==undefined&&programmeManifestCurrent(readProgrammeManifest(programmeFolder(id)),version,programmeFolder(id));
+  }
+  function programmeResultsStatus(id:string){
+    const entry=catalog.get(id),version=entry?.metadata?.version,manifest=readProgrammeManifest(programmeFolder(id));
+    const state=!entry||version===undefined?'not_applicable':programmePreparing.has(id)?'preparing':programmeResultsCurrent(id)?'current':'pending';
+    return {projectId:id,projectVersion:version??null,state,
+      manifest:manifest?{projectVersion:manifest.projectVersion,preparedAt:manifest.preparedAt,files:manifest.files.length,code:manifest.code}:null};
+  }
+  function programmeMigrationSummary(){
+    const ids=[...catalog.values()].filter(e=>e.metadata&&!e.metadata.demo).map(e=>e.projectId);
+    const current=ids.filter(id=>programmeResultsCurrent(id)).length;
+    return {current,preparing:programmePreparing.size,pending:ids.length-current-programmePreparing.size,total:ids.length};
+  }
+  async function prepareProgrammeResultsFor(id:string){
+    const version=catalog.get(id)?.metadata?.version;
+    if(version===undefined||programmePreparing.has(id)||programmeResultsCurrent(id))return;
+    programmePreparing.add(id);
+    try{
+      await work(id,async port=>{
+        if(catalog.get(id)?.metadata?.version!==version||(updating.get(id)??0)>0)return;
+        const response=await fetch('http://127.0.0.1:'+port+'/internal/programme-results/'+encodeURIComponent(id)+'/prepare',
+          {method:'POST',headers:{'x-cmeng-external-worker-key':externalWorkerKey},signal:AbortSignal.timeout(240000)});
+        const body=await response.json().catch(()=>null);
+        if(!response.ok)throw new Error('PROGRAMME_RESULTS_PREPARE_'+response.status);
+        console.log(JSON.stringify({event:'programme_results_prepared',projectId:id,...body}));
+      });
+      programmeFailures.delete(id);
+    }catch(error){programmeFailures.set(id,Date.now());console.warn('[programme-results] '+id+': '+String(error));}
+    finally{
+      programmePreparing.delete(id);
+      // A worker started only to save programme results is closed again, so no
+      // calculated page is left waiting in memory for the project's next visit.
+      const lane=lanes.get(id);
+      if(lane&&lane.pending===0&&!lane.unpublished){lanes.delete(id);void lane.worker.terminate();signal();}
+    }
+  }
+  const pageChecks=new Map<string,number>();
+  let activePageChecks=0;
+  function queuePageCheck(id:string,version:number){if(pageChecks.get(id)!==version)pageChecks.set(id,version);}
+  async function runPageCheck(id:string,version:number){
+    activePageChecks++;
+    try{
+      await work(id,async port=>{
+        if(catalog.get(id)?.metadata?.version!==version||(updating.get(id)??0)>0)return;
+        const route='/api/projects/'+encodeURIComponent(id)+pageRoute('master-dashboard');
+        if(await reads(id).get(calculationRelease(),version,route))return;
+        const page=await fetch('http://127.0.0.1:'+port+route,{headers:{'x-cmeng-page-check':'run'},signal:AbortSignal.timeout(120000)});
+        const bytes=Buffer.from(await page.arrayBuffer());
+        if(page.ok&&page.headers.get('x-cmeng-page-check')!=='pending'&&Number(page.headers.get('x-cmeng-project-version'))===version&&
+          catalog.get(id)?.metadata?.version===version&&!(updating.get(id)??0)&&bytes.length<=MAX_PROJECT_READ_BYTES)
+          await retainCalculatedRead(id,port,version,route,bytes);
+      });
+    }catch(error){console.warn('[page-check] '+id+': '+String(error));}
+    finally{activePageChecks--;if(pageChecks.get(id)===version)pageChecks.delete(id);}
+  }
+  const backgroundSweep=()=>{
+    if(closing||releasePreparation.state==='preparing')return;
+    if(activeForegroundRequests>0||Date.now()-lastForegroundProjectRequestAt<1000)return;
+    if(standbyWorkers.length<standbyTarget&&standbyWorkers.every(entry=>entry.ready))spawnStandbyWorker();
+    const budget=Math.max(1,Math.min(3,maxWorkers-1));
+    for(const [id,version] of [...pageChecks]){
+      if(activePageChecks>=budget)break;
+      if(catalog.get(id)?.metadata?.version!==version){pageChecks.delete(id);continue;}
+      void runPageCheck(id,version);
+    }
+    if(activePageChecks>0)return;
+    for(const entry of recentFirst([...catalog.values()])){
+      if(programmePreparing.size>=budget)break;
+      const id=entry.projectId;
+      if(!entry.metadata||entry.metadata.demo||programmePreparing.has(id)||(updating.get(id)??0)>0)continue;
+      if(Date.now()-(programmeFailures.get(id)??0)<60000||programmeResultsCurrent(id))continue;
+      void prepareProgrammeResultsFor(id);
+    }
+  };
+  const backgroundTimer=setInterval(backgroundSweep,500);backgroundTimer.unref();
+  // Background page warm-up can be turned off (CMENG_BACKGROUND_WARMUP=0), for
+  // example by a benchmark that must time genuinely cold pages. Saved
+  // programme-result migration and the complete page check still run.
+  const backgroundWarmup=process.env.CMENG_BACKGROUND_WARMUP?.trim()!=='0';
   const warmSweep=()=>{
     // Release preparation owns the background work until it finishes.
-    if(releasePreparation.state==='preparing')return;
+    if(releasePreparation.state==='preparing'||!backgroundWarmup)return;
     publishIdleLanes();
     // Never begin heavyweight background calculations while project pages are
     // being opened or uploaded; these jobs previously queued ahead of the
@@ -614,7 +752,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
       console.log(JSON.stringify({event:'release_preparation',state:outcome,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs}));
     });
   }
-  const close=async()=>{closing=true;clearInterval(warmer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values(),...pendingReadPublications.values(),...siblingPublications]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await catalogWrites;};
+  const close=async()=>{closing=true;clearInterval(warmer);clearInterval(backgroundTimer);clearTimeout(initialWarmup);signal();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await Promise.allSettled([...summaryJobs.values(),...pendingReadPublications.values(),...siblingPublications]);await Promise.all([...lanes.values()].map(l=>l.worker.terminate()));await Promise.all(standbyWorkers.splice(0).map(entry=>entry.worker.terminate()));await catalogWrites;};
   return {server,close,catalog};
 }
 

@@ -1,4 +1,5 @@
 import type {CanonicalScheduleActivity,CanonicalScheduleModel,CanonicalWbsNode} from '../../schedule-analysis-core/src';
+import {savedProgrammeResult} from './programme-results';
 
 export type ScopeClassificationBasis='source_wbs'|'source_activity_text'|'source_activity_code'|'source_derived'|'user_reviewed'|'unavailable';
 export interface ActivityScopeClassification {
@@ -336,6 +337,11 @@ export function classifyScheduleActivity(model:CanonicalScheduleModel,activity:C
 const classificationCache=new WeakMap<CanonicalScheduleModel,ScheduleScopeClassification>();
 export function scheduleScopeClassification(model:CanonicalScheduleModel):ScheduleScopeClassification{
   const cached=classificationCache.get(model);if(cached)return cached;
+  // Mechanism 14: a page-independent fact of the programme revision, saved once per content.
+  const value=savedProgrammeResult('scope-classification',[model],()=>calculateScheduleScopeClassification(model));
+  classificationCache.set(model,value);return value;
+}
+function calculateScheduleScopeClassification(model:CanonicalScheduleModel):ScheduleScopeClassification{
   const nodes=new Map(model.wbs.map(node=>[node.wbsId,node]));
   const activities=model.activities.filter(activity=>!['level_of_effort','wbs_summary'].includes(activity.activityType));
   const pathCache=new Map<string,ReturnType<typeof wbsPath>>();

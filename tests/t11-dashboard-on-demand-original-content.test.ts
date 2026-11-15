@@ -34,33 +34,53 @@ const fixture=()=>{
  return {projectId,state,before:JSON.stringify(state.schedules)};
 };
 
-test('T11 first Dashboard preserves complete original metrics, source facts, charts and exceptions without building specialist detail',()=>{
+// Mechanism 14: the Dashboard answers first from the pages it shows. Every
+// project value it shows equals the complete calculation of every page; the
+// page-check panels (readiness, consistency, the shared action list) are
+// shown only from the complete check, never from a partial one.
+const pageCheckFields=new Set(['readiness','consistency','actions','issueAssessment','pageCheck','projectFacts','trend']);
+test('T11 first Dashboard shows the same project values as the complete calculation of every page',()=>{
  const {projectId,state,before}=fixture();
  const fast:any=moduleForProject(projectId,'master-dashboard').data;
- const detail:any=managementSurfacesForProject(projectId,'full')?.masterDashboard;
+ const detail:any=managementSurfacesForProject(projectId)?.masterDashboard;
  assert.ok(fast&&detail);
  assert.equal(fast.projectionKey,'master_dashboard');
+ assert.equal(fast.pageCheck.state,'checking');
  assert.ok(fast.metrics.length>=12,'original metric set is still on first screen');
- assert.equal(fast.readiness.total,detail.readiness.total,'the registered module population is never reduced');
- assert.deepEqual(fast.metrics,detail.metrics,'no project value or source authority disappears from first Dashboard');
- assert.deepEqual(fast.projectFacts,projectFactsForState(state),'the Dashboard carries the independent canonical fact producer');
- assert.deepEqual(fast.scheduleExceptions,detail.scheduleExceptions,'same full schedule totals and exception rows');
- assert.deepEqual(fast.operationalReporting,detail.operationalReporting,'same current dated registers');
- assert.deepEqual(fast.visualControl,detail.visualControl,'all first-open visual facts retained');
+ // The checked Dashboard page (the same route after the complete check) is the reference.
+ const reference:any=moduleForProject(projectId,'master-dashboard').data;
+ assert.equal(reference.pageCheck.state,'complete');
+ for(const key of new Set([...Object.keys(fast),...Object.keys(reference)])){
+  if(pageCheckFields.has(key))continue;
+  assert.deepEqual(fast[key],reference[key],'answer-first value equals the complete calculation: '+key);
+ }
+ const {actions:_actions,...facts}=projectFactsForState(state);
+ const {actions:checkingActions,...fastFacts}=fast.projectFacts;
+ assert.deepEqual(fastFacts,facts,'the Dashboard carries the independent canonical fact producer');
+ assert.equal(checkingActions.openCount.valueState,'checking','the open-action count waits for the complete check');
+ for(const key of ['points','revisions','rows'])assert.deepEqual(fast.trend?.[key],detail.trend?.[key],'trend '+key);
+ const checked:any=moduleForProject(projectId,'master-dashboard').data;
+ assert.equal(checked.pageCheck.state,'complete');
+ assert.equal(checked.readiness.total,detail.readiness.total,'the registered module population is never reduced');
+ assert.deepEqual(checked.projectFacts,projectFactsForState(state),'after the check the facts are the complete facts');
  assert.ok(fast.projectDiagnosis&&fast.positionVerdict&&fast.trend&&fast.managementContext);
  assert.equal(JSON.stringify(state.schedules),before,'first Dashboard and full specialist cannot mutate original project');
 });
 
-test('T11 Dashboard source uses on-demand workfront and historical detail, never a second all-module resolver',()=>{
+test('T11 Dashboard never shows a partial action register: Checking pages, then the one full register',()=>{
  const src=readFileSync(join(process.cwd(),'packages/runtime-api/src/project-projections.ts'),'utf8');
  // Every certified module raises issues into the shared action register, so a
- // Dashboard that skips modules can never show the full action list. The
- // Dashboard reads the ONE shared full calculation; there is no second
- // Dashboard-only bundle, projection cache or reduced action register.
- assert.doesNotMatch(src,/dashboardBundleCache|dashboardProjectionCache|dashboardOnly|dashboardActionRegister/);
+ // Dashboard built from fewer modules can never show the full action list. It
+ // shows the register of the complete page check, or says Checking pages.
+ // There is no reduced Dashboard action register.
+ assert.doesNotMatch(src,/dashboardActionRegister|dashboardOnlyActions/);
  const {projectId,state}=fixture();
- const dashboard:any=moduleForProject(projectId,'master-dashboard').data;
+ const answer:any=moduleForProject(projectId,'master-dashboard').data;
+ assert.equal(answer.actions,null,'no action list before the complete check');
+ assert.equal(answer.projectFacts.actions.openCount.value,null);
  const full=projectActionRegisterForState(state);
+ managementSurfacesForProject(projectId);
+ const dashboard:any=moduleForProject(projectId,'master-dashboard').data;
  const accountability:any=moduleForProject(projectId,'cross-domain-accountability').data;
  assert.deepEqual(dashboard.actions,full.actions,'Dashboard action register equals the full action register');
  assert.deepEqual(dashboard.actions,managementSurfacesForProject(projectId)?.commandCenter.actions,'Dashboard and full management surfaces share one register');

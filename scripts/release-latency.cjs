@@ -1,5 +1,12 @@
 /* Fresh server process and fresh HTTP requests. Startup analysis is measured
-   separately and must complete before readiness. No pre-test dashboard request. */
+   separately and must complete before readiness. No pre-test dashboard request.
+   Mechanism 14 (owner rule, 15 Nov 2026): the synthetic projects are stored like
+   uploaded projects. The server's own background migration saves each stored
+   revision's programme results (CPM, criticality, near-critical, forecast and
+   shared revision calculations), exactly as upload/migration does for real
+   projects; the timer starts after that. Background page warm-up is off, so
+   every timed page (Dashboard assembly, page data not saved, rendering) is
+   calculated cold, with no Dashboard calculated or kept before the request. */
 const {mkdtempSync,rmSync,writeFileSync,readFileSync}=require('node:fs');
 const {tmpdir}=require('node:os');const {join}=require('node:path');
 const {spawn}=require('node:child_process');const {performance}=require('node:perf_hooks');const assert=require('node:assert/strict');
@@ -87,11 +94,21 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
  accountabilityState.testProject=true;runtimeProjects.touch(accountabilityState);return id;
 });
 (async()=>{
- const started=performance.now();const port=18000+Math.floor(Math.random()*10000);const env={...process.env,PORT:String(port),HOST:'127.0.0.1',CMENG_PROFILE_PERF:'1'};
+ const started=performance.now();const port=18000+Math.floor(Math.random()*10000);const env={...process.env,PORT:String(port),HOST:'127.0.0.1',CMENG_PROFILE_PERF:'1',CMENG_BACKGROUND_WARMUP:'0'};
  const child=spawn(process.execPath,['dist/packages/runtime-api/src/project-gateway.js'],{cwd:process.cwd(),env,stdio:['ignore','pipe','pipe']});let log='',errors='';
  try{
   await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error('Startup preparation exceeded 60 seconds')),60000);child.stdout.on('data',chunk=>{log+=chunk;if(log.includes('CMeng runtime listening')){clearTimeout(timeout);resolve();}});child.stderr.on('data',c=>errors+=c);child.on('exit',code=>{clearTimeout(timeout);reject(new Error('Startup failed '+code+' '+errors));});});
-  const preparationMs=performance.now()-started;const base='http://127.0.0.1:'+port,cold=performance.now();
+  const base='http://127.0.0.1:'+port;
+  // Wait for the server's migration of saved programme results (the real path).
+  const programmeStart=performance.now(),storedProjects=[projectId,...accountabilityProjectIds];
+  for(;;){
+    const states=await Promise.all(storedProjects.map(async id=>(await (await fetch(base+'/api/projects/'+encodeURIComponent(id)+'/programme-results')).json()).state));
+    if(states.every(state=>state==='current'))break;
+    if(performance.now()-programmeStart>180000)throw new Error('Saved programme results were not prepared within 180 s: '+states.join(','));
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+  const programmeResultsPreparationMs=performance.now()-programmeStart;
+  const preparationMs=performance.now()-started;const cold=performance.now();
   const routeTimings={};let routeStart=performance.now();
   const shell=await fetch(base+'/');assert.equal(shell.status,200);await shell.text();routeTimings.shellMs=performance.now()-routeStart;
   routeStart=performance.now();
@@ -101,6 +118,7 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
   routeStart=performance.now();
   const dashboard=await (await fetch(base+'/api/projects/'+projectId+'/management/master-dashboard')).json();routeTimings.dashboardMs=performance.now()-routeStart;
   assert.ok(dashboard.data?.positionVerdict,'dashboard is fully calculated, not a loading placeholder');
+  assert.ok(['checking','complete'].includes(dashboard.data?.pageCheck?.state),'the Dashboard states its page-check position');
   assert.ok(overview.moduleStates?.length===29);assert.ok(!JSON.stringify(portfolio).includes(projectId),'Synthetic benchmark must not leak into the live portfolio');
   const coldRequestMs=performance.now()-cold;
   const testProjects=await (await fetch(base+'/api/test-projects')).json();
@@ -128,10 +146,10 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
   const coldShapeRows=await Promise.all(accountabilityProjectIds.map(async (id,index)=>{
     const started=performance.now();
     const response=await fetch(base+'/api/projects/'+id+'/management/master-dashboard',{signal:AbortSignal.timeout(120000)});
-    const body=await response.json();
+    const text=await response.text(),body=JSON.parse(text);
     assert.equal(response.status,200,'Cold management HTTP '+id);
     assert.ok(body.data?.positionVerdict,'Cold dashboard must be calculated '+id);
-    return {projectId:id,shape:coldProfiles[index],durationMs:performance.now()-started};
+    return {projectId:id,shape:coldProfiles[index],durationMs:performance.now()-started,responseBytes:Buffer.byteLength(text),pageCheck:body.data?.pageCheck?.state??null};
   }));
   const coldShapesWallMs=performance.now()-coldShapesStart;
   const coldShapesMaxMs=Math.max(...coldShapeRows.map(row=>row.durationMs));
@@ -157,8 +175,10 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
   const bundleProfileEvents=profileLines.filter(line=>line.includes('"event":"project_bundle_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const diagnosisProfileEvents=profileLines.filter(line=>line.includes('"event":"project_diagnosis_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const lookaheadProfileEvents=profileLines.filter(line=>line.includes('"event":"lookahead_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
+  const dashboardAnswerEvents=profileLines.filter(line=>line.includes('"event":"dashboard_answer_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
+  const programmePreparedEvents=profileLines.filter(line=>line.includes('"event":"programme_results_prepared"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const coldBreakdownEvents=profileLines.filter(line=>['independent_change_stage_profile','lookahead_cold_breakdown','delivery_cold_profile','quantity_mapping_profile','independent_cpm_profile','management_visual_profile','workfront_breakdown_profile'].some(event=>line.includes('"event":"'+event+'"'))).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
-  const result={scope:'Fresh server, actual HTTP upload, first calculated dashboard and four concurrent Accountability projects',activityCount:20000,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},coldProjectShapes:{profiles:coldShapeRows,wallMs:coldShapesWallMs,maxProjectMs:coldShapesMaxMs,passed:coldShapesPassed},accountabilityConcurrency:{projectCount:accountabilityProjectIds.length,activityCountPerProject:5000,wallMs:accountabilityWallMs,maxProjectMs:accountabilityMaxMs,rows:accountabilityConcurrent,passed:accountabilityPassed},profileEvents,managementProfileEvents,resolvedModuleProfileEvents,bundleProfileEvents,diagnosisProfileEvents,lookaheadProfileEvents,coldBreakdownEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS&&accountabilityPassed&&coldShapesPassed};
+  const result={scope:'Fresh server, actual HTTP upload, first calculated dashboard and four concurrent Accountability projects',activityCount:20000,programmeResultsPreparationMs,programmePreparedEvents,dashboardAnswerEvents,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},coldProjectShapes:{profiles:coldShapeRows,wallMs:coldShapesWallMs,maxProjectMs:coldShapesMaxMs,passed:coldShapesPassed},accountabilityConcurrency:{projectCount:accountabilityProjectIds.length,activityCountPerProject:5000,wallMs:accountabilityWallMs,maxProjectMs:accountabilityMaxMs,rows:accountabilityConcurrent,passed:accountabilityPassed},profileEvents,managementProfileEvents,resolvedModuleProfileEvents,bundleProfileEvents,diagnosisProfileEvents,lookaheadProfileEvents,coldBreakdownEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS&&accountabilityPassed&&coldShapesPassed};
   console.log(JSON.stringify(result));if(process.env.CMENG_LATENCY_RESULT)writeFileSync(process.env.CMENG_LATENCY_RESULT,JSON.stringify(result,null,2));
   assert.ok(result.passed,'Cold workflow, upload-to-ready, first-dashboard or four-project Accountability target exceeded');
  }finally{

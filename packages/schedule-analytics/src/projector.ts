@@ -13,6 +13,8 @@ export function buildScheduleAnalyticsProjection(
     generatedAt: string;
     producerVersion: string;
     config?: ScheduleAnalysisConfig;
+    /** The same analysis of this exact model and config, already calculated or saved. */
+    precomputedResult?: ReturnType<typeof analyzeSchedule>;
   },
 ): ScheduleAnalyticsProjection {
   return {
@@ -20,7 +22,7 @@ export function buildScheduleAnalyticsProjection(
     projectionKey: "schedule_analytics",
     generatedAt: input.generatedAt,
     producerVersion: input.producerVersion,
-    result: analyzeSchedule(
+    result: input.precomputedResult ?? analyzeSchedule(
       model,
       input.config,
     ),

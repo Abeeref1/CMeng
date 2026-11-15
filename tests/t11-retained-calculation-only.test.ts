@@ -43,10 +43,13 @@ test("retained-calculation-only owner page reads never start a full analysis", a
     assert.equal(fullCalculationRetained(project, "modules"), false);
     assert.equal(fullCalculationRetained(project, "management"), false);
 
-    // A foreground Dashboard performs the one full calculation.
+    // A foreground Dashboard answers first; the one full calculation (the
+    // complete page check) follows in the background (M14).
     const dashboard = await fetch(prefix + "/management/master-dashboard");
     assert.equal(dashboard.status, 200);
     await dashboard.arrayBuffer();
+    for (let attempt = 0; attempt < 400 && !fullCalculationRetained(project, "management"); attempt++)
+      await new Promise(resolve => setTimeout(resolve, 50));
     assert.equal(fullCalculationRetained(project, "management"), true);
 
     // The same pages are now projections of that retained calculation and

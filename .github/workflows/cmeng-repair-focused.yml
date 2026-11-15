@@ -68,6 +68,7 @@ jobs:
             dist/tests/t07-commercial-position-checks.test.js \
             dist/tests/t11-shared-plan-positions.test.js \
             dist/tests/t11-dashboard-first-source-cover.test.js \
+            dist/tests/m14-saved-programme-results.test.js \
             dist/tests/t11-dashboard-on-demand-original-content.test.js \
             dist/tests/t05-same-measure-every-page.test.js \
             dist/tests/t11-retained-calculation-only.test.js \

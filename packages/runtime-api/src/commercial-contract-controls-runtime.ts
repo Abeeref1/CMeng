@@ -1,3 +1,4 @@
+import {savedScheduleAnalysis} from './saved-programme-analyses';
 import {projectContractSections} from './project-contract-sections';
 import {governingCompletionFrom} from './contract-time-reader';
 import {
@@ -121,6 +122,9 @@ function currentProgrammeCompletion(
             .toISOString(),
         producerVersion:
           "commercial-contract-controls-schedule-consumer-v1",
+        // Mechanism 14: the shared saved analysis of this exact programme.
+        precomputedResult:
+          savedScheduleAnalysis(current.model),
       },
     );
   const bases =

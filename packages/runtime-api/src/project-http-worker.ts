@@ -7,8 +7,21 @@ import {scheduleIdleProjectWork} from './project-idle-work';
 import {noteDeferredReading} from './document-read-review';
 import type {AddressInfo} from 'node:net';
 
-void (async()=>{
-  const id=String(workerData.projectId);
+// Mechanism 14: a pre-started worker has loaded the program code but no
+// project. It waits until the gateway gives it a project, then opens that
+// project's folder exactly as a newly started worker would.
+if(workerData?.standby===true){
+  parentPort?.once('message',(message:any)=>{
+    if(message?.type!=='assign')throw new Error('PROJECT_WORKER_ASSIGNMENT_EXPECTED');
+    process.env.CMENG_DATA_DIR=message.directory;
+    if(process.env.RAILWAY_VOLUME_MOUNT_PATH)process.env.RAILWAY_VOLUME_MOUNT_PATH=message.directory;
+    runtimeProjects.bindDataDirectory(message.directory);
+    void start(String(message.projectId)).catch(error=>{throw error;});
+  });
+  parentPort?.postMessage({type:'standby'});
+}else void start(String(workerData.projectId)).catch(error=>{throw error;});
+
+async function start(id:string){
   for(const retained of runtimeProjects.listProjectIds())if(retained!==id)throw new Error('PROJECT_WORKER_STATE_MISMATCH');
   await runtimeProjects.refreshScheduleControlBasisAssertions();
   await runtimeProjects.refreshSpreadsheetRegisters();
@@ -72,4 +85,4 @@ void (async()=>{
     deferredReading.start();
     setImmediate(flushWorkerCompileCache);
   });
-})().catch(error=>{throw error;});
+}

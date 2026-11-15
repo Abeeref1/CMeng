@@ -70,6 +70,7 @@ import {
   fullCalculationRetained,
   invalidateProject,
   managementSurfaceForProject,
+  prepareProgrammeResults,
   managementSurfacesForProject,
   moduleForProject,
   projectActionRegisterForState,
@@ -904,14 +905,48 @@ function uploadSummary(
   };
 }
 
+/**
+ * One-process mode: the complete page check of a Dashboard answered first.
+ * It runs only when no request is being served (a page-check poll does not
+ * count), so it never delays an answer, including the one it follows.
+ */
+const localPageChecks=new Set<string>();
+let activeLocalRequests=0,lastLocalRequestAt=0;
+function noteLocalRequest(req:IncomingMessage,res:ServerResponse){
+  if(req.headers['x-cmeng-page-check-poll']==='1')return;
+  activeLocalRequests++;lastLocalRequestAt=Date.now();
+  res.once('close',()=>{activeLocalRequests=Math.max(0,activeLocalRequests-1);lastLocalRequestAt=Date.now();});
+}
+function scheduleLocalPageCheck(projectId:string){
+  if(localPageChecks.has(projectId))return;
+  localPageChecks.add(projectId);
+  const attempt=()=>{
+    if(activeLocalRequests>0||Date.now()-lastLocalRequestAt<250){setTimeout(attempt,50).unref();return;}
+    try{managementSurfacesForProject(projectId);}
+    catch(error){console.warn('[page-check] '+projectId+': '+String(error).slice(0,200));}
+    finally{localPageChecks.delete(projectId);}
+  };
+  setTimeout(attempt,50).unref();
+}
+
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
+  noteLocalRequest(req,res);
   const url = new URL(
     req.url ?? "/",
     `http://${req.headers.host ?? "localhost"}`,
   );
+  // Mechanism 14: the gateway asks a project's worker to save the programme
+  // results of every stored revision (release migration / after upload).
+  const prepareMatch=req.method==='POST'?/^\/internal\/programme-results\/([^/]+)\/prepare$/.exec(url.pathname):null;
+  if(prepareMatch){
+    const expected=process.env.CMENG_EXTERNAL_WORKER_KEY??'';
+    if(!expected||String(req.headers['x-cmeng-external-worker-key']??'')!==expected){json(res,403,{error:'forbidden'});return;}
+    const prepared=prepareProgrammeResults(decodeURIComponent(prepareMatch[1]!));
+    json(res,prepared?200:404,prepared??{error:'project_not_found'});return;
+  }
   if(url.pathname.startsWith('/internal/')){const {internalExternalRequest}=await import('./external-project-authority');await internalExternalRequest(req,res);return;}
   // The project gateway publishes sibling owner pages in the same worker turn
   // as a finished management calculation. Such a read may only reuse that
@@ -3134,10 +3169,17 @@ async function route(
       decodeURIComponent(
         managementSurfaceMatch[2]!,
       );
-    // The first dashboard GET is the COMPLETE checked management answer,
-    // including readiness, all metrics, Project Diagnosis, charts and source
-    // drill-downs. No optional cover or full=1 button gates the real result.
+    // Mechanism 14: the Dashboard answers first. Its complete page check is a
+    // separate background request from the gateway ('x-cmeng-page-check: run'),
+    // and a Dashboard still waiting for that check is never kept as finished.
+    if(req.headers['x-cmeng-page-check']==='run'&&resolveModuleKey(key)==='master-dashboard')managementSurfacesForProject(projectId);
     const result = moduleForProject(projectId,key);
+    if((result?.data as any)?.pageCheck&&(result!.data as any).pageCheck.state!=='complete'){
+      res.setHeader('x-cmeng-page-check','pending');
+      // Without the project gateway (one process), this server runs the
+      // complete page check itself, after the answer has been sent.
+      if(process.env.CMENG_PROJECT_WORKER?.trim()!=='1')scheduleLocalPageCheck(projectId);
+    }
     if (!result) {
       json(res, 404, {
         error:

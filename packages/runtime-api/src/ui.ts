@@ -5611,8 +5611,15 @@ function renderManagementEvidenceGaps(gaps){
   if(!Array.isArray(gaps)||!gaps.length)return '<div class="notice info">No evidence gap is identified by the current management projection.</div>';
   return '<div class="table-wrap"><table><thead><tr><th>Evidence domain</th><th>State</th><th>Required correction</th><th>Owning source</th></tr></thead><tbody>'+gaps.map(g=>'<tr><td><b>'+escapeHtml(g.label)+'</b></td><td>'+managementAuthorityBadge(g.state)+'</td><td>'+escapeHtml(g.action)+'</td><td>'+managementModuleLink(g.owningModule,"Open")+'</td></tr>').join("")+'</tbody></table></div>';
 }
+// M14: the Dashboard answers before its complete page check finishes. Until
+// then the page-check panels say so; they never show zero, passed or green.
+function pageCheckPending(data){return data?.pageCheck?.state==='checking';}
+function renderPageCheckPending(title){
+  return '<div class="notice info" data-page-check="checking" role="status"><b>'+escapeHtml(title)+': Checking pages</b><p>Not checked yet. The complete check of every page is running. This panel updates when it finishes.</p></div>';
+}
 function renderManagementConsistency(c,pageKey){
   if(!c)return '<div class="notice warn">Cross-module consistency has not been checked.</div>';
+  if(c.state==='checking')return renderPageCheckPending('Cross-page consistency');
   // F10: the consistency check is shown on Master Control Programme; Command Center links to it.
   if(pageKey&&!ownsBlock('cross-module-consistency',pageKey))return ownerLinkPanel('cross-module-consistency',humanizeKey(c.state)+' · '+(c.checkCount??'Not established')+' checks');
   return '<div data-owner-topic="cross-module-consistency" data-owner-figure="'+escapeHtml(humanizeKey(c.state)+' · '+(c.checkCount??'Not established')+' checks')+'" class="notice '+(c.state==="pass"?"info":"warn")+'"><b>Cross-module consistency: '+escapeHtml(humanizeKey(c.state))+'</b><p>'+escapeHtml(c.scope||"")+'</p><span>'+escapeHtml(c.checkCount??"Not established")+' checks'+(c.failedCheckIds?.length?' · Review: '+escapeHtml(c.failedCheckIds.length+" failed checks; open Actions required for details"):"")+'</span></div>';
@@ -6032,7 +6039,9 @@ function renderManagementControlVisual(key,data){
     const priorityGaps=priorityMetrics.filter(m=>m.value===null||m.value===undefined);
     const otherMetrics=(data.metrics||[]).filter(m=>!priorityKeys.includes(m.key)&&m.value!==null&&m.value!==undefined);
     const otherGaps=(data.metrics||[]).filter(m=>!priorityKeys.includes(m.key)&&(m.value===null||m.value===undefined));
-    const readinessDonut=renderDonutChart([
+    const checkingPages=pageCheckPending(data);
+    const checkValue=value=>checkingPages?'Checking pages':value??null;
+    const readinessDonut=checkingPages?renderPageCheckPending('Control readiness'):renderDonutChart([
       {label:"Fully defensible views",value:r.ready??null,tone:"success"},
       {label:"Views requiring review",value:r.partial??null,tone:"warning"},
       {label:"Blocked specialist views",value:r.blocked??null,tone:"danger"}
@@ -6044,10 +6053,10 @@ function renderManagementControlVisual(key,data){
       managementPanel("Control Readiness","Calculation availability, evidence readiness and affected consistency checks are shown separately. A project-wide issue does not automatically make every specialist view defective.",readinessDonut+renderManagementConsistency(data.consistency,key))+
       managementPanel("Evidence Snapshot","Current evidence coverage. Missing or conflicted evidence remains explicit rather than being converted to zero.",planningKpis([
         ["Project documents",data.evidenceDocumentCount??null,"current evidence library"],
-        ["Calculated specialist views",r.calculationAvailable??null,"a calculation is available"],
-        ["Fully defensible views",r.ready??null,"calculation, evidence and affected consistency checks passed"],
-        ["Review needed",r.partial??null,"usable positions with a stated evidence/review requirement","warning"],
-        ["Blocked specialist views",r.blocked??null,"calculation unavailable","danger"],
+        ["Calculated specialist views",checkValue(r.calculationAvailable),"a calculation is available"],
+        ["Fully defensible views",checkValue(r.ready),"calculation, evidence and affected consistency checks passed"],
+        ["Review needed",checkValue(r.partial),"usable positions with a stated evidence/review requirement","warning"],
+        ["Blocked specialist views",checkValue(r.blocked),"calculation unavailable","danger"],
         ["Evidence gaps",r.evidenceGapCount??null,"missing, partial, stale or conflicted evidence","warning"],
         ["Approvals outstanding",r.governanceGapCount??null,"reports and approval steps","warning"]
       ]))+
@@ -6964,9 +6973,11 @@ async function loadModule(key){
   try{
     let result;
     // The same route release preparation saves, so the first open is the prepared result.
-    result=await api("/api/projects/"+encodeURIComponent(project())+pageDataRoute({key,apiKey:apiKeys[key],area:managementSurfaceKeysForApi.has(key)?"management":moduleRegistry.find(m=>m.key===key)?.area||"schedule"}));
+    const route="/api/projects/"+encodeURIComponent(project())+pageDataRoute({key,apiKey:apiKeys[key],area:managementSurfaceKeysForApi.has(key)?"management":moduleRegistry.find(m=>m.key===key)?.area||"schedule"});
+    result=await api(route);
     if(!current())return;
     renderModuleResult(result);
+    if(pageCheckPending(result?.data))void followPageCheck(route,current);
   }catch(e){
     if(!current())return;
     const d=e.data||{};
@@ -6983,6 +6994,20 @@ async function loadModule(key){
     }
   }finally{
     if(current())setBusy("");
+  }
+}
+// M14: while the complete page check runs, ask again (a light request that
+// never starts a calculation) and show the finished panels when it is done.
+async function followPageCheck(route,current){
+  for(let attempt=0;attempt<90;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,attempt<6?2000:5000));
+    if(!current())return;
+    let result=null;
+    try{result=await api(route,{headers:{'x-cmeng-page-check-poll':'1'}});}catch{continue;}
+    if(!current())return;
+    if(result?.data?.pageCheck?.state==='complete'){
+      const scroll=window.scrollY;renderModuleResult(result);window.scrollTo(0,scroll);return;
+    }
   }
 }
 // S1/N2: an unknown value shows its reason before the basis; a zero count of missing or unknown items reads "None".

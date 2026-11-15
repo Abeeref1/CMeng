@@ -6,6 +6,7 @@ import {resolveBoqSource} from './boq-source';
 import {reportingState} from './reporting-state';
 import {projectControlSchedule} from './canonical-time-claims';
 import {reviewedBoqSections} from './boq-section-review';
+import {savedProgrammeResult} from './programme-results';
 
 /** Resolve only punctuation/space variants of *explicit* WBS identifiers.
  * Codes are not matched by similarity, suffix, activity title or number order.
@@ -51,7 +52,9 @@ export function quantityMappingForState(state: ProjectRuntimeState, schedule: Ca
     return cached.result;
   }
   const quantities=resolveBoqSource(state,schedule.sourceRevisionId).quantities??state.quantities;
-  const result = quantities ? buildQuantityScheduleMapping(quantities, schedule) : null;
+  // Mechanism 14: the BOQ-to-programme scoring is saved for this exact BOQ and
+  // programme; the evidence-dependent links below are added to a fresh copy.
+  const result = quantities ? savedProgrammeResult('quantity-mapping',[quantities,schedule],()=>buildQuantityScheduleMapping(quantities, schedule),undefined,{fresh:true}) : null;
   if(result&&quantities&&Array.isArray(state.evidenceDocuments)){
     const source=resolveBoqSource(state,schedule.sourceRevisionId).boq;
     const tables=governedTables(state.evidenceDocuments.filter(d=>d.basisState!=='superseded'&&(d.sourceHashSha256===source?.sourceHashSha256||/boq|quantity|mapping/i.test(d.documentType))),[]);

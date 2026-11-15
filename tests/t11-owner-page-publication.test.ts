@@ -25,7 +25,16 @@ async function calculatedDashboard(base:string,id:string){
   assert.equal(upload.status,201,await upload.text());
   const dashboard=await fetch(base+'/api/projects/'+id+'/management/master-dashboard');assert.equal(dashboard.status,200);
   const version=Number(dashboard.headers.get('x-cmeng-project-version'));
-  assert.ok((await dashboard.json() as any).data?.positionVerdict);assert.ok(Number.isInteger(version));
+  const body=await dashboard.json() as any;
+  assert.ok(body.data?.positionVerdict);assert.ok(Number.isInteger(version));
+  // M14: the Dashboard answers first; the gateway then runs the complete page
+  // check in the background. A poll never counts as navigation.
+  let state=body.data?.pageCheck?.state;
+  for(let attempt=0;attempt<400&&state!=='complete';attempt++){
+    await new Promise(resolve=>setTimeout(resolve,100));
+    state=(await (await fetch(base+'/api/projects/'+id+'/management/master-dashboard',{headers:{'x-cmeng-page-check-poll':'1'}})).json() as any).data?.pageCheck?.state;
+  }
+  assert.equal(state,'complete','the background page check completed');
   return version;
 }
 const saved=(root:string,id:string,version:number,page:string)=>new ProjectReadCache(projectDirectory(root,id)).get(calculationRelease(),version,'/api/projects/'+id+page);

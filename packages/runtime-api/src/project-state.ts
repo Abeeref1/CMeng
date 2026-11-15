@@ -1496,9 +1496,9 @@ export class RuntimeProjectStore {
       ProjectRuntimeState
     >();
 
-  private readonly dataDir: string;
-  private readonly stateFile: string;
-  private readonly durable: boolean;
+  private dataDir: string;
+  private stateFile: string;
+  private durable: boolean;
   private readonly semanticAiResolver:TableSemanticAiResolver|null;
   private readonly contractAiResolver:ContractAiResolver|null;
   private restoreFailure:Error|null=null;
@@ -1591,6 +1591,22 @@ export class RuntimeProjectStore {
       dataDir: this.dataDir,
       stateFile: this.stateFile,
     };
+  }
+
+  /**
+   * Mechanism 14: a pre-started worker loads the program code before it knows
+   * its project. When it is given a project, the store opens that project's
+   * folder. Allowed only while the store holds no project.
+   */
+  bindDataDirectory(directory:string){
+    if(this.projects.size)throw new Error('PROJECT_STORE_ALREADY_BOUND');
+    const testMode=process.env.CMENG_TEST_MODE?.trim()==="1"||Boolean(process.env.NODE_TEST_CONTEXT);
+    const railwayMount=testMode?undefined:process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim();
+    this.dataDir=directory;
+    this.durable=!testMode&&Boolean(railwayMount);
+    this.stateFile=join(this.dataDir,"cmeng-project-state.json");
+    mkdirSync(this.dataDir,{recursive:true});
+    this.loadSnapshot();
   }
 
   private loadSnapshot(): void {

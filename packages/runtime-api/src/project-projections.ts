@@ -61,7 +61,8 @@ import { managementAction, needDatePassedPhrase, reportingScope, summarizeContro
 import { attachReportingContract, reportingData, managementReportingData } from "./reporting-contract";
 import {bindProjectFacts} from './project-fact-consumers';
 import {projectSourceLabels} from './project-presentation';
-import {attachProjectFacts,projectFactsForState,completedProjectFactsForState,quantityInputStatusForState} from "./project-facts";
+import {attachProjectFacts,projectFactsForState,completedProjectFactsForState,quantityInputStatusForState,dashboardFactsForState,type ProjectFactsSnapshot} from "./project-facts";
+import {savedPageCheck,savePageCheck,projectSourceStamp,type SavedPageCheck} from "./page-check-store";
 import { activityMovementAnalysis } from "../../activity-analytics/src/movement";
 import { reportingState, claimsReporting, operationalReporting, boqSourceReporting } from "./reporting-state";
 import {analyticalOperationalDocuments,SOURCE_ANALYTICAL_USE} from "./operational-reporting";
@@ -70,9 +71,11 @@ import { commercialPerformanceCapabilityForState } from "./commercial-performanc
 import { commercialContractControlCapabilityForState } from "./commercial-contract-controls-runtime";
 import { parseScheduleTime,analyzeSchedule } from "../../schedule-analysis-core/src";
 import { checkProjectionIntegrity } from "./projection-integrity";
-import { resolveRevisionActivityCorrespondence, compareScheduleRevisions } from "../../schedule-revision-core/src";
+import { resolveRevisionActivityCorrespondence, compareScheduleRevisions, orderScheduleRevisionsChronologically, type ScheduleRevision } from "../../schedule-revision-core/src";
+import { savedScheduleAnalysis } from "./saved-programme-analyses";
+import { savedProgrammeResult, programmeKeyMaterial, programmeResultStats, resetProgrammeResultStats, takeTouchedProgrammeResults, writeProgrammeManifest, readProgrammeManifest, clearProgrammeResultMemory } from "./programme-results";
 import { activityPopulation, isExecutionActivity, numericDistribution } from "../../schedule-analysis-core/src";
-import { finishVarianceBetween, firstSourceCalendars, workingDayVarianceSummary, type CanonicalScheduleModel } from "../../schedule-analysis-core/src";
+import { finishVarianceBetween, firstSourceCalendars, workingDayVarianceSummary, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from "../../schedule-analysis-core/src";
 /** Controlled-baseline finish variance in working days of each activity's own
  * source calendar (shared T06 helper). Unknown stays null. */
 function controlledWorkingDayVariances(
@@ -439,6 +442,20 @@ export function analyticalHistory(
         ? nonRecovery
         : programmeSchedules),
   ].map(item=>control&&item.revision.revisionId===control.revision.revisionId?control:item).sort(revisionChronology);
+}
+
+/** A revision is compared by its content: its model and its own record (label, sequence, dates). */
+function revisionContent(revision:ScheduleRevision){const {model,...record}=revision;return [record,model] as const;}
+/** Mechanism 14: saved comparison of two exact adjacent revisions. */
+function savedRevisionComparison(from:ScheduleRevision,to:ScheduleRevision){
+  return savedProgrammeResult('revision-comparison',[...revisionContent(from),...revisionContent(to)],()=>compareScheduleRevisions(from,to));
+}
+/** Mechanism 14: saved near-critical result of one exact programme model and its float/baseline inputs. */
+function savedNearCritical(model:CanonicalScheduleModel,input:Parameters<typeof buildNearCriticalProjection>[1]){
+  // Key material: every input except the request stamp, with Maps as entry lists.
+  const {generatedAt:_stamp,...rest}=input;
+  const key=programmeKeyMaterial(rest);
+  return savedProgrammeResult('near-critical',[model,key],()=>buildNearCriticalProjection(model,input),saved=>({...saved,generatedAt:input.generatedAt}));
 }
 
 function applyGovernedWindowMovementMetrics(
@@ -897,6 +914,7 @@ function buildBundle(
         producerVersion:
           versions.schedule,
         config: scheduleAnalysisConfig,
+        precomputedResult: savedScheduleAnalysis(model,scheduleAnalysisConfig),
       },
     );
 
@@ -1304,7 +1322,7 @@ function buildBundle(
 
   measureBundle('milestones_projection');
   const nearCriticalRaw =
-    buildNearCriticalProjection(
+    savedNearCritical(
       model,
       {
         generatedAt,
@@ -1598,6 +1616,17 @@ function buildBundle(
   // using this exact model and configuration. Do not analyze it twice.
   const revisionAnalyses=new Map<typeof model,ReturnType<typeof analyzeSchedule>>([[model,scheduleAnalyticsRaw.result]]);
   const revisionComparisons=new Map<typeof current.revision,Map<typeof current.revision,ReturnType<typeof compareScheduleRevisions>>>();
+  // Mechanism 14: each revision's analysis and each adjacent revision
+  // comparison is read from the saved result for that exact content, so the
+  // trend, variance and change pages share one calculation per revision.
+  {
+    const trendOrder=orderScheduleRevisionsChronologically(ordered.map(item=>item.revision));
+    trendOrder.forEach((revision,index)=>{
+      if(!revisionAnalyses.has(revision.model))revisionAnalyses.set(revision.model,savedScheduleAnalysis(revision.model,scheduleAnalysisConfig));
+      const previous=index>0?trendOrder[index-1]!:null;
+      if(previous){const comparisons=revisionComparisons.get(previous)??new Map();comparisons.set(revision,savedRevisionComparison(previous,revision));revisionComparisons.set(previous,comparisons);}
+    });
+  }
   const revisionTrend =
     buildRevisionTrendProjection(
       ordered.map(
@@ -1610,6 +1639,7 @@ function buildBundle(
           versions.revision,
         config: scheduleAnalysisConfig,
         precomputedAnalyses:revisionAnalyses,
+        precomputedComparisons:revisionComparisons,
         onRevisionAnalytics:(revisionModel,analysis)=>revisionAnalyses.set(revisionModel,analysis),
         onComparison:(from,to,comparison)=>{const comparisons=revisionComparisons.get(from)??new Map();comparisons.set(to,comparison);revisionComparisons.set(from,comparisons);},
       },
@@ -3644,7 +3674,40 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     state.projectId,
     bundle,
   );
+  // Mechanism 14: every programme result of this project version is now saved.
+  recordProgrammeResultsPrepared(state,false);
   return bundle;
+}
+
+/** Mark the saved programme results of this version as complete (and optionally remove unused files). */
+function recordProgrammeResultsPrepared(state:ProjectRuntimeState,prune:boolean){
+  try{
+    // A project's own folder only: a shared folder holds other projects' results.
+    const ownFolder=process.env.CMENG_PROJECT_WORKER?.trim()==='1';
+    writeProgrammeManifest(state.version,takeTouchedProgrammeResults(),{prune:prune&&ownFolder});
+  }catch(error){console.warn('[programme-results] manifest failed: '+String(error).slice(0,200));}
+}
+
+/**
+ * Mechanism 14: the real upload/migration path for saved programme results.
+ * Calculates (or reads back) CPM, criticality, near-critical, schedule
+ * analysis, revision comparisons and scope classification for every stored
+ * revision through the same code the pages use, saves them and records the
+ * project version they belong to. The page caches built on the way are
+ * dropped, so no page or Dashboard result is left prepared.
+ */
+export function prepareProgrammeResults(projectId:string){
+  const state=runtimeProjects.get(projectId);
+  if(!state)return null;
+  const started=performance.now();
+  // Rebuild through the page code so every saved result of this version is read or made.
+  invalidateProject(projectId);takeTouchedProgrammeResults();resetProgrammeResultStats();
+  buildBundle(reportingState(state));
+  const manifest=readProgrammeManifest();
+  if(manifest&&process.env.CMENG_PROJECT_WORKER?.trim()==='1')writeProgrammeManifest(manifest.projectVersion,manifest.files,{prune:true});
+  const stats=programmeResultStats();
+  invalidateProject(projectId);clearProgrammeResultMemory();
+  return {projectId,projectVersion:state.version,files:manifest?.files.length??0,stats,ms:Math.round(performance.now()-started)};
 }
 
 
@@ -3895,6 +3958,7 @@ function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullab
         producerVersion:
           "planning-fast:schedule-v1",
         config: scheduleAnalysisConfig,
+        precomputedResult: savedScheduleAnalysis(model,scheduleAnalysisConfig),
       },
     );
 
@@ -4388,7 +4452,7 @@ function buildPlanningModuleFast(
     key === "near-critical"
   ) {
     const raw =
-      buildNearCriticalProjection(
+      savedNearCritical(
         model,
         {
           generatedAt,
@@ -6245,6 +6309,7 @@ function buildSpecialistModuleFast(
           producerVersion:
             "progress-position:schedule-v1",
           config: scheduleAnalysisConfig,
+        precomputedResult: savedScheduleAnalysis(model,scheduleAnalysisConfig),
         },
       );
     const milestones =
@@ -7850,6 +7915,75 @@ function resolveProjectModule(state: ProjectRuntimeState, key: string): ModuleRu
   return modules.get(key) ?? blocked(key, "Unknown module.", []);
 }
 
+/**
+ * Mechanism 14: the pages the Dashboard reads (its diagnosis, completion,
+ * exceptions, trend, management context, charts and commercial reporting).
+ * They are resolved exactly as the full page set resolves them, from the same
+ * bundle and saved programme results, but without the page-set certification
+ * and readiness checks, which run separately in the complete page check.
+ */
+const DASHBOARD_PAGE_KEYS=new Set(['pmo-analysis','schedule-analytics','activity-analytics','lookahead-schedule',
+  'schedule-change-report','revision-trend','milestones','near-critical','progress-report','progress-scurve',
+  'progress-breakdown','quantity-scurve','manhour-scurve','resource-utilization','forecast-history',
+  'independent-forecast','delay-claims','notices-claims','eot-assessment','challenge-contract','commercial-overview']);
+const dashboardModuleCache=new Map<string,{version:number;modules:Map<string,ModuleRuntimeResult>}>();
+function resolveDashboardModules(state:ProjectRuntimeState):Map<string,ModuleRuntimeResult>{
+  const full=resolvedProjectCache.get(state.projectId);
+  if(full?.version===state.version)return full.modules;
+  const cached=dashboardModuleCache.get(state.projectId);
+  if(cached?.version===state.version)return cached.modules;
+  const scoped=reportingState(state);
+  const bundle=buildBundle(scoped);
+  const sharedModel=projectControlSchedule(scoped)?.revision.model;
+  const sharedControlBasis=sharedModel?projectScheduleControlBasis(scoped):null;
+  let sharedFloatReview:ReturnType<typeof activityFloatReconciliation>|undefined;
+  const sharedInterpretation=bundle.director?.sourceInterpretation;
+  const floatReviewKeys=new Set(['activity-analytics','schedule-analytics','pmo-analysis','milestones','near-critical']);
+  const modules=new Map(certifiedAnalyticalModules.filter(descriptor=>DASHBOARD_PAGE_KEYS.has(descriptor.key)).map(descriptor=>{
+    const bundleReusable=
+      planningModuleKeys.has(descriptor.key)||
+      descriptor.key==='pmo-analysis'||
+      descriptor.key==='progress-report'||
+      descriptor.key==='progress-scurve'||
+      descriptor.key==='progress-breakdown'||
+      descriptor.key==='challenge-contract'||
+      descriptor.key==='variance-trends'||
+      descriptor.key==='resource-utilization'||
+      descriptor.key==='manhour-scurve'||
+      descriptor.key==='quantity-scurve';
+    if(floatReviewKeys.has(descriptor.key)&&sharedModel&&sharedControlBasis&&!sharedFloatReview){
+      sharedFloatReview=activityFloatReconciliation(sharedModel,cachedIndependentForecast(sharedModel,bundle.generatedAt),
+        sharedControlBasis.analysisConfig,scoped.version);
+    }
+    return [descriptor.key,resolveProjectModuleCandidate(scoped,descriptor.key,
+      bundleReusable?bundle.modules.get(descriptor.key):undefined,
+      floatReviewKeys.has(descriptor.key)?sharedFloatReview:undefined,sharedInterpretation,true)] as const;
+  }));
+  // The same post-processing the full page set applies to these pages.
+  const forecast=modules.get('independent-forecast')?.data as any;
+  const near=modules.get('near-critical')?.data as any;
+  const activityNames=new Map((projectControlSchedule(scoped)?.revision.model.activities??[]).map(a=>[a.activityId,a.name??a.activityId]));
+  for(const key of ['pmo-analysis','independent-forecast']){
+    const result=modules.get(key),data=result?.data as any;
+    if(data&&forecast){data.completionPosition=completionPosition(data,forecast,activityNames);
+      if(key==='pmo-analysis')data.knownScheduleCounts={critical:near?.knownCriticalCount??near?.criticalCount??null,nearCritical:near?.nearCriticalCount??near?.rows?.length??null,negativeFloat:near?.knownNegativeFloatCount??near?.negativeFloatCount??null};
+    }
+  }
+  const interfacePosition=interfaceIntelligence(scoped);
+  for(const moduleKey of ['lookahead-schedule','delay-claims']){
+    const currentModule=modules.get(moduleKey),moduleData=currentModule?.data;
+    if(currentModule&&moduleData&&typeof moduleData==='object')modules.set(moduleKey,{...currentModule,data:{...(moduleData as Record<string,unknown>),interfacePosition}});
+  }
+  const diagnosis=buildProjectDiagnosis(scoped,modules);
+  const management=modules.get('pmo-analysis')?.data as any;
+  if(management)management.projectDiagnosis=presentProjectDiagnosis(diagnosis);
+  dashboardModuleCache.set(state.projectId,{version:state.version,modules});
+  return modules;
+}
+
+/** The saved complete page check for this project version and calculation release. */
+function readSavedPageCheck(state:ProjectRuntimeState){return savedPageCheck(state.projectId,state.version,projectSourceStamp(state)) as (SavedPageCheck&{readiness:any;consistency:any;issueAssessment:any;actions:any;factsActions:any})|null;}
+
 /** P0-B: history and the live forecast share one rule: a calculable network finish is recorded with its qualifications. */
 export function forecastSnapshotFromProjection(forecast:Parameters<typeof rawForecastSnapshot>[0],snapshotId:string,model:Parameters<typeof buildForecastReconciliationGate>[0]['model']){
   const gate=buildForecastReconciliationGate({forecast,model,requiredFinishIso:null});
@@ -7945,6 +8079,8 @@ export function moduleForProject(projectId:string,key:string):ModuleRuntimeResul
     return existing;
   }
   const result=moduleForProjectUncached(projectId,canonical);
+  // An answer-first Dashboard is not the finished page: it is never kept as the published result.
+  if(canonical==='master-dashboard'&&(result.data as any)?.pageCheck?.state!=='complete')return result;
   if(runtimeProjects.get(projectId)===state&&state.version===entry.version){
     entry.results.set(canonical,result);
     // Only finished per-project positions remain in memory. Long source
@@ -8039,6 +8175,14 @@ function moduleForProjectUncached(
   if (key==='contract-risk') return finalize(contractRiskForState(reportingState(state)));
   if (key==='final-account') return finalize(finalAccountForState(reportingState(state)));
   if (key==='tender-readiness') return finalize(tenderReadinessForState(reportingState(state)));
+  if (key==='master-dashboard') {
+    // Mechanism 14: the Dashboard answers first and never builds the page set.
+    const answer=dashboardAnswerForProject(projectId);
+    if(!answer)return finalize(blocked(key, "Management position is not established.", []));
+    const full=managementProjectionCache.get(projectId);
+    if(full?.version===state.version)return finalize(managementSurfaceForProject(projectId,key)!);
+    return finalize(answerFirstDashboardResult(answer.data));
+  }
   const commercialCapability=commercialFoundationCapabilityForState(state,key)??commercialPerformanceCapabilityForState(state,key)??commercialContractControlCapabilityForState(state,key);
   if(commercialCapability)return finalize(attachReportingContract(reportingState(state),commercialCapability));
   if (managementModuleKeys.includes(key)) {
@@ -8149,7 +8293,6 @@ const managementProjectionCache = new Map<string, {version: number; data: Manage
  * never show a different figure or action count from the full calculation. */
 export function managementSurfacesForProject(
   projectId: string,
-  _purpose?:'full'|'dashboard',
 ): (ManagementSurfacesProjection & {sourceQuality: ReturnType<typeof sourceQualityPosition>}) | null {
   const state =
     runtimeProjects.get(projectId);
@@ -8157,7 +8300,34 @@ export function managementSurfacesForProject(
 
   const cached = managementProjectionCache.get(projectId);
   if (cached?.version === state.version) return cached.data;
+  return computeManagementSurfaces(state,projectId,'full') as any;
+}
 
+/**
+ * Mechanism 14, answer first: the Dashboard's own position, built from the
+ * pages it actually shows and the saved programme results. It does not build
+ * the full page set. Control Readiness, cross-page consistency and the shared
+ * action register come from the complete page check: shown at once when a
+ * saved check exists for this project version and calculation release,
+ * otherwise marked 'checking' (never 0, passed or a stale result) while the
+ * complete check runs separately. Returns the full Dashboard when the complete
+ * check is already held for this version.
+ */
+export function dashboardAnswerForProject(projectId:string):{data:any;checked:boolean}|null{
+  const state=runtimeProjects.get(projectId);
+  if(!state)return null;
+  const full=managementProjectionCache.get(projectId);
+  if(full?.version===state.version)return {data:full.data.masterDashboard,checked:true};
+  const cached=dashboardAnswerCache.get(projectId);
+  if(cached?.version===state.version)return cached.value;
+  const value=computeManagementSurfaces(state,projectId,'dashboard') as {data:any;checked:boolean};
+  dashboardAnswerCache.set(projectId,{version:state.version,value});
+  return value;
+}
+const dashboardAnswerCache=new Map<string,{version:number;value:{data:any;checked:boolean}}>();
+
+function computeManagementSurfaces(state:ProjectRuntimeState,projectId:string,mode:'full'|'dashboard'):unknown{
+  const savedCheck=mode==='dashboard'?readSavedPageCheck(state):null;
   const profiling=process.env.CMENG_PROFILE_PERF?.trim()==='1';
   const mp0=profiling?performance.now():0;
   const bundle =
@@ -8197,7 +8367,10 @@ export function managementSurfacesForProject(
   // expensive resolution stage. Profiling does not skip a module or write data.
   const resolvedModules=new Map<string,ModuleRuntimeResult>();
   const moduleResolutionProfile:Array<{module:string;ms:number}>=[];
-  for(const descriptor of certifiedAnalyticalModules){
+  if(mode==='dashboard'){
+    // Only the pages the Dashboard reads; no page-set certification or readiness.
+    for(const [key,result] of resolveDashboardModules(state))resolvedModules.set(key,result);
+  }else for(const descriptor of certifiedAnalyticalModules){
     const started=profiling?performance.now():0;
     resolvedModules.set(descriptor.key,resolveProjectModule(state,descriptor.key));
     if(profiling)moduleResolutionProfile.push({module:descriptor.key,ms:performance.now()-started});
@@ -8208,12 +8381,12 @@ export function managementSurfacesForProject(
     totalMs:moduleResolutionProfile.reduce((sum,row)=>sum+row.ms,0),
   })+'\n');
   const mp2=profiling?performance.now():0;
-  const certification = certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
-    director, boardReport: bundle.boardReport });
+  const certification = mode==='full' ? certifyCrossModuleConsistency({ generatedAt, state: reportingState(state), modules: resolvedModules,
+    director, boardReport: bundle.boardReport }) : null;
   const mp3=profiling?performance.now():0;
-  const consistency = { state: certification.state, checkCount: certification.checkCount,
+  const consistency = certification ? { state: certification.state, checkCount: certification.checkCount,
     failedCheckIds: certification.failedCheckIds,
-    scope: "Checked values across pages, shared record sets and denominators, Data Date, authority, configuration and project version. Evidence completeness is a separate gate." };
+    scope: "Checked values across pages, shared record sets and denominators, Data Date, authority, configuration and project version. Evidence completeness is a separate gate." } : undefined;
   const moduleInput = (descriptor: {key: string; title: string; category: string}, commercialModule = false): ManagementModuleInput => {
     const result = resolvedModules.get(descriptor.key)!;
     const integrity = (result.data as any)?.systemEvidenceContract;
@@ -8222,10 +8395,10 @@ export function managementSurfacesForProject(
       status: result.status, reason: result.reason ?? null,
       calculationState: integrity?.state === "verified_for_checked_metrics" ? "checked" : integrity?.state === "failed" ? "failed" : "pending",
       evidenceState: result.evidenceState ?? "not_established", professionalState: result.professionalState ?? "review_required",
-      consistencyState: consistencyForModule(certification, descriptor.key).state };
+      consistencyState: consistencyForModule(certification!, descriptor.key).state };
   };
-  const scheduleInputs = certifiedScheduleModules.map(descriptor => moduleInput(descriptor));
-  const commercialInputs = certifiedCommercialModules.map(descriptor => moduleInput(descriptor, true));
+  const scheduleInputs = mode==='full' ? certifiedScheduleModules.map(descriptor => moduleInput(descriptor)) : [];
+  const commercialInputs = mode==='full' ? certifiedCommercialModules.map(descriptor => moduleInput(descriptor, true)) : [];
 
   const terms =
     commercial.foundation
@@ -8632,7 +8805,7 @@ export function managementSurfacesForProject(
         }),
       );
 
-  const canonicalFacts=projectFactsForState(state);
+  const canonicalFacts=mode==='full'?projectFactsForState(state):dashboardFactsForState(state,savedCheck?.factsActions??null);
   const mp4=profiling?performance.now():0;
   const surfaces = buildManagementSurfaces({
     schemaVersion: "1.0",
@@ -8640,7 +8813,7 @@ export function managementSurfacesForProject(
     generatedAt,
     director,
     projectFacts:canonicalFacts,
-    consistency,
+    ...(consistency?{consistency}:{}),
     contractualCompletionAuthority: terms.contractualCompletionDate.state === "established" ? "official" : terms.contractualCompletionDate.state === "candidate" ? "provisional" : "source",
     negativeFloatCount: (resolvedModules.get("schedule-analytics")?.data as any)?.result?.float?.negativeFloatCount ?? null,
     modules: [
@@ -8733,7 +8906,39 @@ export function managementSurfacesForProject(
     boardPublicationState,
   });
   const mp5=profiling?performance.now():0;
+  /** The Dashboard answer from the same values the full surface uses (see the full path below). */
+  function dashboardAnswer(){
+    const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
+    const overdueRows=Array.isArray(lookahead?.overdueBacklogRows)?lookahead.overdueBacklogRows:(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
+    const operations=operationalReporting(state);
+    const exceptions=dashboardExceptions(resolvedModules,current,canonicalFacts,operations,overdueRows,lookahead);
+    const {completion,diagnosis}=dashboardCompletionAndDiagnosis(resolvedModules,canonicalFacts);
+    const managementContext=projectManagementContext(state,resolvedModules,commercial);
+    const visualControl=managementVisualControl(state,resolvedModules,commercial,managementContext);
+    const deliveryPosition=deliveryDashboard(state);
+    const managementOperations=compactManagementOperationalReporting(operations);
+    const surfaceData=surfaces.masterDashboard as any;
+    const checking={state:'checking' as const,
+      reason:'The complete page check is running. Control readiness, cross-page consistency and the shared action list appear here when it finishes.'};
+    const readiness=savedCheck?.readiness??{...checking,ready:null,partial:null,blocked:null,total:null,calculationAvailable:null,
+      evidenceGapCount:surfaceData.readiness.evidenceGapCount,governanceGapCount:surfaceData.readiness.governanceGapCount};
+    const consistencyShown=savedCheck?.consistency??{state:'checking',checkCount:null,failedCheckIds:[],
+      scope:'Not checked yet. The complete page check of values across pages is running and its result appears here when it finishes.'};
+    // The page-check panels are set last: no value calculated without the
+    // complete page check (a zero, a pass) can stand in for them.
+    const masterDashboard:any={...surfaceData,projectFacts:canonicalFacts,projectDiagnosis:diagnosis,completionPosition:completion,
+      delivery:deliveryPosition,visualControl,managementContext,...exceptions,
+      ...managementReportingData(state,surfaceData,resolvedModules),decisions:surfaces.commandCenter.decisions,
+      trend:(resolvedModules.get("forecast-history")?.data as any)??null,
+      operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation,sourceLabels:projectSourceLabels(state),
+      readiness,consistency:consistencyShown,actions:savedCheck?.actions??null,issueAssessment:savedCheck?.issueAssessment??null,
+      pageCheck:savedCheck?{state:'complete',projectVersion:savedCheck.projectVersion,checkedAt:savedCheck.checkedAt}:{...checking,projectVersion:state.version,checkedAt:null}};
+    if(profiling)process.stdout.write(JSON.stringify({event:'dashboard_answer_profile',projectId,bundleMs:mp1-mp0,pagesMs:mp2-mp1,
+      factsMs:mp4-mp3,totalMs:performance.now()-mp0,pageCheck:masterDashboard.pageCheck.state,programmeResults:programmeResultStats()})+'\n');
+    return {data:masterDashboard,checked:Boolean(savedCheck)};
+  }
   const issueStage0=profiling?performance.now():0;
+  if(mode==='dashboard')return dashboardAnswer();
   const issues = [...resolvedModules.values()].flatMap(r=>r.issueAssessment?.issues??[]);
   const governanceIssues:ControlIssue[] = surfaces.commandCenter.governanceGaps.map(g=>({kind:'governance_review',code:'MANAGEMENT_GOVERNANCE_'+g.key,
     summary:g.label+' needs approval',detail:'Review and approve the current report before publication.',
@@ -8746,57 +8951,14 @@ export function managementSurfacesForProject(
   });
   const operationalIssues=assessModuleIssues({key:'command-center',status:'partial',reason:null,dependencies:['dated operational registers'],
     engineState:'ready',evidenceState:'partial',professionalState:'review_required',data:{operationalReporting:operations,registerDateReview:registerDateReview(state),
-      challenge:{reconciliationState:'not_applicable'},systemEvidenceContract:{state:operationChecks.every(c=>c.passed)?'verified_for_checked_metrics':'failed',checks:operationChecks}}},certification).issues
+      challenge:{reconciliationState:'not_applicable'},systemEvidenceContract:{state:operationChecks.every(c=>c.passed)?'verified_for_checked_metrics':'failed',checks:operationChecks}}},certification!).issues
     .map(issue=>({...issue,moduleKeys:[...managementModuleKeys]}));
   const issueAssessment=summarizeControlIssues([...issues,...governanceIssues,...operationalIssues],totalChecksRun([...[...resolvedModules.values()].map(r=>r.issueAssessment?.checksRunCount),operationChecks.length]));
   const issueStage1=profiling?performance.now():0;
   const lookahead=(resolvedModules.get('lookahead-schedule')?.data as any);
   const overdueRows=Array.isArray(lookahead?.overdueBacklogRows)?lookahead.overdueBacklogRows:(lookahead?.rows??[]).filter((r:any)=>r.finishOverdue);
-  const activities=resolvedModules.get('activity-analytics')?.data as any;
-  // Management pages expose source counts and priority previews; complete
-  // activity and backlog rows stay available on their specialist pages.
-  const delayedSourceRows=(activities?.rows??[])
-    .filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.scheduleDelayed===true);
-  const exceptionPreview=[...delayedSourceRows]
-    .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||
-      (b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||
-      String(a.activityId).localeCompare(String(b.activityId))).slice(0,60);
-  // The Activity Review page publishes these counts through the shared
-  // canonical fact binding. The Dashboard is published without that pass, so
-  // the same binding is applied here to keep one count on every page.
-  const scheduleExceptions=activities?{dataDate:current?.revision.model.dataDateIso??null,
-    counts:activities.counts?bindProjectFacts('activity-analytics',{counts:activities.counts},canonicalFacts).counts:activities.counts,
-    totalDelayedOpenCount:delayedSourceRows.length,detailModule:'activity-analytics',
-    rows:exceptionPreview.map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,
-      currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,
-      totalFloatHours:r.totalFloatHours,delayStatus:r.delayStatus,criticality:r.criticality}))}:null;
-  const deliveryExceptions={actions:[...operations.actions.slice(0,60),...overdueRows.slice(0,60).map((r:any)=>{
-    const missedStart=r.missedPlannedStart===true||r.classification==='missed_start';
-    const missedFinish=r.finishOverdue===true||r.classification==='overdue';
-    // The backlog includes missed starts with finishes in the future.
-    const dueIso=missedFinish?r.finishIso:missedStart?r.startIso:null;
-    const dataDate=current?.revision.model.dataDateIso;
-    const elapsed=dataDate&&dueIso?Math.floor((Date.parse(dataDate.slice(0,10))-Date.parse(dueIso.slice(0,10)))/86400000):null;
-    const basis=missedStart&&missedFinish?'overdue start and finish':missedFinish?'overdue finish':'missed start';
-    return {recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso,ageDays:null,
-      overdueDays:elapsed!==null&&Number.isFinite(elapsed)?Math.max(0,elapsed):null,
-      action:'Review '+basis+' for activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]};
-  })],totalActionCount:operations.actions.length+overdueRows.length,detailModule:'lookahead-schedule',
-    overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
-  const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
-  const rawCompletion=currentForecast?.completionPosition??null;
-  const withheldCompletion=rawCompletion&&currentForecast?.forecastReconciliationGate?.usable!==true
-    // Withhold everything derived from the withheld finish (same rule as the
-    // project diagnosis), so no day difference survives without its finish.
-    ?{...rawCompletion,independentFinishIso:null,differenceElapsedDays:null,differenceRows:[],calculationState:'unresolved',
-      interpretation:'CMeng cannot calculate a finish from this programme network yet. No recalculated finish or day difference is presented.',
-      reason:String(currentForecast?.forecastReconciliationGate?.managementForecast?.notCalculableReason??'The programme network cannot be calculated.')+' Use the submitted programme finish for now.'}
-    :rawCompletion;
-  // F33: the Dashboard is published without the per-page fact binding, so its
-  // completion position takes the extended date from the same shared fact.
-  const completion=withheldCompletion?{...withheldCompletion,extendedContractFinishIso:canonicalFacts.time.extendedContractCompletionIso.value}:withheldCompletion;
-  const rawDiagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
-  const diagnosis=rawDiagnosis?.completion?{...rawDiagnosis,completion:{...rawDiagnosis.completion,extendedContractFinishIso:canonicalFacts.time.extendedContractCompletionIso.value}}:rawDiagnosis;
+  const {scheduleExceptions,deliveryExceptions}=dashboardExceptions(resolvedModules,current,canonicalFacts,operations,overdueRows,lookahead);
+  const {completion,diagnosis}=dashboardCompletionAndDiagnosis(resolvedModules,canonicalFacts);
   const issueStage2=profiling?performance.now():0;
   const managementContext=projectManagementContext(state,resolvedModules,commercial);
   const issueStage3=profiling?performance.now():0;
@@ -8834,7 +8996,7 @@ export function managementSurfacesForProject(
   // ABB G1_MANAGEMENT-77: the consistency badge also counts the checks that read
   // what each page actually returns. A failed page-value check fails the badge;
   // the shared-fact checks keep their own result and ids.
-  const shownConsistency=consistencyWithPageValueChecks(consistency,pageChecks);
+  const shownConsistency=consistencyWithPageValueChecks(consistency!,pageChecks);
   for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme] as any[])if(surface?.consistency)surface.consistency=shownConsistency;
   if(pageFailures.length){
     const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:pageValueDetail(c.values),action:'Correct the shared calculation or the page that reads it, then run the cross-page release checks again.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
@@ -8846,7 +9008,86 @@ export function managementSurfacesForProject(
     bundleMs:mp1-mp0,resolvedModulesMs:mp2-mp1,certificationMs:mp3-mp2,preBuildMs:mp4-mp3,
     buildSurfacesMs:mp5-mp4,issuesAndExceptionsMs:mp6-mp5,issueStageMs:{issues:issueStage1-issueStage0,exceptions:issueStage2-issueStage1,managementContext:issueStage3-issueStage2,visualControl:issueStage4-issueStage3,interfaces:issueStage5-issueStage4,accountability:issueStage6-issueStage5,delivery:issueStage7-issueStage6,actions:issueStage8-issueStage7},reportingAndChecksMs:mp7-mp6,totalMs:mp7-mp0})+'\n');
   managementProjectionCache.set(projectId, {version: state.version, data: result});
+  // Mechanism 14: save the complete page check of this version, so an
+  // answer-first Dashboard in a fresh worker can show it at once.
+  const shownDashboard=result.masterDashboard as any;
+  const savedPage=savePageCheck({projectId,projectVersion:state.version,projectStamp:projectSourceStamp(state),readiness:shownDashboard.readiness,consistency:shownDashboard.consistency,
+    issueAssessment:shownDashboard.issueAssessment,actions:shownDashboard.actions,factsActions:canonicalFacts.actions});
+  shownDashboard.pageCheck={state:'complete',projectVersion:state.version,checkedAt:savedPage.checkedAt};
   return result;
+}
+
+/** Mechanism 14: one builder for the Dashboard's exception previews, used by the
+ * full page set and by the answer-first Dashboard, so both show the same rows. */
+function dashboardExceptions(resolvedModules:Map<string,ModuleRuntimeResult>,current:ReturnType<typeof projectControlSchedule>,
+  canonicalFacts:ProjectFactsSnapshot,operations:ReturnType<typeof operationalReporting>,overdueRows:any[],lookahead:any){
+  const activities=resolvedModules.get('activity-analytics')?.data as any;
+  // Management pages expose source counts and priority previews; complete
+  // activity and backlog rows stay available on their specialist pages.
+  const delayedSourceRows=(activities?.rows??[])
+    .filter((r:any)=>!['wbs_summary','level_of_effort'].includes(r.activityType)&&r.scheduleDelayed===true);
+  const exceptionPreview=[...delayedSourceRows]
+    .sort((a:any,b:any)=>(a.criticality==='critical'?-1:0)-(b.criticality==='critical'?-1:0)||
+      (b.finishOverdueCalendarDays??b.startOverdueCalendarDays??0)-(a.finishOverdueCalendarDays??a.startOverdueCalendarDays??0)||
+      String(a.activityId).localeCompare(String(b.activityId))).slice(0,60);
+  // The Activity Review page publishes these counts through the shared
+  // canonical fact binding. The Dashboard is published without that pass, so
+  // the same binding is applied here to keep one count on every page.
+  const scheduleExceptions=activities?{dataDate:current?.revision.model.dataDateIso??null,
+    counts:activities.counts?bindProjectFacts('activity-analytics',{counts:activities.counts},canonicalFacts).counts:activities.counts,
+    totalDelayedOpenCount:delayedSourceRows.length,detailModule:'activity-analytics',
+    rows:exceptionPreview.map((r:any)=>({activityId:r.activityId,name:r.name,status:r.status,currentStartIso:r.currentStartIso,
+      currentFinishIso:r.forecastFinishIso??r.currentFinishIso,percentComplete:r.percentComplete,
+      totalFloatHours:r.totalFloatHours,delayStatus:r.delayStatus,criticality:r.criticality}))}:null;
+  const deliveryExceptions={actions:[...operations.actions.slice(0,60),...overdueRows.slice(0,60).map((r:any)=>{
+    const missedStart=r.missedPlannedStart===true||r.classification==='missed_start';
+    const missedFinish=r.finishOverdue===true||r.classification==='overdue';
+    // The backlog includes missed starts with finishes in the future.
+    const dueIso=missedFinish?r.finishIso:missedStart?r.startIso:null;
+    const dataDate=current?.revision.model.dataDateIso;
+    const elapsed=dataDate&&dueIso?Math.floor((Date.parse(dataDate.slice(0,10))-Date.parse(dueIso.slice(0,10)))/86400000):null;
+    const basis=missedStart&&missedFinish?'overdue start and finish':missedFinish?'overdue finish':'missed start';
+    return {recordId:r.activityId,type:'Activity',priority:'overdue',owner:null,dueIso,ageDays:null,
+      overdueDays:elapsed!==null&&Number.isFinite(elapsed)?Math.max(0,elapsed):null,
+      action:'Review '+basis+' for activity '+r.activityId+' ('+r.name+') and agree its recovery dates.',sourceRefs:[]};
+  })],totalActionCount:operations.actions.length+overdueRows.length,detailModule:'lookahead-schedule',
+    overdueActivityCount:Array.isArray(lookahead?.overdueBacklogRows)||Array.isArray(lookahead?.rows)?overdueRows.length:null};
+  return {scheduleExceptions,deliveryExceptions};
+}
+/** Mechanism 14: one builder for the Dashboard's completion position and project diagnosis. */
+function dashboardCompletionAndDiagnosis(resolvedModules:Map<string,ModuleRuntimeResult>,canonicalFacts:ProjectFactsSnapshot){
+  const currentForecast=(resolvedModules.get('independent-forecast')?.data as any)??null;
+  const rawCompletion=currentForecast?.completionPosition??null;
+  const withheldCompletion=rawCompletion&&currentForecast?.forecastReconciliationGate?.usable!==true
+    // Withhold everything derived from the withheld finish (same rule as the
+    // project diagnosis), so no day difference survives without its finish.
+    ?{...rawCompletion,independentFinishIso:null,differenceElapsedDays:null,differenceRows:[],calculationState:'unresolved',
+      interpretation:'CMeng cannot calculate a finish from this programme network yet. No recalculated finish or day difference is presented.',
+      reason:String(currentForecast?.forecastReconciliationGate?.managementForecast?.notCalculableReason??'The programme network cannot be calculated.')+' Use the submitted programme finish for now.'}
+    :rawCompletion;
+  // F33: the Dashboard is published without the per-page fact binding, so its
+  // completion position takes the extended date from the same shared fact.
+  const completion=withheldCompletion?{...withheldCompletion,extendedContractFinishIso:canonicalFacts.time.extendedContractCompletionIso.value}:withheldCompletion;
+  const rawDiagnosis=(resolvedModules.get('pmo-analysis')?.data as any)?.projectDiagnosis??null;
+  const diagnosis=rawDiagnosis?.completion?{...rawDiagnosis,completion:{...rawDiagnosis.completion,extendedContractFinishIso:canonicalFacts.time.extendedContractCompletionIso.value}}:rawDiagnosis;
+  return {completion,diagnosis};
+}
+
+/** The Dashboard page result while the complete page check runs (or from its saved result). */
+function answerFirstDashboardResult(data:any):ModuleRuntimeResult{
+  const checking=data.pageCheck?.state!=='complete';
+  const currentEstablished=data.revisionAuthority?.currentRevisionId!==null&&data.revisionAuthority?.currentRevisionId!==undefined;
+  const readiness=data.readiness??{};
+  const evidenceGapCount=(data.evidenceGaps??[]).filter((gap:any)=>gap.state!=='established').length;
+  const reviewRequired=checking||(readiness.partial??0)+(readiness.blocked??0)>0||evidenceGapCount>0||(data.governanceGaps??[]).length>0||data.consistency?.state!=='pass';
+  return withPositionVerdict({key:'master-dashboard',...(data.issueAssessment?{issueAssessment:data.issueAssessment}:{}),
+    status:'partial',
+    reason:!currentEstablished?'A current confirmed programme is required before the integrated management position can be complete.'
+      :checking?'Checking pages. The project position is shown; control readiness, cross-page consistency and the shared action list appear when the complete page check finishes.'
+      :reviewRequired?String((readiness.partial??0)+(readiness.blocked??0))+' specialist control view(s) and '+String(evidenceGapCount)+' management evidence gap(s) require review; the management surface is usable but is not a fully defensible all-clear.':null,
+    engineState:'ready',evidenceState:reviewRequired?'partial':'established',professionalState:'review_required',
+    dependencies:['canonical specialist projections','Project Director position','governed evidence basis','Commercial control position'],
+    data});
 }
 
 /** Presentation (M11): a failed cross-page value check names each page and its
@@ -9621,6 +9862,8 @@ export function invalidateProject(
   bundleCache.delete(projectId);
   resolvedProjectCache.delete(projectId);
   managementProjectionCache.delete(projectId);
+  dashboardAnswerCache.delete(projectId);
+  dashboardModuleCache.delete(projectId);
   for (
     const key of
       planningModuleCache.keys()

@@ -1,3 +1,4 @@
+import {savedScheduleAnalysis} from './saved-programme-analyses';
 import type {AnalysisPlan,AuthorityDescriptor,ProjectScope} from '../../project-ask/src/types';
 import type {ProjectRuntimeState} from './project-state-types';
 import {AuthorityBuilder} from './ask-authority-builder';
@@ -16,7 +17,7 @@ export function historicalAskAuthority(state:ProjectRuntimeState,scope:ProjectSc
   if(!revision||!supported)return b.result;
   scope.programmeRevision=revision.revision.revisionId;scope.authorityState='historical_adopted_source';
   const model=revision.revision.model,asOf=model.dataDateIso!,options={generatedAt:new Date().toISOString(),producerVersion:'ask-historical-source-v1'};
-  const facts=buildScheduleAnalyticsProjection(model,options).result;
+  const facts=buildScheduleAnalyticsProjection(model,{...options,precomputedResult:savedScheduleAnalysis(model)}).result;
   b.metric('historicalDate','Historical programme Data Date',asOf,null,'Adopted source revision '+revision.revision.revisionId,{fact:true,refs:['schedule-revision:'+revision.revision.revisionId]});
   if(authority.id==='activities'||authority.id==='float')b.table('activities','Historical programme activities',buildActivityAnalyticsProjection(model,options).rows,'Existing Activity Review producer applied to the dated historical programme. No current evidence is joined.');
   else if(authority.id==='wbs')b.table('wbs','Historical WBS progress',buildProgressBreakdownProjection(model,options).rows,'Existing WBS producer on the historical programme.');

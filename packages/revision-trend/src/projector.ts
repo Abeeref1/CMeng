@@ -41,6 +41,8 @@ export function buildRevisionTrendProjection(
     precomputedAnalyses?: ReadonlyMap<ScheduleRevision['model'],ReturnType<typeof analyzeSchedule>>;
     onRevisionAnalytics?: (model:ScheduleRevision['model'],value:ReturnType<typeof analyzeSchedule>)=>void;
     onComparison?: (from:ScheduleRevision,to:ScheduleRevision,result:ReturnType<typeof compareScheduleRevisions>)=>void;
+    /** The same comparison of these exact revisions, already calculated or saved. */
+    precomputedComparisons?: ReadonlyMap<ScheduleRevision,ReadonlyMap<ScheduleRevision,ReturnType<typeof compareScheduleRevisions>>>;
   },
 ): RevisionTrendProjection {
   const ordered =
@@ -59,7 +61,7 @@ export function buildRevisionTrendProjection(
     const previous =
       index > 0 ? ordered[index - 1]! : null;
     const comparison = previous
-      ? compareScheduleRevisions(
+      ? input.precomputedComparisons?.get(previous)?.get(revision) ?? compareScheduleRevisions(
           previous,
           revision,
         )

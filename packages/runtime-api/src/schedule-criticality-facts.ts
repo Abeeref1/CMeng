@@ -1,3 +1,4 @@
+import {savedScheduleAnalysis} from './saved-programme-analyses';
 import {aggregateCount} from '../../truth-kernel/src';
 import {buildScheduleAnalyticsProjection} from '../../schedule-analytics/src';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
@@ -39,7 +40,7 @@ export function scheduleCriticalityFacts(state:ProjectRuntimeState,providedFloat
   if(prior?.version===state.version)return prior.value;
   const config=projectScheduleControlBasis(state).analysisConfig;
   const source=providedFloat??buildScheduleAnalyticsProjection(model,{
-    generatedAt:'project-version:'+state.version,producerVersion:'schedule-criticality-facts-v1',config
+    generatedAt:'project-version:'+state.version,producerVersion:'schedule-criticality-facts-v1',config,precomputedResult:savedScheduleAnalysis(model,config)
   }).result.float;
   const submittedCritical:Aggregate={value:source.criticalCount,
     knownCount:source.knownClassifications.critical,unresolvedCount:source.unknownFloatCount,

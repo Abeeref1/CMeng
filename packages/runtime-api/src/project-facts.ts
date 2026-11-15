@@ -1,3 +1,4 @@
+import {savedScheduleAnalysis} from './saved-programme-analyses';
 import {registerCompleteness,riskRegisterCompleteness,type RegisterCompleteness} from './register-completeness';
 import {projectDecisionFacts,decisionAnalysisForModule,measuredProgressByArea} from './project-decision-facts';
 import {calendarInputStatus,capacityInputStatus,riskOwnerInputStatus,riskRowInputStatus,quantityInputStatus,installedQuantityInputStatus,cpmCoverageInputStatus,disciplineInputStatus,bindSharedInputStatus,type CalendarInputStatus,type CapacityInputStatus,type RiskOwnerInputStatus,type RiskRowInputStatus,type QuantityInputStatus,type InstalledQuantityInputStatus,type CpmCoverageInputStatus,type DisciplineInputStatus} from './project-input-status';
@@ -301,6 +302,39 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   state=reportingState(state);
   const cached=cache.get(state);
   if(cached?.version===state.version)return cached.value;
+  const value=buildProjectFacts(state,()=>{
+    const actionRegister=projectActionRegisterForState(state);
+    return {openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')};
+  });
+  cache.set(state,{version:state.version,value});
+  return value;
+}
+
+/** The shared action counts come from the complete page check. */
+export type PageCheckActionFacts=ProjectFactsSnapshot['actions'];
+const answerCache=new WeakMap<ProjectRuntimeState,{version:number;value:ProjectFactsSnapshot}>();
+/**
+ * Mechanism 14: the Dashboard's answer-first facts. Every fact is the canonical
+ * one except the shared action counts, which belong to the complete page check:
+ * taken from the saved check of this version, or marked 'checking' (never 0).
+ * Once the full facts exist for this version they are returned unchanged.
+ */
+export function dashboardFactsForState(state:ProjectRuntimeState,savedActions:PageCheckActionFacts|null):ProjectFactsSnapshot{
+  state=reportingState(state);
+  const full=cache.get(state);
+  if(full?.version===state.version)return full.value;
+  const prior=answerCache.get(state);
+  if(prior?.version===state.version&&(!savedActions||prior.value.actions===savedActions))return prior.value;
+  const checking=(basis:string)=>({...fact<number>(null,basis),valueState:'checking' as any});
+  const value=buildProjectFacts(state,()=>savedActions??{
+    openCount:checking('Checking pages. The shared project action count appears when the complete page check finishes.'),
+    recordCount:checking('Checking pages. The actionable source record count appears when the complete page check finishes.'),
+    reviewCount:checking('Checking pages. The source decision count appears when the complete page check finishes.')});
+  answerCache.set(state,{version:state.version,value});
+  return value;
+}
+
+function buildProjectFacts(state:ProjectRuntimeState,actionFacts:()=>ProjectFactsSnapshot['actions']):ProjectFactsSnapshot{
 
   const scoped=state;
   const current=projectControlSchedule(scoped);
@@ -312,7 +346,7 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   // is already built by the project bundle; rebuilding its thousands of rows here
   // made first management views recalculate the same project a second time.
   const schedule=model
-    ?peekCachedScheduleAnalytics(state)??buildScheduleAnalyticsProjection(model,{generatedAt:'project-version:'+state.version,producerVersion:'project-facts-v1',config})
+    ?peekCachedScheduleAnalytics(state)??buildScheduleAnalyticsProjection(model,{generatedAt:'project-version:'+state.version,producerVersion:'project-facts-v1',config,precomputedResult:savedScheduleAnalysis(model,config)})
     :null;
   const executionRows=model?.activities.filter(row=>!['level_of_effort','wbs_summary'].includes(row.activityType))??null;
   const openRows=executionRows?.filter(row=>row.status!=='completed')??null;
@@ -475,13 +509,12 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
         basis:unadopted?basis+'. '+CONTRACT_SOURCE_ANALYTICAL_NOTE:basis,
         ...(unadopted?{sourceAnalyticalUse:SOURCE_ANALYTICAL_USE,sourceAnalyticalNote:CONTRACT_SOURCE_ANALYTICAL_NOTE}:{})};
     });
-  const actionRegister=projectActionRegisterForState(state);
   const value:ProjectFactsSnapshot={
     schemaVersion:'1.0',
     projectId:state.projectId,
     projectVersion:state.version,
     dataDateIso,
-    actions:{openCount:fact(actionRegister.actions.length,'Owner/register/state groups plus source-review decisions. Individual record actions are counted only inside groups.','calculated_with_stated_basis'),recordCount:fact(actionRegister.recordActionCount,'Distinct actionable source records.','calculated_with_stated_basis'),reviewCount:fact(actionRegister.reviewActionCount,'Source corrections and confirmation decisions.','calculated_with_stated_basis')},
+    actions:actionFacts(),
     resources:{tradeChains:tradeChainFacts(tradeChainResourcesForState(scoped))},
     programmeQuality:pmcScheduleRules(model,scoped.schedules.filter(s=>s.role!=='scenario').map(s=>s.revision.model),commercial.timeExposure.officialAdjustedCompletion.value??commercial.timeExposure.contractualCompletion.value,
       {independentForecast:independentFinish!==null?independentForecast:null,resources:current?state.resourcesByRevision.get(current.revision.revisionId)??null:null,
@@ -745,7 +778,6 @@ export function projectFactsForState(state:ProjectRuntimeState):ProjectFactsSnap
   };
 
   value.inputs=projectInputStatus(state);
-  cache.set(state,{version:state.version,value});
   return value;
 }
 
