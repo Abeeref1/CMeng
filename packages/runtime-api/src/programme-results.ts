@@ -18,7 +18,7 @@ import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,renameSync,rmSync,statSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 
-export type ProgrammeResultKind='independent-forecast'|'schedule-analysis'|'revision-comparison'|'near-critical'|'scope-classification'|'quantity-mapping';
+export type ProgrammeResultKind='independent-forecast'|'schedule-analysis'|'revision-comparison'|'near-critical'|'scope-classification'|'quantity-mapping'|'activity-analytics'|'progress-scurve'|'progress-breakdown';
 type Stat={memory:number;disk:number;computed:number;readMs:number;computeMs:number;savedBytes:number};
 const stats=new Map<string,Stat>();
 const memory=new Map<string,unknown>();
@@ -127,7 +127,9 @@ export function savedProgrammeResult<T>(kind:ProgrammeResultKind,inputs:readonly
   // fresh: the caller adds to the returned result, so each call gets its own copy (never a shared in-memory one).
   const key=programmeResultKey(kind,inputs);
   touchedKeys.add(fileName(kind,key));
-  if(!options.fresh&&memory.has(key)){count(kind,'memory');return memory.get(key) as T;}
+  // A shared result is identified by its own key when it is an input to another saved result.
+  const known=(value:T)=>{if(!options.fresh&&value&&typeof value==='object')fingerprints.set(value as object,'result:'+kind+':'+key);return value;};
+  if(!options.fresh&&memory.has(key)){count(kind,'memory');return known(memory.get(key) as T);}
   const directory=programmeResultsDirectory();
   if(directory){
     const started=performance.now();
@@ -135,7 +137,7 @@ export function savedProgrammeResult<T>(kind:ProgrammeResultKind,inputs:readonly
       const saved=JSON.parse(readFileSync(join(directory,fileName(kind,key)),'utf8')) as {kind:string;key:string;value:T};
       if(saved?.kind===kind&&saved.key===key){
         const value=restamp?restamp(saved.value):saved.value;
-        if(!options.fresh)remember(key,value);count(kind,'disk',performance.now()-started);return value;
+        if(!options.fresh)remember(key,value);count(kind,'disk',performance.now()-started);return known(value);
       }
     }catch{/* Not saved yet, or unreadable: calculate it. */}
   }
@@ -155,7 +157,7 @@ export function savedProgrammeResult<T>(kind:ProgrammeResultKind,inputs:readonly
     }catch(error){console.warn('[programme-results] save failed: '+String(error).slice(0,200));}
   }
   count(kind,'computed',computeMs,bytes);
-  return value;
+  return known(value);
 }
 
 /** Saved-result files read or written since the last call (used to keep the folder current). */

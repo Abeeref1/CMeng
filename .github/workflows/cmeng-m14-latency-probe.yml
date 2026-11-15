@@ -25,8 +25,8 @@ jobs:
         run: |
           set +e
           nproc
-          for round in 1 2; do
-            for young in 64 256 128; do
+          for round in 1 2 3; do
+            for young in 256; do
               CMENG_WORKER_YOUNG_GENERATION_MB=$young CMENG_LATENCY_RESULT=/tmp/lat-$young-$round.json node scripts/release-latency.cjs > /tmp/lat-$young-$round.log 2>&1
               node -e "const d=require('/tmp/lat-$young-$round.json');console.log('young $young round $round passed',d.passed,'cold',Math.round(d.priorColdGate.coldRequestMs),'upload',Math.round(d.uploadToReadyMs),'first',Math.round(d.firstDashboardMs),'shapes',d.coldProjectShapes.profiles.map(r=>Math.round(r.durationMs)).join(' '),'answers',d.dashboardAnswerEvents.map(e=>Math.round(e.totalMs)).join(' '),'workers',d.workerReadyEvents.slice(-4).map(e=>e.ms).join(' '))"
             done

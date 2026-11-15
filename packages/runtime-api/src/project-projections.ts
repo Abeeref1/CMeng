@@ -458,6 +458,38 @@ function savedNearCritical(model:CanonicalScheduleModel,input:Parameters<typeof 
   return savedProgrammeResult('near-critical',[model,key],()=>buildNearCriticalProjection(model,input),saved=>({...saved,generatedAt:input.generatedAt}));
 }
 
+/**
+ * Mechanism 14: page-independent schedule facts saved by the content of every
+ * input they read (programme models, configuration, the progress history and
+ * readiness evidence given to them). Each call gets its own copy (fresh), so
+ * a page that adds to the result never changes the saved one.
+ */
+function savedActivityAnalytics(model:CanonicalScheduleModel,input:Parameters<typeof buildActivityAnalyticsProjection>[1]){
+  const {generatedAt:_stamp,...rest}=input;
+  return savedProgrammeResult('activity-analytics',[model,programmeKeyMaterial(rest)],()=>buildActivityAnalyticsProjection(model,input),
+    saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+}
+type PlanPositions=Parameters<NonNullable<Parameters<typeof buildProgressScurveProjection>[1]['onPlanPositions']>>[0];
+function savedProgressScurve(model:CanonicalScheduleModel,input:Parameters<typeof buildProgressScurveProjection>[1]){
+  const {generatedAt:_stamp,onPlanPositions,baselineModel,...rest}=input;
+  const saved=savedProgrammeResult('progress-scurve',[model,baselineModel??null,programmeKeyMaterial(rest)],()=>{
+    // The plan positions the S-curve calculates are shared with Progress
+    // Breakdown, so they are saved with it (Maps as entry lists).
+    let positions:PlanPositions|null=null;
+    const projection=buildProgressScurveProjection(model,{...input,onPlanPositions:value=>{positions=value;}});
+    const plan=positions as PlanPositions|null;
+    return {projection,planPositions:plan?{baseline:[...plan.baseline],current:[...plan.current],diagnostics:plan.diagnostics}:null};
+  },undefined,{fresh:true});
+  // Same rule as the producer: positions are offered when asked for or when a baseline is supplied.
+  if(saved.planPositions&&(onPlanPositions||baselineModel))onPlanPositions?.({baseline:new Map(saved.planPositions.baseline),current:new Map(saved.planPositions.current),diagnostics:saved.planPositions.diagnostics} as PlanPositions);
+  return {...saved.projection,generatedAt:input.generatedAt};
+}
+function savedProgressBreakdown(model:CanonicalScheduleModel,input:Parameters<typeof buildProgressBreakdownProjection>[1]){
+  const {generatedAt:_stamp,baselineModel,previousModel,scopeClassification,...rest}=input;
+  return savedProgrammeResult('progress-breakdown',[model,baselineModel??null,previousModel??null,scopeClassification??null,programmeKeyMaterial(rest)],
+    ()=>buildProgressBreakdownProjection(model,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+}
+
 function applyGovernedWindowMovementMetrics(
   state: ProjectRuntimeState,
   projection: ReturnType<typeof buildWindowsAnalysisProjection>,
@@ -1138,7 +1170,7 @@ function buildBundle(
 
   measureBundle('schedule_analytics');
   const activityAnalyticsRaw =
-    buildActivityAnalyticsProjection(
+    savedActivityAnalytics(
       model,
       {
         generatedAt,
@@ -1241,7 +1273,7 @@ function buildBundle(
   measureBundle('lookahead_projection');
   let sourcePlanPositions:ReturnType<typeof sharedProjectPlanPositions>|undefined;
   const progressScurve =
-    buildProgressScurveProjection(
+    savedProgressScurve(
       model,
       {
         generatedAt,
@@ -1462,7 +1494,7 @@ function buildBundle(
     generatedAt,
     producerVersion: versions.breakdown,
   };
-  const progressBreakdown=buildProgressBreakdownProjection(model,breakdownInput);
+  const progressBreakdown=savedProgressBreakdown(model,breakdownInput);
   modules.set("progress-breakdown",available("progress-breakdown",progressBreakdown));
 
   measureBundle('progress_breakdown_projection');

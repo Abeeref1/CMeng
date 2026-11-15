@@ -47,6 +47,9 @@ const programmeEntries=[
  'packages/near-critical-analysis/src/index.ts',
  'packages/runtime-api/src/saved-programme-analyses.ts',
  'packages/cross-domain-mapping/src/index.ts',
+ 'packages/activity-analytics/src/index.ts',
+ 'packages/progress-scurve/src/index.ts',
+ 'packages/progress-breakdown/src/index.ts',
 ];
 function resolveImport(fromFile,spec){
  const base=path.join(path.dirname(fromFile),spec);

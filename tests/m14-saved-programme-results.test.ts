@@ -1,3 +1,4 @@
+import {moduleRegistry} from '../packages/runtime-api/src/registry';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,readdirSync,statSync,writeFileSync,rmSync} from 'node:fs';
@@ -171,6 +172,13 @@ test('M14-5 saved CPM results are identical to an on-demand recalculation, and s
     setProgrammeResultsDirectory(null);fresh();const onDemandDashboard=withoutStamps(dashboard(projectId));
     assert.deepEqual(fromSaved,calculated,'Dashboard from saved results equals the Dashboard that saved them');
     assert.deepEqual(fromSaved,onDemandDashboard,'Dashboard from saved results equals an on-demand Dashboard');
+    // Every page: calculated from saved results and on demand, the same values.
+    const everyPage=()=>Object.fromEntries(moduleRegistry.map(page=>[page.key,withoutStamps(moduleForProject(projectId,page.key))]));
+    setProgrammeResultsDirectory(results);fresh();everyPage();
+    fresh();resetProgrammeResultStats();const pagesFromSaved=everyPage();
+    assert.ok(Object.values(programmeResultStats()).every(stat=>stat.computed===0),'every page read the saved results');
+    setProgrammeResultsDirectory(null);fresh();const pagesOnDemand=everyPage();
+    for(const page of moduleRegistry)assert.deepEqual(pagesFromSaved[page.key],pagesOnDemand[page.key],'page from saved results equals on demand: '+page.key);
   }finally{setProgrammeResultsDirectory(undefined);rmSync(results,{recursive:true,force:true});}
 });
 
