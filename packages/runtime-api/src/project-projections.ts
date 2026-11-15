@@ -1,3 +1,4 @@
+import {readableFieldLabel} from './field-labels';
 import {comparisonBaseline} from './programme-state';
 import {countText} from './count-text';
 import {ownersForActivity,withActivityOwners} from './activity-owners';
@@ -8836,7 +8837,7 @@ export function managementSurfacesForProject(
   const shownConsistency=consistencyWithPageValueChecks(consistency,pageChecks);
   for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme] as any[])if(surface?.consistency)surface.consistency=shownConsistency;
   if(pageFailures.length){
-    const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:JSON.stringify(c.values),action:'Correct the shared calculation or the page that reads it, then run the cross-page release checks again.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
+    const failures:ControlIssue[]=pageFailures.map(c=>({kind:'system_defect',code:'CROSS_PAGE_VALUE_MISMATCH',summary:c.metric+' differs across pages',detail:pageValueDetail(c.values),action:'Correct the shared calculation or the page that reads it, then run the cross-page release checks again.',owner:'CMeng',moduleKeys:c.values.map(v=>v.page),evidencePaths:[],sourceRefs:[],checkIds:[c.metric]}));
     result.sourceQuality.systemFailures.push(...failures);
     for(const surface of [result.masterDashboard,result.commandCenter,result.masterControlProgramme,result.sourceQuality])surface.issueAssessment=summarizeControlIssues([...issueAssessment.issues,...failures],totalChecksRun([issueAssessment.checksRunCount,pageChecks.length]));
   }
@@ -8848,6 +8849,22 @@ export function managementSurfacesForProject(
   return result;
 }
 
+/** Presentation (M11): a failed cross-page value check names each page and its
+ * value in words, never as a raw data object. */
+function pageValueText(v:unknown,depth=0):string{
+  if(v===null||v===undefined||v==='')return 'not established';
+  if(typeof v==='number')return Number.isFinite(v)?v.toLocaleString('en-US',{maximumFractionDigits:2}):'not established';
+  if(typeof v==='boolean')return v?'yes':'no';
+  if(typeof v==='string')return readableFieldLabel(v).toLowerCase()||v;
+  if(Array.isArray(v))return v.length?(depth?v.length.toLocaleString('en-US')+(v.length===1?' item':' items'):v.slice(0,3).map(x=>pageValueText(x,depth+1)).join('; ')+(v.length>3?'; and '+(v.length-3).toLocaleString('en-US')+' more':'')):'none';
+  if(depth>1)return 'recorded';
+  return Object.entries(v as Record<string,unknown>).filter(([,x])=>x!==null&&x!==undefined&&x!=='')
+    .map(([k,x])=>readableFieldLabel(k).toLowerCase()+' '+pageValueText(x,depth+1)).join(', ');
+}
+function pageValueDetail(values:ReadonlyArray<{page:string;value:unknown}>):string{
+  const title=(key:string)=>[...scheduleModules,...commercialModules].find(m=>m.key===key)?.title??readableFieldLabel(key);
+  return values.map(v=>title(v.page)+': '+pageValueText(v.value)).join('; ')+'.';
+}
 export function managementSurfaceForProject(
   projectId: string,
   key: string,

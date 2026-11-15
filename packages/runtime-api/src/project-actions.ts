@@ -282,7 +282,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
       reason:classification.reason??'Check the retained source before selecting its document type.',recordCount:1,
       reviewFingerprint:identity([document.documentId,document.sourceHashSha256,document.documentType,document.category]),reviewSourceRefs:['evidence-document:'+document.documentId],
       // Matrix 15 Nov 2026 (every project with documents): plain type names, no internal reader score.
-      evidenceSummary:['Recorded type: '+String(document.documentType).replaceAll('_',' '),'Type the reader found: '+(document.identification?.detectedDocumentType?String(document.identification.detectedDocumentType).replaceAll('_',' '):'not established')],
+      evidenceSummary:(()=>{const recorded=String(document.documentType).replaceAll('_',' '),found=document.identification?.detectedDocumentType?String(document.identification.detectedDocumentType).replaceAll('_',' '):null;
+        return found===recorded?['Recorded type, also found by the reader: '+recorded]:['Recorded type: '+recorded,'Type the reader found: '+(found??'not established')];})(),
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the source, confirm or correct its type, and record your review reference. Type selection does not adopt, approve or replace the document.',completionRule:'The source-bound classification decision is retained and can be edited here.'},
       target:{type:'inline',kind:'review-document-classification',documentId:document.documentId,sourceHash:document.sourceHashSha256,label:'Record document type review',reviewChoice:saved?.documentType??classification.documentType,
         reviewReference:saved?.reference??null,reviewOptions:choices.map(choice=>({value:choice.documentType,label:choice.documentType.replaceAll('_',' ')}))}};

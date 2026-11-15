@@ -43,11 +43,20 @@ export function reportingState(state: ProjectRuntimeState): ProjectRuntimeState 
   const date=scheduleDate??source?.dataDateIso??null;
   if(old?.version===state.version&&old.date===date)return old.value;
   const baselines=state.schedules.filter(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role));
+  // Mechanism 4 (no self-comparison): the current programme is never its own
+  // controlled baseline. When it is the baseline file itself (same revision or
+  // same content), it carries no baseline dates until the first update, so no
+  // page can show movement or variance of the programme against itself.
+  // Earlier revisions keep the baseline as their reference point.
+  const currentProgramme=projectControlSchedule(state);
+  const selfBaseline=(stored:typeof state.schedules[number],candidate:typeof state.schedules[number])=>
+    currentProgramme!==null&&stored.revision.revisionId===currentProgramme.revision.revisionId&&
+    (candidate.revision.revisionId===stored.revision.revisionId||Boolean(candidate.sourceHashSha256)&&candidate.sourceHashSha256===stored.sourceHashSha256);
   const schedules=state.schedules.map(stored=>{
     const model=refreshScheduleConstraints(state,stored);
     if(!Array.isArray(model.activities))return stored;
     const cutoff=model.dataDateIso??date;
-    const baseline=baselines.filter(s=>reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,cutoff)==='as_of')
+    const baseline=baselines.filter(s=>!selfBaseline(stored,s)&&reportingScope(s.revision.model.dataDateIso??s.revision.effectiveAt,cutoff)==='as_of')
       .sort((a,b)=>(a.revision.model.dataDateIso??a.revision.effectiveAt??'').localeCompare(b.revision.model.dataDateIso??b.revision.effectiveAt??'' )).at(-1);
     const baselineRows=new Map(baseline?.revision.model.activities.map(row=>[row.activityId,row])??[]);
     const baselineMatches=new Map(resolveRevisionActivityCorrespondence(baseline?.revision.model.activities??[],model.activities).matches.map(match=>[match.toActivityId,baselineRows.get(match.fromActivityId)!]));

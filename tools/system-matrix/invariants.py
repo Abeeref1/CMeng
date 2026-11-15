@@ -92,8 +92,16 @@ for P in projects:
                 hit(P, key, 'Data Date printed differs from the canonical Data Date', 6, f'{m.group(0)} vs {data_date[:10]}'); break
         # 3 forecast publication: no readable calendar at all -> CMeng's own date is diagnostic only
         if no_calendar and cmeng_iso:
+            # Activity table rows print each activity's own source dates; one of
+            # them can equal the diagnostic date by coincidence. Only prose,
+            # cards and labelled values count as publishing CMeng's finish.
+            def published(form):
+                for mm in re.finditer(re.escape(form), full):
+                    line = full[full.rfind('\n', 0, mm.start()) + 1:full.find('\n', mm.end()) if full.find('\n', mm.end()) >= 0 else len(full)]
+                    if line.count('\t') < 4: return True
+                return False
             for form in date_forms(cmeng_iso):
-                if form in full:
+                if published(form):
                     hit(P, key, 'CMeng finish published although no open activity has a readable calendar', 3, form); break
             m = re.search(r"CMeng'?s?(?: own)? (?:finish|calculation|forecast)[^.\n]{0,40}\b\d[\d,]* (?:calendar )?days? (?:earlier|later)", full)
             if m: hit(P, key, 'comparison made with an unpublishable CMeng finish', 3, m.group(0))
@@ -150,7 +158,7 @@ for P in projects:
         if (d.get('closedSections') or 0) > 60: hit(P, key, 'more than 60 sections in the page', 10, d['closedSections'])
         if (d.get('visibleClosedAtLoad') or 0) > 20: hit(P, key, 'more than 20 closed sections shown at load', 10, d['visibleClosedAtLoad'])
         # 11 wording and formatting
-        for rx, what in ((r'\w\((?:s|es|ies)\)' if key != 'contract-particulars-bonds' else r'(?!x)x', 'plural written as (s)'), (r'\b1 (?:days|items|activities|records|documents|findings|weeks|months|hours|actions|groups|packages|revisions|tasks|checks|links|windows|claims|NCRs|RFIs)\b', 'plural after 1'),
+        for rx, what in ((r'\w\((?:s|es|ies)\)' if key != 'contract-particulars-bonds' else r'(?!x)x', 'plural written as (s)'), (r'(?<![\d.,])\b1 (?:days|items|activities|records|documents|findings|weeks|months|hours|actions|groups|packages|revisions|tasks|checks|links|windows|claims|NCRs|RFIs)\b', 'plural after 1'),
                          (r'\{"[A-Za-z]+":', 'raw data object printed'), (r'Reader confidence', 'internal reader score printed'), (r'Release [0-9a-f]{7}', 'build number printed'),
                          (r'\b\d{4}-\d\d-\d\d(?:T\d\d:\d\d)?\b', 'ISO date printed'), (r'\b\d{1,3}(?:,\d{3})+\.\d\d? (?:h|hours|labou?r hours)\b', 'hour total with decimals'),
                          (r'\b(?!19\d\d|20\d\d)\d{4,} (?:activities|tasks|records|items|documents|open activities)\b', 'count without separator'), (r'(?<![\w-])pp\b', 'abbreviation pp'),
@@ -187,7 +195,7 @@ for P in projects:
         if m and int(m.group(1)) != n_dec:
             hit(P, '__review__', 'Project Review decision count differs from the decisions listed', 8, f'{m.group(1)} stated, {n_dec} listed')
         t = r.get('text') or ''
-        for rx, what in ((r'Reader confidence', 'internal reader score printed'), (r'Recorded type: [a-z_]+', 'internal key printed')):
+        for rx, what in ((r'Reader confidence', 'internal reader score printed'), (r'Recorded type[^:]*: [a-z]+_[a-z_]+', 'internal key printed')):
             m = re.search(rx, t)
             if m: hit(P, '__review__', what, 11, t[max(0, m.start() - 40):m.end() + 30].replace('\n', ' '))
 
