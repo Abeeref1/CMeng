@@ -10,6 +10,10 @@ test('different project workers spend from one durable default ledger',async t=>
  writeFileSync(preload,`const {workerData}=require('node:worker_threads');if(workerData?.projectId){const {reserveModelUsage}=require(${JSON.stringify(join(__dirname,'../packages/project-ask/src/usage-budget.js'))});let outcome='reserved';try{reserveModelUsage('gpt-4.1-mini',10000,1000,{CMENG_AI_USAGE_DIR:process.env.CMENG_AI_USAGE_DIR,CMENG_AI_MONTHLY_USD:'0.01'});}catch(e){outcome=e.message;}require('node:fs').appendFileSync(${JSON.stringify(results)},JSON.stringify({project:workerData.projectId,outcome})+'\\n');}`);
  const old=process.env.CMENG_AI_USAGE_DIR;delete process.env.CMENG_AI_USAGE_DIR;
  t.after(()=>{if(old===undefined)delete process.env.CMENG_AI_USAGE_DIR;else process.env.CMENG_AI_USAGE_DIR=old;rmSync(root,{recursive:true,force:true});});
+ // The ledger probe runs in each named project's worker as it starts; a
+ // pre-started worker has no project yet, so this test starts workers per project.
+ const standby=process.env.CMENG_STANDBY_WORKERS;process.env.CMENG_STANDBY_WORKERS='0';
+ t.after(()=>{if(standby===undefined)delete process.env.CMENG_STANDBY_WORKERS;else process.env.CMENG_STANDBY_WORKERS=standby;});
  const gateway=await createProjectGateway(root,{maxWorkers:2,workerExecArgv:['--require',preload]});
  try{
   await new Promise<void>(resolve=>gateway.server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+(gateway.server.address() as any).port;

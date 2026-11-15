@@ -10,7 +10,9 @@ test('gateway returns save failures honestly, preserves other projects, and ackn
  const root=mkdtempSync(join(tmpdir(),'cmeng-gateway-fault-')),flag=join(root,'fail-write'),preload=join(root,'fault.cjs');let child:ChildProcess|undefined;
  writeFileSync(preload,`const fs=require('node:fs'),{workerData}=require('node:worker_threads');if(workerData?.projectId==='SAVE-FAULT'){const write=fs.writeSync;fs.writeSync=function(...args){if(fs.existsSync(${JSON.stringify(flag)})&&Buffer.from(args[1]).subarray(0,1).toString()==='{')throw Object.assign(new Error('Synthetic full disk'),{code:'ENOSPC'});return write.apply(fs,args);};}`);
  const start=async()=>{
-  const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:root,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'',CMENG_OCR_ENABLED:'0',NODE_OPTIONS:'--require='+preload};delete env.RAILWAY_VOLUME_MOUNT_PATH;
+  // The fault is injected into the named project's worker as it starts; a
+  // pre-started worker has no project yet, so this test starts workers per project.
+  const env:NodeJS.ProcessEnv={...process.env,CMENG_DATA_DIR:root,CMENG_TEST_MODE:'0',NODE_TEST_CONTEXT:'',CMENG_PROJECT_WORKER:'',CMENG_OCR_ENABLED:'0',CMENG_STANDBY_WORKERS:'0',NODE_OPTIONS:'--require='+preload};delete env.RAILWAY_VOLUME_MOUNT_PATH;
   const script=`require(${JSON.stringify(join(__dirname,'../packages/runtime-api/src/project-gateway.js'))}).createProjectGateway(process.env.CMENG_DATA_DIR,{maxWorkers:2}).then(g=>g.server.listen(0,'127.0.0.1',()=>console.log('PORT='+g.server.address().port)));`;
   child=spawn(process.execPath,['-e',script],{env,stdio:['ignore','pipe','pipe']});let log='';child.stderr!.on('data',d=>log+=d);
   return new Promise<string>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('START_TIMEOUT '+log.slice(-1000))),15000);child!.stdout!.on('data',d=>{log+=d;const port=/PORT=(\d+)/.exec(log)?.[1];if(port){clearTimeout(timer);resolve('http://127.0.0.1:'+port);}});child!.once('exit',code=>{clearTimeout(timer);reject(new Error('START_EXIT '+code+' '+log.slice(-1000)));});});
