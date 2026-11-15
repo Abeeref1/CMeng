@@ -202,24 +202,10 @@ function cashSeriesSummary(series:import('./dated-cash-series').DatedCashSeries|
   }};
 }
 
-export interface ProgrammeState {
-  /** Distinct programme files (by content), scenarios excluded. */
-  programmeCount:number;
-  /** Any actual start or finish, progress percentage or started status in the current programme. */
-  progressRecorded:boolean;
-  /** One programme file and no progress: the baseline is the only programme. */
-  baselineOnly:boolean;
-  statement:string;
-}
-export function programmeStateFor(state:Pick<ProjectRuntimeState,'schedules'>,model:{activities:ReadonlyArray<{status?:string|null;actualStartIso?:string|null;actualFinishIso?:string|null;percentComplete?:number|null}>}|null):ProgrammeState|null{
-  if(!model)return null;
-  const programmeCount=new Set(state.schedules.filter(s=>s.role!=='scenario').map(s=>s.sourceHashSha256)).size;
-  const progressRecorded=model.activities.some(a=>Boolean(a.actualStartIso||a.actualFinishIso)||(typeof a.percentComplete==='number'&&a.percentComplete>0)||a.status==='in_progress'||a.status==='completed');
-  const baselineOnly=programmeCount<=1&&!progressRecorded;
-  return {programmeCount,progressRecorded,baselineOnly,
-    statement:baselineOnly?'Only the baseline programme is supplied. Progress and programme movement can be measured after the first update.'
-      :!progressRecorded?'No progress is recorded in the current programme yet.':'Progress is recorded in the current programme.'};
-}
+export {programmeStateFor} from './programme-state';
+import type {ProgrammeState} from './programme-state';
+export type {ProgrammeState};
+import {programmeStateFor} from './programme-state';
 
 function fact<T>(
   value:T|null,

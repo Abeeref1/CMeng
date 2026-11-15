@@ -1,3 +1,4 @@
+import {programmeStateFor} from './programme-state';
 import {ownersForActivity,withActivityOwners} from './activity-owners';
 import {riskRegisterCompleteness} from './register-completeness';
 import {handoverSourceComparison} from './handover-source-review';
@@ -558,6 +559,8 @@ function buildDelivery(state:ProjectRuntimeState){
  // JSON encoding avoids ambiguous separators in user-supplied activity IDs.
  const workfrontProjectionCache=new Map<string,ReturnType<typeof buildDeliveryWorkfrontBreakdown>>();
  let workfrontBuildCount=0,workfrontReuseCount=0;
+ const programmeState=programmeStateFor(state,model??null);
+ const noProgressRecorded=programmeState?.progressRecorded===false;
  const workfrontMatrix=[...scopeGroups.values()].map(group=>{
   const selected=[...group.activityIds].map(id=>activities.get(id)).filter((a):a is NonNullable<typeof a>=>!!a);
   // Workfront decisions consume precisely rows and overallSummary. The full
@@ -568,7 +571,7 @@ function buildDelivery(state:ProjectRuntimeState){
    const prior=workfrontProjectionCache.get(orderedSourceIds);
    if(prior){progress=prior;workfrontReuseCount++;}
    else{
-    progress=buildDeliveryWorkfrontBreakdown({...model,activities:selected},workfrontConfig);
+    progress=buildDeliveryWorkfrontBreakdown({...model,activities:selected},{...workfrontConfig,progressRecorded:!noProgressRecorded});
     workfrontProjectionCache.set(orderedSourceIds,progress);
     workfrontBuildCount++;
    }
@@ -588,9 +591,12 @@ function buildDelivery(state:ProjectRuntimeState){
   return {dimension:group.dimension,label:byId.get(group.label)?.description??group.label,displayLabel:byId.get(group.label)?.description??group.display??group.label,groupSource:group.groupSource??(group.recordIds.length?'From workfront register':null),recordIds:group.recordIds,activityIds:[...group.activityIds],programmeRevisionId:current?.revision.revisionId??null,
    // SW-27: a group total is calculated from its known members; the members
    // it could not use are counted beside it, never blanking the whole group.
+   // Mechanism 4 (matrix 15 Nov 2026, DMCC-UPD2): the shared progress calculation receives the whole
+   // programme's state, so with no progress recorded schedule progress and its variance are not measured.
    plannedPercent:total?.currentPlanPercent??null,baselinePlannedPercent:total?.baselinePlannedPercent??null,scheduleProgressPercent:total?.durationWeightedProgressPercent??null,
    ...groupUnknownCounts(selected,total),
    variancePercentagePoints:total?.currentPlanCoveragePercent===100&&total?.durationWeightedCoveragePercent===100?total.scheduleMinusCurrentPlanPercentagePoints??null:null,
+   ...(noProgressRecorded?{progressNotMeasuredReason:programmeState!.statement}:{}),
    readinessState:ready,blockedActivityCount:blockedActivityIds.length,unfinishedActivityCount:unfinished.length,mainBlockers:[...new Set([...linkedBlockers,...gates.flatMap(g=>g.rows.filter(r=>r.applicable&&r.outcome==='blocked').map(r=>r.requirement))])],
    activityCount:selected.length,completedActivityCount:selected.filter(a=>a.status==='completed').length,
    authority:group.recordIds.length?'From workfront register':'Calculated from programme classifications',

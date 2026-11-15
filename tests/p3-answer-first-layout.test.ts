@@ -215,3 +215,24 @@ test('a panel left with only its unknown line follows the known content',async t
    return Array.from(c.children).filter(n=>n.checkVisibility()).map(n=>n.className.split(' ').find(x=>/position-verdict|recovery/.test(x)));})()`);
   assert.deepEqual(result,['position-verdict','recovery-known','recovery-target'],'what is known follows the verdict; the unknown line comes after it');
 });
+
+// Matrix 15 Nov 2026: one shared page reader for counts, plurals, units and internal keys on every page.
+test('the shared page reader: plurals after 1, (s) with no count, separators past a word, percentage points, internal keys; document wording untouched',async t=>{
+  const chromium=loadChromium();if(!chromium){t.skip('playwright is not installed');return;}
+  const body='<p id="a">Window 2 +1 days · Median 1 days · Records to correct 1 items · 11 days · 0.1 days</p>'+
+    '<p id="b">Calculated recovery option(s) are available. 78 major/critical NCR item(s) remain open.</p>'+
+    '<p id="c">8165 open activities differ in submitted versus calculated float.</p>'+
+    '<p id="d">Gap to baseline: -2.53 pp.</p><table><tr><th id="e">Variance · pp</th></tr></table>'+
+    '<p id="f">LAB-001 Foreman labor_hour 1213 labor_hour per week; DES-00135; design_deliverables status=Approved; file s03_current.xer</p>'+
+    '<p id="g"><span data-source-text>Prospective bidders may request clarification(s) on any part.</span></p><p id="h">Recalculated window movement Not established · Not established + Not established</p>';
+  const got=await run(chromium,body,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
+    return ['a','b','c','d','e','f','g','h'].map(id=>document.getElementById(id).textContent);})()`) as string[];
+  assert.equal(got[0],'Window 2 +1 day · Median 1 day · Records to correct 1 item · 11 days · 0.1 days');
+  assert.equal(got[1],'Calculated recovery options are available. 78 major/critical NCR items remain open.');
+  assert.equal(got[2],'8,165 open activities differ in submitted versus calculated float.');
+  assert.equal(got[3],'Gap to baseline: -2.53 percentage points.');
+  assert.equal(got[4],'Variance · percentage points');
+  assert.equal(got[5],'LAB-001 Foreman labour hours 1213 labour hours per week; DES-00135; design deliverables status: Approved; file s03_current.xer');
+  assert.equal(got[6],'Prospective bidders may request clarification(s) on any part.','the document\'s own words stay as written');
+  assert.equal(got[7],'Recalculated window movement Not established','one unknown is said once');
+});

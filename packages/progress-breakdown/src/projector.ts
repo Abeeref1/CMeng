@@ -6,6 +6,7 @@ import {
   DEFAULT_SCHEDULE_ANALYSIS_CONFIG,
   isExecutionActivity,
   scheduleProgress,
+  programmeRecordsProgress,
   activityPopulation,
   sourceFloatCriticality,
   activityNearCriticalThresholdHours,
@@ -146,6 +147,9 @@ function buildProgressBreakdownProjectionImpl(
     // once for every workfront. Specialist calls still calculate it normally.
     sharedProgrammeLongLeadActivityIds?:ReadonlySet<string>;
     previousModel?: CanonicalScheduleModel | null;
+    /** Mechanism 4: whether the whole current programme records any progress. A subset
+     * (one workfront) cannot tell; the caller passes the programme's own state. */
+    progressRecorded?: boolean;
     readinessEvidence?: Record<string, Partial<Record<"procurement_material"|"design_submittal", {state:string;records?:Array<{owner?:string|null;longLead?:boolean}>}>>>;
     scopeClassification?: {
       rows: Array<{
@@ -193,10 +197,14 @@ function buildProgressBreakdownProjectionImpl(
   };
   // Scope this cache to one source evaluation, never to a project or process.
   const progressCache = new WeakMap<readonly CanonicalScheduleActivity[], ReturnType<typeof scheduleProgress>>();
+  // Mechanism 4 (matrix 15 Nov 2026): a programme with no progress recorded (a baseline on its own)
+  // has no measured progress; 0% would compare the baseline with itself.
+  const progressRecorded = input.progressRecorded ?? programmeRecordsProgress(model.activities);
   const progressFor = (rows: readonly CanonicalScheduleActivity[]) => {
     const previous = progressCache.get(rows);
     if (previous) return previous;
-    const calculated = scheduleProgress(rows);
+    const measured = scheduleProgress(rows);
+    const calculated = progressRecorded ? measured : {...measured, value: null};
     progressCache.set(rows, calculated);
     return calculated;
   };

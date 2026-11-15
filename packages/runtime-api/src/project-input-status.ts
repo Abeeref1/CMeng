@@ -1,5 +1,6 @@
 import {resolveWorkingCalendar} from '../../schedule-cpm/src/calendar';
 import type {CanonicalScheduleModel} from '../../schedule-analysis-core/src';
+import {isExecutionActivity} from '../../schedule-analysis-core/src/population';
 import {managementReviewStateOf} from './forecast-review-state';
 /** The fields both weekly capacity readers supply. */
 export interface WeeklyCapacityLike {
@@ -94,7 +95,9 @@ export function calendarInputStatus(model:CanonicalScheduleModel|null|undefined)
 function calculateCalendarInputStatus(model:CanonicalScheduleModel|null):CalendarInputStatus{
   if(!model)return {state:'missing',openActivityCount:null,calendarActivityCount:null,unresolvedCalendarActivityCount:null,
     basis:'No reporting programme is adopted, so calendar coverage is unknown.'};
-  const open=model.activities.filter(row=>row.status!=='completed');
+  // Matrix 15 Nov 2026 (DMM-HDC-P2: 295 here, 0 in the forecast): the same execution population the
+  // CPM and the forecast count. Level-of-effort and WBS summary records are not scheduled by calendar.
+  const open=model.activities.filter(row=>row.status!=='completed'&&isExecutionActivity(row));
   const resolved=open.filter(row=>resolveWorkingCalendar(row.calendarId,model.calendars,false)).length;
   const state:ProjectInputState=!open.length||!resolved?'missing':resolved===open.length?'established':'partial';
   return {state,openActivityCount:open.length,calendarActivityCount:resolved,unresolvedCalendarActivityCount:open.length-resolved,

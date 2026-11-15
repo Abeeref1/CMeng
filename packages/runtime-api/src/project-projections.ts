@@ -1,3 +1,4 @@
+import {comparisonBaseline} from './programme-state';
 import {countText} from './count-text';
 import {ownersForActivity,withActivityOwners} from './activity-owners';
 import {governedQuantityModel} from './boq-programme-links';
@@ -105,6 +106,7 @@ import { resourceLaborHourEligible } from "../../schedule-resource-core/src";
 import { createHash } from "node:crypto";
 import {
   scheduleProgress,
+  programmeProgress,
 } from "../../schedule-analysis-core/src";
 import {
   buildActivityAnalyticsProjection, activityAnalyticsCounts, activityDelayStatus,
@@ -570,7 +572,7 @@ function actualHistory(
     .map((stored) => {
       const model =
         stored.revision.model;
-      const progress = scheduleProgress(model.activities).value;
+      const progress = programmeProgress(model.activities).value;
       const asOfIso =
         model.dataDateIso ??
         stored.revision.effectiveAt;
@@ -758,16 +760,7 @@ function buildBundle(
   const scheduleAnalysisConfig =
     scheduleControlBasis.analysisConfig;
   const controlledBaseline =
-    ordered
-      .filter(
-        (item) =>
-          item.role ===
-            "revised_baseline" ||
-          item.role ===
-            "baseline",
-      )
-      .at(-1) ??
-    null;
+    comparisonBaseline(ordered, current);
   const previousFloat =
     previousComparableFloatBasis(
       ordered,
@@ -3785,16 +3778,7 @@ function calculatePlanningContext(state: ProjectRuntimeState, current: NonNullab
   const scheduleAnalysisConfig =
     scheduleControlBasis.analysisConfig;
   const controlledBaseline =
-    ordered
-      .filter(
-        (item) =>
-          item.role ===
-            "revised_baseline" ||
-          item.role ===
-            "baseline",
-      )
-      .at(-1) ??
-    null;
+    comparisonBaseline(ordered, current);
   const previousFloat =
     previousComparableFloatBasis(
       ordered,
@@ -5733,16 +5717,7 @@ function buildSpecialistModuleFast(
   const ordered =
     analyticalHistory(state);
   const controlledBaseline =
-    ordered
-      .filter(
-        (item) =>
-          item.role ===
-            "revised_baseline" ||
-          item.role ===
-            "baseline",
-      )
-      .at(-1) ??
-    null;
+    comparisonBaseline(ordered, current);
 
   let result:
     ModuleRuntimeResult;

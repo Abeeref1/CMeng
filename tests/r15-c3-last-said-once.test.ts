@@ -65,9 +65,10 @@ test('W5: a commercial card says its shared basis once; an amount that differs o
 
 test('A clause heading does not run into its own wording',()=>{
  const html=runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'3',heading:'Retention',textPreview:'3 Retention Retention rate: 10%. Retention cap: 5% of the Accepted Contract Amount.'}}) as string;
- assert.equal(html,'<b>3 Retention</b><br>Retention rate: 10%. Retention cap: 5% of the Accepted Contract Amount.','before: "3 Retention Retention rate: 10%"');
- assert.equal(runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'4',heading:null,textPreview:'4 The Contractor shall'}}),'4 The Contractor shall','no heading, no change');
- assert.equal(runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'5',heading:'Delay Damages',textPreview:'Delay damages rate: USD 28,022 per day.'}}),'Delay damages rate: USD 28,022 per day.','wording without its heading is unchanged');
+ // The document's own words are marked so the shared page reader leaves them as written (15 Nov 2026).
+ assert.equal(html,'<span data-source-text><b>3 Retention</b><br>Retention rate: 10%. Retention cap: 5% of the Accepted Contract Amount.</span>','before: "3 Retention Retention rate: 10%"');
+ assert.equal(runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'4',heading:null,textPreview:'4 The Contractor shall'}}),'<span data-source-text>4 The Contractor shall</span>','no heading, no change');
+ assert.equal(runInNewContext('clauseWordingHtml(row,escapeHtml(row.textPreview))',{escapeHtml,row:{identifier:'5',heading:'Delay Damages',textPreview:'Delay damages rate: USD 28,022 per day.'}}),'<span data-source-text>Delay damages rate: USD 28,022 per day.</span>','wording without its heading is unchanged');
  assert.match(script,/<p>"\+clauseWordingHtml\(row,escapeHtml\(statedAmountText\(row\.textPreview\|\|""\)\)\)\+"<\/p>/,'the clause register uses it');
 });
 

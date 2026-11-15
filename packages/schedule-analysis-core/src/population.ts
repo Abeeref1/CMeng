@@ -59,6 +59,20 @@ export function activityPopulation(model:CanonicalScheduleModel,basis:ActivityPo
   return {activities:[...value.activities],excluded:[...value.excluded],contract:{...value.contract,exclusions:value.contract.exclusions.map(x=>({...x}))},reporting:{...value.reporting,memberIds:[...value.reporting.memberIds],exclusions:value.reporting.exclusions.map(x=>({...x}))}};
 }
 
+/** Mechanism 4 (baseline-only state): whether a programme records any progress at all: an actual
+ * date, a progress percentage, or a started or finished status. One rule for every producer. */
+export function programmeRecordsProgress(activities: readonly Pick<CanonicalScheduleActivity, "actualStartIso" | "actualFinishIso" | "percentComplete" | "status">[]): boolean {
+  return activities.some(a => Boolean(a.actualStartIso || a.actualFinishIso) || (typeof a.percentComplete === "number" && a.percentComplete > 0) ||
+    a.status === "in_progress" || a.status === "completed");
+}
+
+/** Progress of a whole programme. A programme that records no progress (a baseline on its own) has no
+ * measured progress: null, never 0% from the baseline compared with itself (matrix 15 Nov 2026). */
+export function programmeProgress(activities: readonly CanonicalScheduleActivity[]) {
+  const measured = scheduleProgress(activities);
+  return programmeRecordsProgress(activities) ? measured : {...measured, value: null, state: "missing" as const};
+}
+
 /** Partial progress is a known-population estimate, never zero-filled missing progress. */
 export function scheduleProgress(activities: readonly CanonicalScheduleActivity[]) {
   let totalCount=0,knownCount=0,knownWeight=0,weightedProgress=0;

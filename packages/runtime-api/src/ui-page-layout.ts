@@ -443,17 +443,34 @@ function pagePlanGroups(moved,limit){
 // whole hours ("6,657,608 h", not "6,657,608.08 h"); a count of 1,000 or more before a noun carries separators
 // ("2,335 activities", not "2335 activities"). Table cells used for sorting keep their own values.
 const PAGE_HOURS_DECIMAL=/\b(\d{1,3}(?:,\d{3})+)\.\d{1,2}( h\b| labou?r hours\b| hours\b)/g;
-const PAGE_BARE_COUNT=/\b(\d{4,})( (?:activities|activity|tasks|records|items|labou?r hours|hours|days|calendar days|working days)\b)/g;
-const PAGE_PLURAL_HACK=/\b(\d[\d,]*) ((?:[A-Za-z-]+ ){0,3})([A-Za-z]+)\((s|ies)\)/g;
+const PAGE_BARE_COUNT=/\b(\d{4,})((?: [a-z]+){0,2} (?:activities|activity|tasks|records|items|labou?r hours|hours|days|calendar days|working days|documents|rows|relationships|links)\b)/g;
+const PAGE_PLURAL_HACK=/\b(\d[\d,]*) ((?:[A-Za-z/-]+ ){0,3})([A-Za-z]+)\((s|ies)\)/g;
+// Matrix 15 Nov 2026 (11 projects): "+1 days", "1 items", "Median 1 days"; and "item(s)" with no count.
+const PAGE_ONE_PLURAL=/(^|[^\d.,])([+-]?1) (days|items|records|activities|documents|findings|weeks|months|hours|actions|groups|packages|revisions|tasks|checks|links|windows|claims|rows|options|references)\b/g;
+const PAGE_BARE_PLURAL_HACK=/\b([A-Za-z]+?)(y?)\((s|es|ies)\)/g;
+const PAGE_PP=/(\d|·) pp\b/g;
+// Matrix 15 Nov 2026 (20 projects): internal keys reached the screen ("labor_hour", "calendar_day",
+// "fixed_amount_per_day", "status=Approved"). Lower-case keys read as words; file names and URLs stay.
+const PAGE_INTERNAL_KEY=/(^|[^\w./\\-])([a-z]+(?:_[a-z]+)+)(?![\w./\\-])/g;
+// One unknown is said once: "Not established · Not established + Not established" built from unknown parts.
+const PAGE_REPEATED_UNKNOWN=/(Not (?:established|supplied|measured))(?:\s*[·+,;\/–-]\s*\1)+/g;
+const PAGE_UNIT_WORDS={labor_hour:'labour hours',labour_hour:'labour hours',man_hour:'man-hours',calendar_day:'calendar days',working_day:'working days',fixed_amount_per_day:'fixed amount per day',percent_of_contract_price:'percent of the contract price'};
+const PAGE_KEY_EQUALS=/(^|[\s;(])([a-z]+)=(?=[A-Z0-9])/g;
 function pageNumberReader(container){
  if(typeof document==='undefined'||typeof document.createTreeWalker!=='function')return 0;
  const walker=document.createTreeWalker(container,4);let node,changed=0;
  while((node=walker.nextNode())){
-  const text=node.nodeValue;if(!text||text.length<5||!/\d/.test(text))continue;
-  if(node.parentElement&&node.parentElement.closest('script,style,textarea,input,code,[data-sort-value]'))continue;
+  const text=node.nodeValue;if(!text||text.length<4||!/\d|\((?:s|es|ies)\)| pp\b|[a-z]_[a-z]|[a-z]=[A-Z0-9]|Not (?:established|supplied|measured)\s*[·+,;\/–-]/.test(text))continue;
+  if(node.parentElement&&node.parentElement.closest('script,style,textarea,input,code,[data-sort-value],[data-source-text]'))continue;
   const next=text.replace(PAGE_HOURS_DECIMAL,(_m,whole,unit)=>whole+unit).replace(PAGE_BARE_COUNT,(m,digits,noun)=>/^(?:19|20)\d\d$/.test(digits)?m:Number(digits).toLocaleString('en-US')+noun)
    // "1 activity(ies)", "3 item(s)": the word agrees with its count.
-   .replace(PAGE_PLURAL_HACK,(_m,digits,lead,word,suffix)=>{const one=Number(String(digits).replace(/,/g,''))===1;return digits+' '+lead+(suffix==='ies'?(one?word:word.replace(/y$/,'')+'ies'):(one?word:word+'s'));});
+   .replace(PAGE_PLURAL_HACK,(_m,digits,lead,word,suffix)=>{const one=Number(String(digits).replace(/,/g,''))===1;return digits+' '+lead+(suffix==='ies'?(one?word:word.replace(/y$/,'')+'ies'):(one?word:word+'s'));})
+   .replace(PAGE_ONE_PLURAL,(_m,pre,one,noun)=>pre+one+' '+(noun==='activities'?'activity':noun.replace(/s$/,'')))
+   .replace(PAGE_BARE_PLURAL_HACK,(_m,stem,y,suffix)=>suffix==='ies'?stem+'ies':stem+y+suffix)
+   .replace(PAGE_PP,(_m,lead)=>lead+' percentage points')
+   .replace(PAGE_INTERNAL_KEY,(_m,pre,key)=>pre+(PAGE_UNIT_WORDS[key]||key.replace(/_/g,' ')))
+   .replace(PAGE_KEY_EQUALS,(_m,pre,key)=>pre+key+': ')
+   .replace(PAGE_REPEATED_UNKNOWN,'$1');
   if(next!==text){node.nodeValue=next;changed++;}
  }
  return changed;

@@ -1,3 +1,4 @@
+import {comparisonBaseline} from './programme-state';
 import {isAdoptedProgrammeRevision,isScenarioRevision,scheduleAuthorityReview} from './schedule-authority';
 import {registerDateReview,scopeRegisterDateReview} from './register-date-review';
 import { activityPopulation,calendarWorkingDayHours } from '../../schedule-analysis-core/src';
@@ -64,9 +65,12 @@ function sharedReportingContext(state:ProjectRuntimeState){
     ? executionActivities.filter(activity=>calendarWorkingDayHours(activity.calendarId?calendarById.get(activity.calendarId):undefined)===null).length
     : null;
   const time=canonicalTimeClaims(state).contractTimeBasis??state.controls.contractTimeBasis;
-  const baseline=state.schedules
+  const baselineCandidates=state.schedules
     .filter(s=>isAdoptedProgrammeRevision(state,s)&&['baseline','revised_baseline'].includes(s.role)&&s.revision.model.dataDateIso&&dataDateIso&&s.revision.model.dataDateIso.slice(0,10)<=dataDateIso)
-    .sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??'')).at(-1);
+    .sort((a,b)=>(a.revision.model.dataDateIso??'').localeCompare(b.revision.model.dataDateIso??''));
+  // Mechanism 4: never the current programme itself (shared rule).
+  const baseline=comparisonBaseline(baselineCandidates,current)??undefined;
+  const baselineIsCurrent=!baseline&&baselineCandidates.length>0;
   const value={
     authorityReview,current,model,dataDateIso,operations,actuals,basePopulations,
     claims:claimsReporting(state),
@@ -74,7 +78,7 @@ function sharedReportingContext(state:ProjectRuntimeState){
     dateReview:registerDateReview(state),
     analysisConfig,
     configurationId:createHash('sha256').update(JSON.stringify(analysisConfig)).digest('hex').slice(0,24),
-    calendarUnresolvedActivityCount,time,baseline
+    calendarUnresolvedActivityCount,time,baseline,baselineIsCurrent
   };
   sharedReportingContextCache.set(state,{version:state.version,dataDateIso,value});
   return value;
@@ -279,7 +283,7 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
   walk(data,'',0);
   const time=shared.time;
   const baseline=shared.baseline;
-  return {...result,data:{...data,scheduleAuthorityReview:authorityReview,registerDateReview:scopeRegisterDateReview(shared.dateReview,result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
+  return {...result,data:{...data,scheduleAuthorityReview:authorityReview,registerDateReview:scopeRegisterDateReview(shared.dateReview,result.key),baselineComparison:{state:baseline?'established':'unresolved',revisionId:baseline?.revision.revisionId??null,reason:baseline?null:shared.baselineIsCurrent?'The current programme is the baseline; movement against it is measured from the first update.':'No confirmed baseline'},reportingContract:{schemaVersion:'1.0',dataDateIso,projectVersion:state.version,
     calendarResolution:{unresolvedActivityCount:shared.calendarUnresolvedActivityCount},
     configurationId:shared.configurationId,
     pendingScheduleReviews:authorityReview.pendingSchedules,

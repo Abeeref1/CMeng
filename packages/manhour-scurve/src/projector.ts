@@ -1,4 +1,4 @@
-import { parseScheduleTime } from "../../schedule-analysis-core/src";
+import { parseScheduleTime, programmeRecordsProgress } from "../../schedule-analysis-core/src";
 import type {
   CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
@@ -538,10 +538,12 @@ export function buildManhourScurveProjection(
     planned.knownUnitsCount,
     laborAssignments.length,
   );
-  const actualState = state(
+  // Mechanism 4 (matrix 15 Nov 2026): a programme with no progress recorded has no measured labour
+  // actuals; the 0 h on the baseline's assignments is not a measurement.
+  const actualState: ManhourSeriesState = programmeRecordsProgress(schedule.activities) ? state(
     currentActualKnownCount,
     laborAssignments.length,
-  );
+  ) : "missing";
   const remainingState = state(
     remaining.knownUnitsCount,
     laborAssignments.length,

@@ -325,7 +325,13 @@ export function buildIndependentForecastProjection(
   // assumption is stated beside it. Null only when the network itself cannot be
   // calculated. Broken, external or left-out logic references qualify it
   // (network_references, partial_coverage); they do not erase it.
-  const calculatedFinish=cpm.projectFinishIso??null;
+  // Owner rule (15 Nov 2026), every programme: with open activities and none of them on a
+  // readable source working calendar, the network's finish rests wholly on an assumed
+  // calendar. It stays an internal diagnostic value; it is never the calculated finish that
+  // pages, the headline or any management, contract or recovery comparison use.
+  const openActivityCount=activities.filter(a=>!completedIds.has(a.activityId)).length;
+  const noSourceCalendar=openActivityCount>0&&unresolvedCalendarCount===openActivityCount;
+  const calculatedFinish=noSourceCalendar?null:cpm.projectFinishIso??null;
   const calculatedActivityCount =
     activities.filter(
       (activity) =>
@@ -367,6 +373,7 @@ export function buildIndependentForecastProjection(
     independentForecastCompletionIso:
       resolvedFinish,
     calculatedCompletionIso:calculatedFinish,
+    ...(noSourceCalendar?{diagnosticCompletionIso:cpm.projectFinishIso??null}:{}),
     assumedCalendarOpenActivityIds:openFallback.map(a=>a.activityId),
     forecastVarianceDays:
       dayVariance(
@@ -393,7 +400,7 @@ export function buildIndependentForecastProjection(
       ...cpm.criticalActivityIds,
     ],
     assumptions: [...cpm.assumptions],
-    diagnostics: [...cpm.diagnostics],
+    diagnostics: [...cpm.diagnostics,...(noSourceCalendar?['CPM_FINISH_DIAGNOSTIC_ONLY_NO_SOURCE_CALENDAR:'+openActivityCount]:[])],
     probabilistic: probabilisticComparator(
       model.dataDateIso,
       resolvedFinish,

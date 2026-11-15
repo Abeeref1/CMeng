@@ -19,8 +19,10 @@ export function completionPosition(data:any, forecast:any=data, names:Map<string
     else if(!['SOURCE_DURATION_ELAPSED_DAY_PATTERN_REQUIRES_CALENDAR_RECONCILIATION'].includes(assumption))limitations.push({key:assumption,text:assumption.toLowerCase().replaceAll('_',' ').replaceAll(':',': ')});
   }
   const assumed=(forecast.assumedCalendarOpenActivityIds??[]).length;
-  if(assumed)limitations.push({key:'assumed-calendar',text:assumed.toLocaleString('en-US')+' open '+(assumed===1?'activity has':'activities have')+' no readable working calendar; CMeng assumed continuous working for '+(assumed===1?'it':'them')+'. Supply the calendar to firm up the finish.'});
-  if(!calculated)limitations.push({key:'incomplete-calculation',text:'The full network finish is unavailable because the programme logic cannot be calculated. Available submitted dates remain usable.'});
+  // Owner rule 15 Nov 2026: no open activity on a readable calendar -> no published CMeng finish; that is the reason.
+  const noSourceCalendar=(forecast.diagnostics??[]).some((code:string)=>code.startsWith('CPM_FINISH_DIAGNOSTIC_ONLY_NO_SOURCE_CALENDAR'));
+  if(assumed)limitations.push({key:'assumed-calendar',text:assumed.toLocaleString('en-US')+' open '+(assumed===1?'activity has':'activities have')+' no readable working calendar'+(noSourceCalendar?'. Supply the calendars to calculate a finish.':'; CMeng assumed continuous working for '+(assumed===1?'it':'them')+'. Supply the calendar to firm up the finish.')});
+  if(!calculated)limitations.push({key:'incomplete-calculation',text:noSourceCalendar?'CMeng does not publish a finish of its own: none of the open activities has a readable working calendar. The submitted dates remain usable.':'The full network finish is unavailable because the programme logic cannot be calculated. Available submitted dates remain usable.'});
   const independent=calculated;
   const elapsed=typeof forecast.calculatedVarianceDays==='number'?forecast.calculatedVarianceDays:typeof forecast.forecastVarianceDays==='number'?forecast.forecastVarianceDays:data.forecast?.varianceDays;
   const difference=independent&&submitted&&typeof elapsed==='number'&&Number.isFinite(elapsed)?elapsed:null;

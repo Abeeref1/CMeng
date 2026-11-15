@@ -57,6 +57,9 @@ export interface IndependentForecastProjection {
   independentForecastCompletionIso: string | null;
   /** P0-B: the network finish CMeng calculated, including open activities on an assumed calendar (listed below). Null only when the network cannot be calculated. */
   calculatedCompletionIso?: string | null;
+  /** The network finish when no open activity has a readable source working calendar:
+   * internal diagnostic only, never shown or compared (owner rule, 15 Nov 2026). */
+  diagnosticCompletionIso?: string | null;
   /** Open (not completed) activities calculated on an assumed elapsed calendar. */
   assumedCalendarOpenActivityIds?: string[];
   forecastVarianceDays: number | null;

@@ -399,8 +399,9 @@ function submittedValue(
           1
         ) > 1
           ? "The submitted value is corroborated by multiple sources."
-          : matches[0]!
-              .sourceText,
+          // Matrix 15 Nov 2026: the raw text around the match (CSV rows, run-on cells) was
+          // printed as the note; the source reference carries the evidence.
+          : "Stated in one source document; no second source corroborates it.",
       resolution:
         (
           recommended.supportCount ??

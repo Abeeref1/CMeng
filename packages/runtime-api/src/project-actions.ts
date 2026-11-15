@@ -281,7 +281,8 @@ export function projectActions(state:ProjectRuntimeState,assessment:ControlIssue
     const item:ProjectAction={id:'classification:'+document.documentId,category:saved?'information':'confirmation',title:'Review document type: '+document.sourceFilename,
       reason:classification.reason??'Check the retained source before selecting its document type.',recordCount:1,
       reviewFingerprint:identity([document.documentId,document.sourceHashSha256,document.documentType,document.category]),reviewSourceRefs:['evidence-document:'+document.documentId],
-      evidenceSummary:['Recorded type: '+document.documentType,'Reader confidence: '+(document.identification?.confidence??'not established'),'Original reader type: '+(document.identification?.detectedDocumentType??'not established')],
+      // Matrix 15 Nov 2026 (every project with documents): plain type names, no internal reader score.
+      evidenceSummary:['Recorded type: '+String(document.documentType).replaceAll('_',' '),'Type the reader found: '+(document.identification?.detectedDocumentType?String(document.identification.detectedDocumentType).replaceAll('_',' '):'not established')],
       resolution:{kind:'choose',requiresUserAction:!saved,instruction:'Check the source, confirm or correct its type, and record your review reference. Type selection does not adopt, approve or replace the document.',completionRule:'The source-bound classification decision is retained and can be edited here.'},
       target:{type:'inline',kind:'review-document-classification',documentId:document.documentId,sourceHash:document.sourceHashSha256,label:'Record document type review',reviewChoice:saved?.documentType??classification.documentType,
         reviewReference:saved?.reference??null,reviewOptions:choices.map(choice=>({value:choice.documentType,label:choice.documentType.replaceAll('_',' ')}))}};

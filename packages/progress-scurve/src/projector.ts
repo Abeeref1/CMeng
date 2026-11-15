@@ -1,4 +1,4 @@
-import { parseScheduleTime, activityPopulation, isProgressActivity, scheduleProgress,
+import { parseScheduleTime, activityPopulation, isProgressActivity, scheduleProgress, programmeProgress,
   type CanonicalCalendar, type CanonicalScheduleActivity, type CanonicalScheduleModel,
 } from "../../schedule-analysis-core/src";
 import { resolveWorkingCalendar, statedCalendarWorkBasis, workingHoursBetween, type StatedCalendarWorkBasis } from "../../schedule-cpm/src/calendar";
@@ -124,7 +124,7 @@ export function buildProgressScurveProjection(model: CanonicalScheduleModel, inp
     activity.forecastStartIso ?? activity.currentStartIso ?? activity.actualStartIso,
     activity.forecastFinishIso ?? activity.currentFinishIso ?? activity.actualFinishIso,
   ], diagnostics);
-  const snapshot = scheduleProgress(model.activities), cutoff = ms(model.dataDateIso);
+  const snapshot = programmeProgress(model.activities), cutoff = ms(model.dataDateIso);
   // S-curve and WBS/control-scope plans use the identical original activity
   // dates, calendars, and Data Date. Keep the full per-activity values locally
   // instead of parsing the same 8k+ programme twice in scope comparisons and

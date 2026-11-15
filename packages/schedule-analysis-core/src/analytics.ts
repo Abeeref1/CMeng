@@ -1,5 +1,5 @@
 import { parseScheduleTime } from "./date-time";
-import { activityPopulation, scheduleProgress } from "./population";
+import { activityPopulation, scheduleProgress, programmeProgress, programmeRecordsProgress } from "./population";
 import { analyzeScheduleGraph } from "./graph";
 import {
   activityNearCriticalThresholdHours,
@@ -129,7 +129,8 @@ function averagePercentComplete(
 }
 
 function durationWeightedPercentComplete(activities: readonly CanonicalScheduleActivity[]): AverageMetric {
-  return scheduleProgress(activities);
+  // Mechanism 4: the whole programme's progress; none recorded -> not measured (null), never 0%.
+  return programmeProgress(activities);
 }
 
 function progressSummary(
@@ -137,8 +138,9 @@ function progressSummary(
 ): ProgressSummary {
   return {
     status: statusSummary(activities),
-    percentCompleteAverage:
-      averagePercentComplete(activities),
+    percentCompleteAverage: programmeRecordsProgress(activities)
+      ? averagePercentComplete(activities)
+      : {...averagePercentComplete(activities), value: null},
     durationWeightedPercentComplete:
       durationWeightedPercentComplete(activities),
   };

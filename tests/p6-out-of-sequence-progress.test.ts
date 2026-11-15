@@ -5,6 +5,7 @@ import {canonicalScheduleFromXer} from '../packages/schedule-analysis-core/src/a
 import {parseXerBytes} from '../packages/xer-parser/src/parser';
 import {calculateCpm} from '../packages/schedule-cpm/src';
 import {forecastQualifications} from '../packages/runtime-api/src/forecast-control';
+import {buildIndependentForecastProjection} from '../packages/independent-forecast/src';
 
 // P6 retained logic with out-of-sequence progress, as the contractors' own P6
 // dates show it (DMINFRA-101: 120 completed activities with an unfinished
@@ -133,4 +134,20 @@ test('an assumed calendar names each calendar and the working time the file lack
     materialActivityScreeningDays: 14, materialDivergences: 0, unappliedConstraints: 0, graphDiagnostics: 0}).find(x => x.code === 'assumed_calendar')!;
   assert.match(q.text, /2 open activities have no readable working calendar/);
   assert.equal(q.action, 'Supply the working days, shift start and finish times and holidays for “6D-10H” (the file gives 10 h a day and 60 h a week only); “EMPTY” (the file gives no working time).');
+});
+
+test('owner rule 15 Nov 2026: with open activities and none on a readable calendar, CMeng\'s own finish is diagnostic only', () => {
+  const m = model([{id: 'A', hours: 8}, {id: 'B', hours: 16}], [['A', 'B', 'FS', 0]]);
+  m.calendars = [{...day, semanticComplete: false, weeklyWorkIntervals: [], weeklyWorkMinutes: [0, 0, 0, 0, 0, 0, 0], sourceConversionDayHours: 10} as unknown as CanonicalCalendar];
+  const f = buildIndependentForecastProjection(m, {generatedAt: dataDate, producerVersion: "t", cpmConfig: {allowElapsedFallback: true}} as never);
+  assert.equal(f.calculatedCompletionIso, null, 'no published finish');
+  assert.ok(f.diagnosticCompletionIso, 'kept as an internal diagnostic value');
+  assert.ok(f.diagnostics.some(d => d.startsWith('CPM_FINISH_DIAGNOSTIC_ONLY_NO_SOURCE_CALENDAR:2')));
+  // One activity on a readable calendar: the finish is published with its qualifications.
+  const mixed = model([{id: 'A', hours: 8}, {id: 'B', hours: 16}], [['A', 'B', 'FS', 0]]);
+  mixed.calendars = [day, {...day, calendarId: 'X', semanticComplete: false, weeklyWorkIntervals: [], weeklyWorkMinutes: [0, 0, 0, 0, 0, 0, 0]} as unknown as CanonicalCalendar];
+  mixed.activities[1]!.calendarId = 'X';
+  const g = buildIndependentForecastProjection(mixed, {generatedAt: dataDate, producerVersion: "t", cpmConfig: {allowElapsedFallback: true}} as never);
+  assert.ok(g.calculatedCompletionIso);
+  assert.equal(g.diagnosticCompletionIso, undefined);
 });

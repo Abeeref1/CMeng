@@ -1,4 +1,4 @@
-import { parseScheduleTime, activityNearCriticalThresholdHours, isExecutionActivity, scheduleProgress } from "../../schedule-analysis-core/src";
+import { parseScheduleTime, activityNearCriticalThresholdHours, isExecutionActivity, scheduleProgress, programmeProgress } from "../../schedule-analysis-core/src";
 import { projectScheduleControlBasis } from "./schedule-control-basis";
 import type {
   ChallengeValue,
@@ -803,7 +803,7 @@ function metricsFor(
     progress?.progressBases
       ?.contractorReported;
   const sourceProgressReview=(label:string)=>{
-    const weighted=scheduleProgress(model.activities);
+    const weighted=programmeProgress(model.activities);
     const reported=contractorProgress?.state==='established'
       ?submitted(contractorProgress.valuePercent,'%',contractorProgress.sourceRefs??[],'Contractor-reported progress; measurement basis retained separately.')
       :submitted(weighted.value,'%',[sourceRef],'Duration-weighted aggregate of submitted activity percentages; not independently measured physical progress.',{basisRevisionId:sourceRevisionId,asOfIso:dataDateIso,coveragePercent:weighted.coveragePercent});
@@ -1797,7 +1797,7 @@ function metricsFor(
             pmo?.progress
               ?.durationWeightedProgressPercent,
           ) ??
-          scheduleProgress(model.activities).value,
+          programmeProgress(model.activities).value,
           "%",
           "derived",
           [sourceRef],

@@ -201,7 +201,14 @@ export function buildForecastReconciliationGate(input: {
   // forecast (C6): it limits the contract comparison only, which is stated separately.
   const publishable = usable && checks.every(check => check.state === "passed" || check.key === "required_finish_authority") && qualifications.length === 0;
   const failed = checks.filter(check => check.state !== "passed");
-  const notCalculableReason = usable ? null :
+  // Owner rule (15 Nov 2026): no open activity on a readable source calendar -> the network
+  // finish is diagnostic only (projector), and this is the stated reason.
+  const noCalendarCode = forecast.diagnostics.find(code => code.startsWith("CPM_FINISH_DIAGNOSTIC_ONLY_NO_SOURCE_CALENDAR"));
+  const noCalendarOpen = noCalendarCode ? Number(noCalendarCode.split(":")[1]) || forecast.assumedCalendarOpenActivityIds?.length || 0 : 0;
+  const noCalendarReason = noCalendarCode
+    ? "None of the " + count(noCalendarOpen, "open activity", "open activities") + " " + plural(noCalendarOpen, "has", "has") + " a readable working calendar, so CMeng does not publish a finish of its own."
+    : null;
+  const notCalculableReason = usable ? null : noCalendarReason ??
     (failed.filter(check => check.key !== "required_finish_authority" && check.key !== "material_activity_divergence").map(check => check.label + ": " + check.detail).join(" ") ||
       "CMeng could not calculate a finish from this programme network.");
   const managementState = !usable ? "not_calculable" as const : qualifications.length ? "calculated_with_qualifications" as const : "calculated" as const;
@@ -230,9 +237,11 @@ export function buildForecastReconciliationGate(input: {
         : {source: "contractor_programme" as const, completionIso: forecast.sourceForecastCompletionIso ?? null,
           statement: usable
             ? "The contractor's programme finish leads. CMeng's own calculation (" + managementDate(calculatedFinish) + ") is shown below but not used as the headline: " + credibility.reasons.join("; ") + "."
-            : "The contractor's programme finish leads. CMeng could not calculate a finish from this programme."},
+            : "The contractor's programme finish leads. " + (noCalendarReason ?? "CMeng could not calculate a finish from this programme.")},
       qualifications,
       notCalculableReason,
+      // Owner rule 15 Nov 2026: why a calculated network finish is withheld (diagnostic only).
+      withheld: noCalendarCode ? "no_source_calendar" as const : null,
       // M6.3: the calendar basis the finish uses: the programme as supplied, or the planner's confirmed basis.
       calendarBasis: model.calendarBasisDecision
         ? {source: "planner_confirmed" as const, durationBasis: model.calendarBasisDecision.durationBasis, confirmedAt: model.calendarBasisDecision.confirmedAt, text: model.calendarBasisDecision.statement}
@@ -243,7 +252,7 @@ export function buildForecastReconciliationGate(input: {
     materialActivityIds: materialDivergences.map(row => row.activityId),
     checks,
     reason: !usable
-      ? "CMeng cannot calculate a finish from this programme yet. " + notCalculableReason
+      ? noCalendarReason ?? "CMeng cannot calculate a finish from this programme yet. " + notCalculableReason
       : publishable
         ? "All six forecast reconciliation checks passed. The CMeng CPM/network recalculation is the management analytical forecast, separate from contractual and contractor forecasts."
         : "CMeng calculates the finish from the current programme logic, remaining durations and calendars." +
@@ -289,7 +298,9 @@ export function forecastQualifications(input: {
   const out: ForecastQualification[] = [];
   const assumed = forecast.assumedCalendarOpenActivityIds ?? [];
   if (assumed.length) out.push({code: "assumed_calendar", count: assumed.length,
-    text: assumed.length.toLocaleString("en-US") + " open " + plural(assumed.length, "activity has", "activities have") + " no readable working calendar; CMeng assumed continuous working for " + plural(assumed.length, "it", "them") + ".",
+    // With no open activity on a readable calendar the finish is not published, so nothing rests on the assumption.
+    text: assumed.length.toLocaleString("en-US") + " open " + plural(assumed.length, "activity has", "activities have") + " no readable working calendar" +
+      (input.forecast.diagnostics.some(code => code.startsWith("CPM_FINISH_DIAGNOSTIC_ONLY_NO_SOURCE_CALENDAR")) ? "." : "; CMeng assumed continuous working for " + plural(assumed.length, "it", "them") + "."),
     action: assumedCalendarAction(input.model, assumed)});
   const messages = [...(forecast.diagnostics ?? []), ...(forecast.assumptions ?? [])];
   // M6.3: once the planner has confirmed the duration basis, the pattern is answered (stated in calendarBasis).

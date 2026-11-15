@@ -2033,8 +2033,11 @@ function renderForecastVisual(data){
   // page is not said again here.
   const statedReview=typeof experienceBrief==='function'?(experienceBrief('independent-forecast',data)||{}).review:null;
   const warningReason=unsaidSentences(gate.reason||p.managementReviewReason||"Complete the forecast reconciliation checks before publishing a management forecast.",[statedReview]);
-  const qualificationList=calcFinish&&qualifications.length?'<div class="notice warn" data-forecast-qualifications><b>What qualifies this finish</b><ul>'+qualifications.map(q=>'<li>'+escapeHtml(q.text)+' <i>'+escapeHtml(q.action)+'</i></li>').join("")+'</ul></div>':'';
-  const reviewWarning=!calcFinish?'<div class="notice warn"><b>CMeng cannot calculate a finish from this programme yet.</b><p>'+escapeHtml(notCalculable)+'</p></div>':qualificationList?'':(review&&warningReason?'<div class="notice info"><p>'+escapeHtml(warningReason)+'</p></div>':'');
+  // Matrix 15 Nov 2026: with no finish shown, the limits and the exact source information needed still
+  // show (they were dropped), and a withheld finish is not called "cannot calculate".
+  const withheld=gate.managementForecast&&gate.managementForecast.withheld==='no_source_calendar';
+  const qualificationList=qualifications.length?'<div class="notice warn" data-forecast-qualifications><b>'+(calcFinish?'What qualifies this finish':'What CMeng needs to calculate a finish')+'</b><ul>'+qualifications.map(q=>'<li>'+escapeHtml(q.text)+' <i>'+escapeHtml(q.action)+'</i></li>').join("")+'</ul></div>':'';
+  const reviewWarning=!calcFinish?'<div class="notice warn"><b>'+(withheld?'CMeng does not publish a finish of its own.':'CMeng cannot calculate a finish from this programme yet.')+'</b><p>'+escapeHtml(notCalculable)+'</p></div>':qualificationList?'':(review&&warningReason?'<div class="notice info"><p>'+escapeHtml(warningReason)+'</p></div>':'');
   return '<section class="planning-view independent-forecast-view">'+kpis+qualificationList+reviewWarning+
     '<section class="planning-panel primary"><div class="planning-panel-head"><div><h4>Forecast taxonomy</h4><p>The six forecast positions remain separate. CMeng CPM/network recalculation is schedule-only and never implies BOQ, productivity, manpower or procurement evidence it does not use.</p></div></div><div class="planning-panel-body">'+taxonomyTable+dateLadder+'</div></section>'+
     gatePanel+visualOverview+
@@ -4308,7 +4311,8 @@ function renderNoticesClaimsVisual(data){
 function clauseWordingHtml(row,wordingHtml){
   const heading=row&&row.heading!==null&&row.heading!==undefined?String(row.heading).trim():"";
   const head=heading?escapeHtml([row.identifier,heading].filter(value=>value!==null&&value!==undefined&&String(value).trim()).join(" ")):"";
-  return head&&wordingHtml.startsWith(head+" ")?'<b>'+head+'</b><br>'+wordingHtml.slice(head.length+1):wordingHtml;
+  // The document's own words: the shared page reader leaves them as written.
+  return '<span data-source-text>'+(head&&wordingHtml.startsWith(head+" ")?'<b>'+head+'</b><br>'+wordingHtml.slice(head.length+1):wordingHtml)+'</span>';
 }
 function commercialMetricHtml(metric,currency="",asOf=null,sharedBasis=""){
   if(!metric)return'<span class="muted">Not established</span>';
@@ -5607,7 +5611,7 @@ function renderManagementConsistency(c,pageKey){
   if(!c)return '<div class="notice warn">Cross-module consistency has not been checked.</div>';
   // F10: the consistency check is shown on Master Control Programme; Command Center links to it.
   if(pageKey&&!ownsBlock('cross-module-consistency',pageKey))return ownerLinkPanel('cross-module-consistency',humanizeKey(c.state)+' · '+(c.checkCount??'Not established')+' checks');
-  return '<div data-owner-topic="cross-module-consistency" data-owner-figure="'+escapeHtml(humanizeKey(c.state)+' · '+(c.checkCount??'Not established')+' checks')+'" class="notice '+(c.state==="pass"?"info":"warn")+'"><b>Cross-module consistency: '+escapeHtml(humanizeKey(c.state))+'</b><p>'+escapeHtml(c.scope||"")+'</p><span>'+escapeHtml(c.checkCount??"Not established")+' checks'+(c.failedCheckIds?.length?' · Review: '+escapeHtml(c.failedCheckIds.length+" failed checks; open Information & Actions for details"):"")+'</span></div>';
+  return '<div data-owner-topic="cross-module-consistency" data-owner-figure="'+escapeHtml(humanizeKey(c.state)+' · '+(c.checkCount??'Not established')+' checks')+'" class="notice '+(c.state==="pass"?"info":"warn")+'"><b>Cross-module consistency: '+escapeHtml(humanizeKey(c.state))+'</b><p>'+escapeHtml(c.scope||"")+'</p><span>'+escapeHtml(c.checkCount??"Not established")+' checks'+(c.failedCheckIds?.length?' · Review: '+escapeHtml(c.failedCheckIds.length+" failed checks; open Actions required for details"):"")+'</span></div>';
 }
 function renderManagementVariationReconciliation(rows){
   if(!rows.length)return "";

@@ -1,5 +1,5 @@
 import {completeSum} from '../../truth-kernel/src/aggregates';
-import { parseScheduleTime, activityPopulation, activityNearCriticalThresholdHours, scheduleProgress, sourceFloatCriticality, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from '../../schedule-analysis-core/src';
+import { parseScheduleTime, activityPopulation, activityNearCriticalThresholdHours, scheduleProgress, programmeProgress, sourceFloatCriticality, type CanonicalScheduleModel, type ScheduleAnalysisConfig } from '../../schedule-analysis-core/src';
 import type { ModuleRuntimeResult } from './project-state-types';
 import {commercialIntegrityChecks} from './commercial-integrity';
 import {delayEventPopulation} from '../../delay-analysis-core/src/event-population';
@@ -24,7 +24,7 @@ function sharedIntegrityBasis(model:CanonicalScheduleModel,config:ScheduleAnalys
   const classifications=unfinished.map(a=>sourceFloatCriticality(model,a,config));
   const expectedCritical=unfinished.some(a=>a.totalFloatHours===null)?null:classifications.filter(x=>x==='critical').length;
   const expectedNear=unfinished.some(a=>a.totalFloatHours===null||activityNearCriticalThresholdHours(model,a,config)===null)?null:classifications.filter(x=>x==='near_critical').length;
-  const progress=scheduleProgress(model.activities);
+  const progress=programmeProgress(model.activities);
   const value={execution,expectedCritical,expectedNear,progress};
   byConfig.set(configKey,value);return value;
 }
