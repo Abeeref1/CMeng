@@ -132,7 +132,7 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
 
       const otherIds=allIds.filter(id=>id!==project.projectId);
       let usefulPages=0,blockedPages=0;
-      let canonicalProjectFactsDigest:string|null=null;
+      let canonicalProjectFactsDigest:string|null=null,canonicalFacts:any=null,dashboardAnswerFacts:any=null;
       let forecastPage:any=null,dashboardPage:any=null;
       for(const page of moduleRegistry){
         const result=await request(pagePath(project.projectId,page));
@@ -158,11 +158,25 @@ test('J8 final fresh blind release acceptance: 100 unseen projects remain truthf
           assert.equal(result.body.projectId,project.projectId,'J8 page project identity drift: '+page.key);
         const facts=result.body?.data?.projectFacts;
         assert.ok(facts&&facts.projectId===project.projectId,'J8 canonical project facts missing or cross-project: '+project.projectId+' / '+page.key);
-        const currentFactsDigest=factsDigest(facts);
-        if(canonicalProjectFactsDigest===null)canonicalProjectFactsDigest=currentFactsDigest;
-        else assert.equal(currentFactsDigest,canonicalProjectFactsDigest,'J8 canonical project facts differ across pages: '+project.projectId+' / '+page.key);
+        // M14 (owner rule): the Dashboard answers before its complete page check.
+        // Until then its shared action count says "checking"; every other fact is
+        // the canonical fact and is compared below, actions excepted.
+        if(page.key==='master-dashboard'&&result.body?.data?.pageCheck?.state==='checking'){
+          assert.equal(facts.actions?.openCount?.valueState,'checking','J8 Dashboard waiting for its page check must say so: '+project.projectId);
+          assert.equal(facts.actions?.openCount?.value,null,'J8 Dashboard shows no action count before its page check: '+project.projectId);
+          dashboardAnswerFacts=facts;
+        }else{
+          const currentFactsDigest=factsDigest(facts);
+          if(canonicalProjectFactsDigest===null){canonicalProjectFactsDigest=currentFactsDigest;canonicalFacts=facts;}
+          else assert.equal(currentFactsDigest,canonicalProjectFactsDigest,'J8 canonical project facts differ across pages: '+project.projectId+' / '+page.key);
+        }
         assert.deepEqual(projectFactConsumerMismatches(result.body?.data),[], 'J8 displayed consumer values differ from canonical facts: '+project.projectId+' / '+page.key);
         pageChecks++;
+      }
+      if(dashboardAnswerFacts){
+        assert.ok(canonicalFacts,'J8 canonical facts from the other pages: '+project.projectId);
+        const {actions:_answerActions,...answerFacts}=dashboardAnswerFacts,{actions:_canonicalActions,...otherFacts}=canonicalFacts;
+        assert.equal(factsDigest(answerFacts),factsDigest(otherFacts),'J8 Dashboard answer facts differ from the canonical facts: '+project.projectId);
       }
       assert.equal(usefulPages+blockedPages,moduleRegistry.length,'J8 every page must resolve: '+project.projectId);
       assert.ok(usefulPages>=moduleRegistry.filter(page=>page.area==='schedule'||PROGRAMME_ANSWERED.has(page.key)).length,'J8 programme pages withheld: '+project.projectId);

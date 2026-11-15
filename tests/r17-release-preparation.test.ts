@@ -73,7 +73,17 @@ test('R17 a new release prepares every previously calculated project before it r
         const created=await fetch(base1+'/api/projects',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projectId:id})});assert.equal(created.status,201);
         versions.set(id,await upload(base1,id,'2031-04-01','2031-06-01'));
         // The Overview reads the project's finished calculation, so it is taken after Accountability and Dashboard, as in preparation.
-        for(const path of [pages(id)[2]!,pages(id)[1]!,pages(id)[0]!]){const r=await fetch(base1+path);assert.equal(r.status,200);requestTime.set(path,content(Buffer.from(await r.arrayBuffer())));}
+        for(const path of [pages(id)[2]!,pages(id)[1]!,pages(id)[0]!]){
+          const r=await fetch(base1+path);assert.equal(r.status,200);let text=content(Buffer.from(await r.arrayBuffer()));
+          // M14: the Dashboard answers first; its complete page check follows in
+          // the background. The request-time Dashboard is the checked one.
+          for(let attempt=0;attempt<600&&path===pages(id)[1]&&JSON.parse(text).data?.pageCheck?.state!=='complete';attempt++){
+            await new Promise(resolve=>setTimeout(resolve,100));
+            const polled=await fetch(base1+path,{headers:{'x-cmeng-page-check-poll':'1'}});assert.equal(polled.status,200);
+            text=content(Buffer.from(await polled.arrayBuffer()));
+          }
+          requestTime.set(path,text);
+        }
       }
       // Summaries are saved before the release changes.
       const deadline=Date.now()+60000;

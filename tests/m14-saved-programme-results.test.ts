@@ -95,7 +95,7 @@ test('M14-2 a page check saved for an older project version or other sources is 
     invalidateProject(projectId);setPageCheckDirectory(checks);
     const reopened=dashboard(projectId);
     assert.equal(reopened.pageCheck.state,'complete');
-    assert.equal(reopened.pageCheck.checkedAt,saved!.checkedAt);
+    assert.equal(reopened.pageCheck.projectVersion,saved!.projectVersion);
     assert.deepEqual(reopened.readiness,withoutStamps(saved!.readiness));
     assert.deepEqual(reopened.actions,withoutStamps(saved!.actions));
     // A new programme revision: the old check is never shown as current.
@@ -276,4 +276,33 @@ test('M14-3/6 gateway: migration saves programme results, the Dashboard answers 
     if(previous===undefined)delete process.env.CMENG_BACKGROUND_WARMUP;else process.env.CMENG_BACKGROUND_WARMUP=previous;
     rmSync(root,{recursive:true,force:true});
   }
+});
+
+test('M14-7 the Dashboard screen sends what the Dashboard shows and keeps every stated total',()=>{
+  const {dashboardScreenView,DASHBOARD_DRIVER_GROUPS_SHOWN,DASHBOARD_GROUP_ACTIVITY_IDS_SHOWN}=require('../packages/runtime-api/src/dashboard-view');
+  const groups=Array.from({length:30},(_,g)=>({wbs:'W'+g,activityCount:20,activityIds:Array.from({length:20},(_,i)=>'A'+g+'-'+i),
+    activityNames:Array.from({length:20},(_,i)=>'Name '+i),lowestFloatHours:g,milestoneIds:['M'+g],packageCandidates:[],consequence:'c'}));
+  const result={key:'master-dashboard',data:{metrics:[{key:'m',value:1}],visualControl:{schedule:{priorityGroups:groups,criticalCount:4},progress:{x:1}},
+    trend:{schemaVersion:'1.0',projectionKey:'forecast_history',points:[{dataDateIso:'2031-01-01'}],reportingContract:{populations:{big:[1,2,3]}},challenge:{}}}};
+  const view=dashboardScreenView(result);
+  const shown=view.data.visualControl.schedule;
+  assert.equal(shown.priorityGroupTotal,30,'the number of driver groups is kept');
+  assert.equal(shown.priorityGroups.length,DASHBOARD_DRIVER_GROUPS_SHOWN);
+  assert.deepEqual(shown.priorityGroups.map((g:any)=>g.wbs),groups.slice(0,12).map(g=>g.wbs),'the same lowest-float groups, in order');
+  for(const group of shown.priorityGroups){
+    assert.equal(group.activityIds.length,DASHBOARD_GROUP_ACTIVITY_IDS_SHOWN);
+    assert.equal(group.activityIdTotal,20,'each group keeps its activity total');
+    assert.equal('activityNames' in group,false);
+    assert.equal(group.activityCount,20);
+  }
+  assert.equal(shown.criticalCount,4,'other schedule values are unchanged');
+  assert.deepEqual(view.data.visualControl.progress,{x:1});
+  assert.deepEqual(Object.keys(view.data.trend),['schemaVersion','projectionKey','points']);
+  assert.deepEqual(view.data.metrics,result.data.metrics);
+  assert.equal(result.data.visualControl.schedule.priorityGroups.length,30,'the calculation itself is not changed');
+  const ui=readFileSync(join(process.cwd(),'packages/runtime-api/src/ui.ts'),'utf8');
+  assert.match(ui,/const idTotal=group\.activityIdTotal\?\?listTotal\(group\.activityIds\)/,'the browser states the activity total');
+  assert.match(ui,/Showing the 12 lowest-float driver groups of/);
+  const server=readFileSync(join(process.cwd(),'packages/runtime-api/src/server.ts'),'utf8');
+  assert.match(server,/resolveModuleKey\(key\)==='master-dashboard'\?dashboardScreenView\(publicModuleResult\(result,key\)\)/,'only the Dashboard screen route is shaped');
 });

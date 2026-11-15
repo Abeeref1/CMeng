@@ -700,6 +700,25 @@ function reportingContractTime(state:ProjectRuntimeState){
 // One full calculation per project version. The Dashboard, Accountability,
 // every specialist page, the shared facts and the action register all read
 // this same bundle; no caller receives a reduced or deferred variant.
+/**
+ * M14: the shared page map of one project version. A page that no Dashboard
+ * reads can be registered with its calculation; the calculation runs once,
+ * the first time any page, check or list reads it, and gives the same result.
+ */
+class LazyModuleMap extends Map<string,ModuleRuntimeResult>{
+  private readonly pending=new Map<string,()=>ModuleRuntimeResult>();
+  setLazy(key:string,calculate:()=>ModuleRuntimeResult){super.set(key,undefined as unknown as ModuleRuntimeResult);this.pending.set(key,calculate);return this;}
+  private settle(key:string){const calculate=this.pending.get(key);if(calculate){this.pending.delete(key);super.set(key,calculate());}}
+  private settleAll(){for(const key of [...this.pending.keys()])this.settle(key);}
+  override get(key:string){this.settle(key);return super.get(key);}
+  override set(key:string,value:ModuleRuntimeResult){this.pending.delete(key);return super.set(key,value);}
+  override delete(key:string){this.pending.delete(key);return super.delete(key);}
+  override entries(){this.settleAll();return super.entries();}
+  override values(){this.settleAll();return super.values();}
+  override forEach(callback:(value:ModuleRuntimeResult,key:string,map:Map<string,ModuleRuntimeResult>)=>void,thisArg?:unknown){this.settleAll();super.forEach(callback,thisArg);}
+  override [Symbol.iterator](){this.settleAll();return super[Symbol.iterator]();}
+}
+
 function buildBundle(
   state: ProjectRuntimeState,
 ): ProjectionBundle {
@@ -727,11 +746,9 @@ function buildBundle(
   };
   const generatedAt =
     calculationSnapshotTime(state);
+  // M14: a page no Dashboard reads is calculated when a page first asks for it.
   const modules =
-    new Map<
-      string,
-      ModuleRuntimeResult
-    >();
+    new LazyModuleMap();
 
   for (const module of certifiedScheduleModules) {
     modules.set(
@@ -1660,29 +1677,27 @@ function buildBundle(
   );
 
   markIndependent('revision_trend');
-  const varianceTrends =
-    buildVarianceTrendsProjection(
-      ordered.map(
-        (item) =>
-          item.revision,
-      ),
-      {
-        generatedAt,
-        producerVersion:
-          versions.variance,
-        config: scheduleAnalysisConfig,
-        controlledBaselineRevision:
-          controlledBaseline
-            ?.revision ??
-          null,
-        precomputedAnalyses:revisionAnalyses,
-      },
-    );
-  modules.set(
-    "variance-trends",
-    available(
+  // Variance Trends is not on the Dashboard: it is calculated when its page (or the page check) asks.
+  const varianceAnalyses=new Map(revisionAnalyses);
+  modules.setLazy("variance-trends",()=>available(
       "variance-trends",
-      varianceTrends,
+      buildVarianceTrendsProjection(
+        ordered.map(
+          (item) =>
+            item.revision,
+        ),
+        {
+          generatedAt,
+          producerVersion:
+            versions.variance,
+          config: scheduleAnalysisConfig,
+          controlledBaselineRevision:
+            controlledBaseline
+              ?.revision ??
+            null,
+          precomputedAnalyses:varianceAnalyses,
+        },
+      ),
       ["schedule revision history"],
       ordered.length >= 2
         ? "ready"
@@ -1690,8 +1705,7 @@ function buildBundle(
       ordered.length >= 2
         ? null
         : "One revision is available. Current variance is calculated, but cross-revision deterioration/improvement requires another revision.",
-    ),
-  );
+    ));
 
   markIndependent('variance_trends');
   if (ordered.length >= 2) {
@@ -8932,7 +8946,7 @@ function computeManagementSurfaces(state:ProjectRuntimeState,projectId:string,mo
       trend:(resolvedModules.get("forecast-history")?.data as any)??null,
       operationalReporting:managementOperations,sourceInterpretation:director?.sourceInterpretation,sourceLabels:projectSourceLabels(state),
       readiness,consistency:consistencyShown,actions:savedCheck?.actions??null,issueAssessment:savedCheck?.issueAssessment??null,
-      pageCheck:savedCheck?{state:'complete',projectVersion:savedCheck.projectVersion,checkedAt:savedCheck.checkedAt}:{...checking,projectVersion:state.version,checkedAt:null}};
+      pageCheck:savedCheck?{state:'complete',projectVersion:savedCheck.projectVersion}:{...checking,projectVersion:state.version}};
     if(profiling)process.stdout.write(JSON.stringify({event:'dashboard_answer_profile',projectId,bundleMs:mp1-mp0,pagesMs:mp2-mp1,
       factsMs:mp4-mp3,totalMs:performance.now()-mp0,pageCheck:masterDashboard.pageCheck.state,programmeResults:programmeResultStats()})+'\n');
     return {data:masterDashboard,checked:Boolean(savedCheck)};
@@ -9013,7 +9027,9 @@ function computeManagementSurfaces(state:ProjectRuntimeState,projectId:string,mo
   const shownDashboard=result.masterDashboard as any;
   const savedPage=savePageCheck({projectId,projectVersion:state.version,projectStamp:projectSourceStamp(state),readiness:shownDashboard.readiness,consistency:shownDashboard.consistency,
     issueAssessment:shownDashboard.issueAssessment,actions:shownDashboard.actions,factsActions:canonicalFacts.actions});
-  shownDashboard.pageCheck={state:'complete',projectVersion:state.version,checkedAt:savedPage.checkedAt};
+  // The page shows which version was checked; the check time stays in the saved record
+  // (a page of one project version is the same whenever it is calculated).
+  void savedPage;shownDashboard.pageCheck={state:'complete',projectVersion:state.version};
   return result;
 }
 

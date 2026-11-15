@@ -107,7 +107,15 @@ test('a completed project stays readable after worker eviction and restart; muta
   const seeded=await fetch(base+'/api/projects/PROJECT-A/evidence/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'programme.xer','x-upload-intent':'replace_current_basis','x-schedule-role':'update'},body:xer('PROJECT-A',10)});assert.equal(seeded.status,201);
   const firstDashboard=await fetch(base+'/api/projects/PROJECT-A/management/master-dashboard',{headers:{'accept-encoding':'br'}});
   assert.equal(firstDashboard.headers.get('content-encoding'),'br','uncached worker response is compressed at the public gateway');
-  const priorDashboard=await firstDashboard.json() as any;assert.ok(priorDashboard.data.positionVerdict);
+  const firstBody=await firstDashboard.json() as any;assert.ok(firstBody.data.positionVerdict);
+  // M14: the Dashboard answers first; the gateway completes its page check in
+  // the background and keeps the checked Dashboard for this version.
+  let priorDashboard=firstBody;
+  for(let attempt=0;attempt<400&&priorDashboard.data?.pageCheck?.state!=='complete';attempt++){
+   await new Promise(resolve=>setTimeout(resolve,100));
+   priorDashboard=await get('/api/projects/PROJECT-A/management/master-dashboard',{headers:{'x-cmeng-page-check-poll':'1'}});
+  }
+  assert.equal(priorDashboard.data.pageCheck.state,'complete');
   const prior=await get('/api/projects/PROJECT-A/overview');
   await gateway.close();gateway=await createProjectGateway(root,{maxWorkers:1});base=await listen(gateway);
   const restored=await get('/api/projects/PROJECT-A/overview');assert.deepEqual(restored,prior);

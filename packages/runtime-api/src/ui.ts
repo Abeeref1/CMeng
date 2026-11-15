@@ -5845,7 +5845,7 @@ function renderPmcControlCharts(data){
 }
 function renderPmcDriverBoards(data){
  const vc=data.visualControl||{},path=vc.schedule?.drivingActivities||[],priorityGroups=vc.schedule?.priorityGroups||[],wbs=vc.schedule?.delayedWbs||[],milestones=vc.milestones?.topRows||[],longLead=vc.boqScope?.topLongLead||[];
- const pathHtml=priorityGroups.length?'<div class="table-wrap"><table><thead><tr><th>Driver chain / WBS</th><th>Driving activities</th><th>Package candidates</th><th>Milestone consequence</th><th>Latest finish</th><th>Lowest float</th></tr></thead><tbody>'+priorityGroups.slice(0,12).map(group=>'<tr><td><b>'+escapeHtml(group.wbs||"Unclassified driving scope")+'</b></td><td>'+escapeHtml(fmt(group.activityCount))+'<br><span class="muted">'+escapeHtml((group.activityIds||[]).slice(0,8).join("; "))+((listTotal(group.activityIds)??0)>8?' · '+escapeHtml(fmt(listTotal(group.activityIds)-8))+' more':'')+'</span></td><td>'+escapeHtml((group.packageCandidates||[]).join("; ")||"No package candidate linked")+'</td><td>'+escapeHtml((group.milestoneIds||[]).join("; ")||group.consequence||"Milestone consequence not established")+'</td><td>'+escapeHtml(group.latestCurrentFinishIso?planningShortDate(group.latestCurrentFinishIso):"—")+'</td><td>'+escapeHtml(pmcDefined(group.lowestFloatHours)?sourceWorkingFloatField(group,"lowestFloatHours"):"—")+'</td></tr>').join("")+'</tbody></table></div>':
+ const pathHtml=priorityGroups.length?'<div class="table-wrap"><table><thead><tr><th>Driver chain / WBS</th><th>Driving activities</th><th>Package candidates</th><th>Milestone consequence</th><th>Latest finish</th><th>Lowest float</th></tr></thead><tbody>'+priorityGroups.slice(0,12).map(group=>{const idTotal=group.activityIdTotal??listTotal(group.activityIds)??0;return '<tr><td><b>'+escapeHtml(group.wbs||"Unclassified driving scope")+'</b></td><td>'+escapeHtml(fmt(group.activityCount))+'<br><span class="muted">'+escapeHtml((group.activityIds||[]).slice(0,8).join("; "))+(idTotal>8?' · '+escapeHtml(fmt(idTotal-8))+' more':'')+'</span></td><td>'+escapeHtml((group.packageCandidates||[]).join("; ")||"No package candidate linked")+'</td><td>'+escapeHtml((group.milestoneIds||[]).join("; ")||group.consequence||"Milestone consequence not established")+'</td><td>'+escapeHtml(group.latestCurrentFinishIso?planningShortDate(group.latestCurrentFinishIso):"—")+'</td><td>'+escapeHtml(pmcDefined(group.lowestFloatHours)?sourceWorkingFloatField(group,"lowestFloatHours"):"—")+'</td></tr>';}).join("")+'</tbody></table></div>'+(vc.schedule?.priorityGroupTotal>12?'<p class="muted">Showing the 12 lowest-float driver groups of '+escapeHtml(fmt(vc.schedule.priorityGroupTotal))+'.</p>':''):
    path.length?'<div class="pmc-path-list">'+path.slice(0,10).map((row,index)=>'<div class="pmc-path-node"><i>'+(index+1)+'</i><div><b>'+escapeHtml(row.activityId+" · "+(row.name||""))+'</b><span>'+escapeHtml(row.wbs||"Driving network")+' · '+escapeHtml(planningShortDate(row.currentFinishIso))+'</span></div><strong>'+escapeHtml(pmcDefined(row.sourceFloatHours)?sourceWorkingFloatField(row,"sourceFloatHours")+" TF":"")+'</strong></div>').join("")+'</div>':'<div class="notice info">Independent driving network is not established. Source critical/float positions remain available in Programme Review.</div>';
  const wbsHtml=wbs.length?renderVisualBars(wbs.slice(0,8).map(row=>({label:row.label,value:row.count,tone:row.critical?"danger":"warning"})),"delayed activities"):'<div class="empty-visual">No WBS delay concentration is established from comparable current activity data.</div>';
  const milestoneHtml=milestones.length?'<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Priority</th><th>Current</th><th>Vs baseline</th><th>Float</th></tr></thead><tbody>'+milestones.slice(0,8).map(row=>'<tr><td><b>'+escapeHtml(row.activityId)+'</b><br>'+escapeHtml(row.name||"")+'</td><td><span class="state-pill '+(row.priority==="critical"?"blocked":row.priority==="high"?"review":"ready")+'">'+escapeHtml(humanizeKey(row.priority))+'</span></td><td>'+escapeHtml(planningShortDate(row.currentDateIso))+'</td><td>'+escapeHtml(pmcDefined(row.varianceDays)?((row.varianceDays>0?"+":"")+fmt(row.varianceDays)+" d"):"Not established")+'</td><td>'+escapeHtml(sourceWorkingFloat(row))+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty-visual">No open priority milestones are established.</div>';
@@ -6973,11 +6973,11 @@ async function loadModule(key){
   try{
     let result;
     // The same route release preparation saves, so the first open is the prepared result.
-    const route="/api/projects/"+encodeURIComponent(project())+pageDataRoute({key,apiKey:apiKeys[key],area:managementSurfaceKeysForApi.has(key)?"management":moduleRegistry.find(m=>m.key===key)?.area||"schedule"});
-    result=await api(route);
+    result=await api("/api/projects/"+encodeURIComponent(project())+pageDataRoute({key,apiKey:apiKeys[key],area:managementSurfaceKeysForApi.has(key)?"management":moduleRegistry.find(m=>m.key===key)?.area||"schedule"}));
     if(!current())return;
     renderModuleResult(result);
-    if(pageCheckPending(result?.data))void followPageCheck(route,current);
+    // M14: a Dashboard answered before its complete page check asks again until the check is done.
+    if(result?.data?.pageCheck?.state==='checking'&&typeof followPageCheck==='function')void followPageCheck(key,current);
   }catch(e){
     if(!current())return;
     const d=e.data||{};
@@ -6998,7 +6998,8 @@ async function loadModule(key){
 }
 // M14: while the complete page check runs, ask again (a light request that
 // never starts a calculation) and show the finished panels when it is done.
-async function followPageCheck(route,current){
+async function followPageCheck(key,current){
+  const route="/api/projects/"+encodeURIComponent(project())+pageDataRoute({key,apiKey:apiKeys[key],area:managementSurfaceKeysForApi.has(key)?"management":moduleRegistry.find(m=>m.key===key)?.area||"schedule"});
   for(let attempt=0;attempt<90;attempt++){
     await new Promise(resolve=>setTimeout(resolve,attempt<6?2000:5000));
     if(!current())return;

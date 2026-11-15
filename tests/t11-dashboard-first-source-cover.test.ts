@@ -135,7 +135,7 @@ test('T11 browser always displays the complete management visualization on first
   assert.match(script,/renderDashboardTrend\(data\)/);
   assert.match(script,/renderOperationalReporting\(data\.operationalReporting\)/);
   // M14: the browser shows Checking pages and asks again until the check is done.
-  assert.match(script,/function followPageCheck\(route,current\)/);
+  assert.match(script,/function followPageCheck\(key,current\)/);
   assert.match(script,/'x-cmeng-page-check-poll':'1'/);
   assert.match(script,/Checking pages/);
 });

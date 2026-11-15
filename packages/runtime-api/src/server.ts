@@ -21,6 +21,7 @@ import {isProjectScreenRequest,pageProjectResponse,recordDetailPage,takeSerializ
 import {projectResultMap} from './project-api-results';
 import {analyzeEvidenceRows} from './evidence';
 import {resolveModuleKey,publicModuleResult} from './registry';
+import {dashboardScreenView} from './dashboard-view';
 import {activityRegisterPage,activityRegisterView} from './activity-register-page';
 import {COLD_DASHBOARD_TARGET_MS} from './release-latency';
 import {withRequestAudit} from './audit-context';
@@ -2844,6 +2845,8 @@ async function route(
         managementReportMatch[2]!,
       );
     const format = managementReportMatch[3]!;
+    // A Dashboard report carries the complete page check, never "Checking pages".
+    if(resolveModuleKey(key)==='master-dashboard')managementSurfacesForProject(projectId);
     const result = moduleForProject(projectId,key);
     if (!result) {
       json(res, 404, {
@@ -3188,10 +3191,11 @@ async function route(
       });
       return;
     }
+    // M14: the Dashboard screen sends what the Dashboard shows (see dashboard-view.ts).
     json(
       res,
       200,
-      publicModuleResult(result,key),
+      resolveModuleKey(key)==='master-dashboard'?dashboardScreenView(publicModuleResult(result,key)):publicModuleResult(result,key),
     );
     return;
   }

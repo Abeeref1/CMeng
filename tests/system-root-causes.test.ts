@@ -19,7 +19,7 @@ import {classifyScheduleActivity} from '../packages/runtime-api/src/schedule-sco
 import {analyzeSchedule} from '../packages/schedule-analysis-core/src';
 import {buildScheduleChangeReportProjection} from '../packages/schedule-change-report/src';
 import {projectFactsForState} from '../packages/runtime-api/src/project-facts';
-import {projectActionRegisterForState,moduleForProject,directorForProject} from '../packages/runtime-api/src/project-projections';
+import {projectActionRegisterForState,moduleForProject,directorForProject,managementSurfacesForProject} from '../packages/runtime-api/src/project-projections';
 import {programmeCashScenario} from '../packages/runtime-api/src/programme-cash-scenario';
 import {contractCompletionDependencies,sectionCompletionMilestone} from '../packages/runtime-api/src/project-contract-sections';
 import {contractNoticeRules} from '../packages/runtime-api/src/contract-notice-rules';
@@ -174,6 +174,15 @@ test('all management surfaces, the Director and project review use one complete 
  assert.deepEqual(register.workflow.actions.map(a=>a.id),register.actions.filter(a=>register.workflow.actions.some(d=>d.id===a.actionId)).map(a=>a.actionId));
  assert.ok(register.workflow.actions.every(a=>a.resolution?.requiresUserAction===true),'only actual owner decisions enter Project review');
  assert.equal(new Set(register.actions.map(a=>a.recordKey)).size,register.actions.length);
+ // M14: the Dashboard answers first and shows no partial register; after the
+ // complete page check it shows the one complete register.
+ const answer=moduleForProject(state.projectId,'master-dashboard').data as any;
+ if(answer.pageCheck?.state==='checking'){
+   assert.equal(answer.actions,null);
+   // The count is either still checking or the complete register's count, never a partial one.
+   assert.ok(answer.projectFacts.actions.openCount.valueState==='checking'||answer.projectFacts.actions.openCount.value===register.actions.length);
+   managementSurfacesForProject(state.projectId);
+ }
  for(const key of ['master-dashboard','command-center','cross-domain-accountability']){
    const data=moduleForProject(state.projectId,key).data as any;
    const decisionIds=new Set(register.workflow.actions.map(a=>a.id));

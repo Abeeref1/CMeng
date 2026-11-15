@@ -71,7 +71,9 @@ test('T05: count captions on every affected screen read the true total, while "S
     `Showing '+fmt(Math.min(30,backlogRows.length))+' of '+screenCountText(backlogCount)+' overdue activities.`,
     `' of '+screenCountText(sourceTotal)+' float review records.`,
     `fmt(listTotal(row.activityIds)-5))+' more'`,
-    `fmt(listTotal(group.activityIds)-8))+' more'`,
+    // M14: the Dashboard screen sends 8 IDs per driver group with the group's true total.
+    `const idTotal=group.activityIdTotal??listTotal(group.activityIds)??0`,
+    `fmt(idTotal-8))+' more'`,
     `screenCountText(listTotal(i.sourceRefs||[]))+' references · '+screenCountText(listTotal(i.moduleKeys))+' affected pages`,
     `const count=data.recordCount??listTotal(rows);`,
     `screenCountText(listTotal(p.series))+" source partitions"`,
