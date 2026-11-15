@@ -651,7 +651,7 @@ export function buildManhourScurveProjection(
     plannedState,
 
     actualHoursKnownCurrent:
-      currentActualKnownCount > 0
+      currentActualKnownCount > 0 && actualState !== "missing"
         ? currentActualHours
         : null,
     actualAssignmentCoveragePercent:

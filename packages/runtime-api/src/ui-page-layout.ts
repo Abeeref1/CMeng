@@ -452,6 +452,17 @@ const PAGE_PP=/(\d|·) pp\b/g;
 // Matrix 15 Nov 2026 (20 projects): internal keys reached the screen ("labor_hour", "calendar_day",
 // "fixed_amount_per_day", "status=Approved"). Lower-case keys read as words; file names and URLs stay.
 const PAGE_INTERNAL_KEY=/(^|[^\w./\\-])([a-z]+(?:_[a-z]+)+)(?![\w./\\-])/g;
+// Matrix 15 Nov 2026 (source-quality findings, BOQ row diagnostics, system evidence rows on 20 projects):
+// internal diagnostic codes reached the screen. A code reads as words; the shared label is used when there is one.
+// Letters only, three or more words (identifiers with digits and file names stay as written).
+const PAGE_DIAGNOSTIC_CODE=/(?<![\w./\\-])([A-Z]{2,}(?:_[A-Z]{2,}){2,})(?![\w.-]*\.[A-Za-z]{2,4}\b)((?::[^\s;]*)?)/g;
+const PAGE_ACRONYMS={BOQ:1,CPM:1,HSE:1,TRIR:1,LTIFR:1,NCR:1,RFI:1,EOT:1,ID:1,IDS:1,XER:1,LD:1,LDS:1,IPC:1,QA:1,QC:1,MEP:1,P6:1,WBS:1,AI:1,OCR:1,PDF:1,KPI:1,SPI:1,CPI:1,EAC:1,BAC:1,VAT:1,FIDIC:1};
+function pageCodeWords(code,detail){
+ const known=typeof humanizeKey==='function'?humanizeKey(code):null;
+ const words=known&&known!==code&&!/_/.test(known)?known:code.split('_').map((w,i)=>PAGE_ACRONYMS[w]?(w==='IDS'?'IDs':w):i===0?w.charAt(0)+w.slice(1).toLowerCase():w.toLowerCase()).join(' ');
+ const rest=String(detail||'').replace(/^:/,'').replace(/native:::/g,'').replace(/,/g,', ');
+ return rest?words+': '+rest:words;
+}
 // One unknown is said once: "Not established · Not established + Not established" built from unknown parts.
 const PAGE_REPEATED_UNKNOWN=/(Not (?:established|supplied|measured))(?:\s*[·+,;\/–-]\s*\1)+/g;
 const PAGE_UNIT_WORDS={labor_hour:'labour hours',labour_hour:'labour hours',man_hour:'man-hours',calendar_day:'calendar days',working_day:'working days',fixed_amount_per_day:'fixed amount per day',percent_of_contract_price:'percent of the contract price'};
@@ -460,7 +471,7 @@ function pageNumberReader(container){
  if(typeof document==='undefined'||typeof document.createTreeWalker!=='function')return 0;
  const walker=document.createTreeWalker(container,4);let node,changed=0;
  while((node=walker.nextNode())){
-  const text=node.nodeValue;if(!text||text.length<4||!/\d|\((?:s|es|ies)\)| pp\b|[a-z]_[a-z]|[a-z]=[A-Z0-9]|Not (?:established|supplied|measured)\s*[·+,;\/–-]/.test(text))continue;
+  const text=node.nodeValue;if(!text||text.length<4||!/\d|\((?:s|es|ies)\)| pp\b|[a-z]_[a-z]|[A-Z]_[A-Z]|[a-z]=[A-Z0-9]|Not (?:established|supplied|measured)\s*[·+,;\/–-]/.test(text))continue;
   if(node.parentElement&&node.parentElement.closest('script,style,textarea,input,code,[data-sort-value],[data-source-text]'))continue;
   const next=text.replace(PAGE_HOURS_DECIMAL,(_m,whole,unit)=>whole+unit).replace(PAGE_BARE_COUNT,(m,digits,noun)=>/^(?:19|20)\d\d$/.test(digits)?m:Number(digits).toLocaleString('en-US')+noun)
    // "1 activity(ies)", "3 item(s)": the word agrees with its count.
@@ -470,7 +481,8 @@ function pageNumberReader(container){
    .replace(PAGE_PP,(_m,lead)=>lead+' percentage points')
    .replace(PAGE_INTERNAL_KEY,(_m,pre,key)=>pre+(PAGE_UNIT_WORDS[key]||key.replace(/_/g,' ')))
    .replace(PAGE_KEY_EQUALS,(_m,pre,key)=>pre+key+': ')
-   .replace(PAGE_REPEATED_UNKNOWN,'$1');
+   .replace(PAGE_REPEATED_UNKNOWN,'$1')
+   .replace(PAGE_DIAGNOSTIC_CODE,(_m,code,detail)=>pageCodeWords(code,detail));
   if(next!==text){node.nodeValue=next;changed++;}
  }
  return changed;

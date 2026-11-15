@@ -290,6 +290,10 @@ export function attachReportingContract(state:ProjectRuntimeState,result:ModuleR
     programmeAuthority:{state:authorityReview.state,method:authorityReview.method,authority:authorityReview.authority,explanation:authorityReview.explanation},
     newerUnadoptedSchedules:authorityReview.pendingSchedules.filter((s:any)=>s.dateRelationship==='later'||s.dateRelationship==='no_current_programme'),
     programmeRevisionId:current?.revision.revisionId??null,programmeLabel:current?.revision.label??null,
+    // The Data Date of the programme the figures are calculated from. It equals
+    // dataDateIso once the programme is adopted; before adoption dataDateIso is
+    // not governed, and record sets taken from this programme carry its date.
+    programmeDataDateIso:model?.dataDateIso?.slice(0,10)??null,
     actualEventPolicy:'Only dated events on or before the Data Date enter current actuals. Future and undated evidence is retained separately.',
     forecastPolicy:'Future planned work and forecast dates remain visible as forecasts, never as actual events.',
     resolver:'moduleForProject',populations,metricContracts,

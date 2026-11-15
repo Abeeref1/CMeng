@@ -224,9 +224,9 @@ test('the shared page reader: plurals after 1, (s) with no count, separators pas
     '<p id="c">8165 open activities differ in submitted versus calculated float.</p>'+
     '<p id="d">Gap to baseline: -2.53 pp.</p><table><tr><th id="e">Variance · pp</th></tr></table>'+
     '<p id="f">LAB-001 Foreman labor_hour 1213 labor_hour per week; DES-00135; design_deliverables status=Approved; file s03_current.xer</p>'+
-    '<p id="g"><span data-source-text>Prospective bidders may request clarification(s) on any part.</span></p><p id="h">Recalculated window movement Not established · Not established + Not established</p>';
+    '<p id="g"><span data-source-text>Prospective bidders may request clarification(s) on any part.</span></p><p id="h">Recalculated window movement Not established · Not established + Not established</p><p id="i">SCHEDULE_GRAPH_BROKEN_PREDECESSORS:native:::100701,native:::100702; BOQ_RASTER_QUANTITY_REVIEW_REQUIRED; PKG_0056 and P6_XER_EXPORT_FILE.xer stay</p>';
   const got=await run(chromium,body,`(()=>{const c=document.getElementById('moduleContent');arrangePageDetail(c);
-    return ['a','b','c','d','e','f','g','h'].map(id=>document.getElementById(id).textContent);})()`) as string[];
+    return ['a','b','c','d','e','f','g','h','i'].map(id=>document.getElementById(id).textContent);})()`) as string[];
   assert.equal(got[0],'Window 2 +1 day · Median 1 day · Records to correct 1 item · 11 days · 0.1 days');
   assert.equal(got[1],'Calculated recovery options are available. 78 major/critical NCR items remain open.');
   assert.equal(got[2],'8,165 open activities differ in submitted versus calculated float.');
@@ -235,4 +235,5 @@ test('the shared page reader: plurals after 1, (s) with no count, separators pas
   assert.equal(got[5],'LAB-001 Foreman labour hours 1213 labour hours per week; DES-00135; design deliverables status: Approved; file s03_current.xer');
   assert.equal(got[6],'Prospective bidders may request clarification(s) on any part.','the document\'s own words stay as written');
   assert.equal(got[7],'Recalculated window movement Not established','one unknown is said once');
+  assert.equal(got[8],'Schedule graph broken predecessors: 100701, 100702; BOQ raster quantity review required; PKG_0056 and P6_XER_EXPORT_FILE.xer stay','codes read as words; identifiers and file names stay');
 });

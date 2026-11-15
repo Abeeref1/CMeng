@@ -418,9 +418,16 @@ export function certifyCrossModuleConsistency(
         const group = families.get(name) ?? [];
         group.push({ source, value: population.populationId }); families.set(name, group);
       }
+      // One reporting date per record set: the governed Data Date, or, for a
+      // record set taken from the contract's own programme, that programme's
+      // Data Date (they are the same once the programme is adopted).
+      const populationDate = population.dataDateIso?.slice(0, 10);
+      const datedByContract = populationDate === contract.dataDateIso?.slice(0, 10) ||
+        (Boolean(population.sourceRevisionId) && population.sourceRevisionId === contract.programmeRevisionId &&
+          populationDate === contract.programmeDataDateIso?.slice(0, 10));
       if (population.denominator !== population.memberIds?.length ||
           population.sourceCount !== population.denominator + population.exclusions?.length ||
-          population.dataDateIso?.slice(0, 10) !== contract.dataDateIso?.slice(0, 10)) invalidContracts.push(source + ":" + name);
+          !datedByContract) invalidContracts.push(source + ":" + name);
     }
     for (const [path, metric] of Object.entries(contract?.metricContracts ?? {}) as Array<[string, any]>) {
       const p = Object.values(contract.populations).find((p: any) => p.populationId === metric.populationId) as any;
