@@ -28,6 +28,12 @@ test('a programme awaiting adoption does not raise a cross-page system failure',
   const modules=new Map<string,any>();
   for(const key of ['milestones','activity-analytics'])
     modules.set(key,attachReportingContract(state,{key,status:'available',engineState:'calculated',data:{}} as any));
+  // A comparison record set built from the same programme (current against a
+  // missing baseline) carries the programme's Data Date too.
+  const comparison=attachReportingContract(state,{key:'variance-trends',status:'available',engineState:'calculated',
+    data:{movementAnalysis:{population:{...(modules.get('milestones') as any).data.reportingContract.populations.source_records,
+      populationId:'population:comparison',sourceRevisionId:current!.revision.revisionId+'|baseline:null'}}}} as any);
+  modules.set('variance-trends',comparison);
   const contract=(modules.get('milestones') as any).data.reportingContract;
   assert.equal(contract.programmeRevisionId,current!.revision.revisionId);
   assert.equal(contract.programmeDataDateIso,'2031-08-31');
