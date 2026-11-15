@@ -583,9 +583,15 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
   const programmeFolder=(id:string)=>join(projectDirectory(root,id),'programme-results');
   const programmePreparing=new Set<string>();
   const programmeFailures=new Map<string,number>();
+  // A version confirmed current is not read again until the project changes.
+  const confirmedProgrammeVersion=new Map<string,number>();
   function programmeResultsCurrent(id:string){
     const version=catalog.get(id)?.metadata?.version;
-    return version!==undefined&&programmeManifestCurrent(readProgrammeManifest(programmeFolder(id)),version,programmeFolder(id));
+    if(version===undefined)return false;
+    if(confirmedProgrammeVersion.get(id)===version)return true;
+    const current=programmeManifestCurrent(readProgrammeManifest(programmeFolder(id)),version,programmeFolder(id));
+    if(current)confirmedProgrammeVersion.set(id,version);
+    return current;
   }
   function programmeResultsStatus(id:string){
     const entry=catalog.get(id),version=entry?.metadata?.version,manifest=readProgrammeManifest(programmeFolder(id));
