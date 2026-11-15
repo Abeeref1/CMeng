@@ -17,7 +17,6 @@
 import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,renameSync,rmSync,statSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {gunzipSync,gzipSync,constants as zlibConstants} from 'node:zlib';
 
 export type ProgrammeResultKind='independent-forecast'|'schedule-analysis'|'revision-comparison'|'near-critical'|'scope-classification'|'quantity-mapping';
 type Stat={memory:number;disk:number;computed:number;readMs:number;computeMs:number;savedBytes:number};
@@ -114,8 +113,9 @@ export function resetProgrammeResultStats(){stats.clear();}
 export function clearProgrammeResultMemory(){memory.clear();}
 
 function remember(key:string,value:unknown){memory.delete(key);memory.set(key,value);while(memory.size>MEMORY_LIMIT)memory.delete(memory.keys().next().value!);}
-// Saved compressed: a large programme's results are mostly repeated field names.
-const fileName=(kind:string,key:string)=>kind+'-'+key+'.json.gz';
+// Saved as plain JSON: reading it back costs one parse; decompression would
+// nearly double the read on the cold path for a few megabytes of disk.
+const fileName=(kind:string,key:string)=>kind+'-'+key+'.json';
 
 /**
  * Read the saved result for these exact inputs, or calculate and save it.
@@ -132,7 +132,7 @@ export function savedProgrammeResult<T>(kind:ProgrammeResultKind,inputs:readonly
   if(directory){
     const started=performance.now();
     try{
-      const saved=JSON.parse(gunzipSync(readFileSync(join(directory,fileName(kind,key)))).toString('utf8')) as {kind:string;key:string;value:T};
+      const saved=JSON.parse(readFileSync(join(directory,fileName(kind,key)),'utf8')) as {kind:string;key:string;value:T};
       if(saved?.kind===kind&&saved.key===key){
         const value=restamp?restamp(saved.value):saved.value;
         if(!options.fresh)remember(key,value);count(kind,'disk',performance.now()-started);return value;
@@ -150,8 +150,8 @@ export function savedProgrammeResult<T>(kind:ProgrammeResultKind,inputs:readonly
     try{
       mkdirSync(directory,{recursive:true});
       const path=join(directory,fileName(kind,key)),temporary=path+'.'+process.pid+'.'+Math.random().toString(36).slice(2)+'.tmp';
-      const packed=gzipSync(text,{level:zlibConstants.Z_BEST_SPEED});bytes=packed.length;
-      writeFileSync(temporary,packed);renameSync(temporary,path);
+      bytes=Buffer.byteLength(text);
+      writeFileSync(temporary,text);renameSync(temporary,path);
     }catch(error){console.warn('[programme-results] save failed: '+String(error).slice(0,200));}
   }
   count(kind,'computed',computeMs,bytes);
