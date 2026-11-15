@@ -193,14 +193,15 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     if(env.RAILWAY_VOLUME_MOUNT_PATH)env.RAILWAY_VOLUME_MOUNT_PATH=directory;
     // A larger young generation cuts collection pauses in a project's first full
     // calculation (an allocation-heavy burst); 24 GB live leaves ample room.
-    const youngGenerationMb=Number(process.env.CMENG_WORKER_YOUNG_GENERATION_MB??64);
+    const youngGenerationMb=Number(process.env.CMENG_WORKER_YOUNG_GENERATION_MB??256);
     return {env,...(options.workerExecArgv?{execArgv:[...options.workerExecArgv]}:{}),
       ...(Number.isFinite(youngGenerationMb)&&youngGenerationMb>0?{resourceLimits:{maxYoungGenerationSizeMb:youngGenerationMb}}:{})};
   }
   // Mechanism 14: pre-started workers. Loading the program code takes about half
   // a second per worker; a few workers are started ahead, while the service is
   // idle, holding the code but no project and no calculation.
-  const standbyTarget=Math.max(0,Math.min(4,maxWorkers,Number(process.env.CMENG_STANDBY_WORKERS??4)));
+  // One per lane: any burst the gateway can serve at once starts on loaded code.
+  const standbyTarget=Math.max(0,Math.min(maxWorkers,Number(process.env.CMENG_STANDBY_WORKERS??maxWorkers)));
   const standbyWorkers:Array<{worker:Worker;ready:boolean}>=[];
   function spawnStandbyWorker(){
     const directory=join(root,'standby-worker');
@@ -213,7 +214,10 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     worker.once('exit',drop);
   }
   function takeStandbyWorker():Worker|null{
-    const index=standbyWorkers.findIndex(entry=>entry.ready);
+    // A worker still loading the code is taken too: its project assignment
+    // waits in its message queue and runs as soon as the code is loaded.
+    const ready=standbyWorkers.findIndex(entry=>entry.ready);
+    const index=ready>=0?ready:standbyWorkers.length?0:-1;
     if(index<0)return null;
     const [entry]=standbyWorkers.splice(index,1);
     entry!.worker.removeAllListeners('exit');entry!.worker.removeAllListeners('error');entry!.worker.removeAllListeners('message');
@@ -481,7 +485,7 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     // previous release, the deployment is not ready, so the platform keeps
     // traffic away until every first Overview and Dashboard is calculated.
     if(req.method==='GET'&&url.pathname==='/health'&&releasePreparation.state==='preparing'){send(res,503,{status:'preparing',service:'cmeng',release:release(),calculationVersion:calculationRelease(),preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total});return;}
-    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',releasePreparation:{state:releasePreparation.state,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs},programmeResults:programmeMigrationSummary(),service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
+    if(req.method==='GET'&&url.pathname==='/health'){send(res,200,{status:'ok',releasePreparation:{state:releasePreparation.state,preparedProjects:releasePreparation.prepared,allPagesProjects:releasePreparation.pagesPrepared,totalProjects:releasePreparation.total,elapsedMs:releasePreparation.elapsedMs},programmeResults:programmeMigrationSummary(),standbyWorkers:{ready:standbyWorkers.filter(entry=>entry.ready).length,target:standbyTarget},service:'cmeng',release:release(),calculationVersion:calculationRelease(),scheduleModules:scheduleModuleSummary(),commercialModules:commercialModuleSummary(),boqIngestion:{persistence:process.env.RAILWAY_VOLUME_MOUNT_PATH?'railway_volume':'runtime_local',authority:'candidate_only'},uploadLimits:{maxFileBytes:configuredUploadLimit()},projectWorkers:lanes.size,applicationAccess:{mode:accessMode()},ai:{...configuredProviderState({...process.env,CMENG_ASK_AI_CONFIG_FILE:askSettingsPath,CMENG_AI_USAGE_DIR:aiUsageDirectory}),ownerPermissionRequired:true,automaticApproval:false,lastProviderCheck:providerProbeState(root,calculationRelease())}});return;}
     if(req.method==='GET'&&url.pathname==='/'){sendHttpBody(res,200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'},html);return;}
     const principal:ApplicationPrincipal|null=applicationAccess.authenticate(req);
     if(principal){const actor=Buffer.from(JSON.stringify({id:principal.id})).toString('base64url');actorHeaders.set(req,{'x-cmeng-verified-actor':actor,'x-cmeng-verified-actor-signature':createHmac('sha256',externalWorkerKey).update(actor).digest('hex')});}
@@ -646,17 +650,25 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     }catch(error){console.warn('[page-check] '+id+': '+String(error));}
     finally{activePageChecks--;if(pageChecks.get(id)===version)pageChecks.delete(id);}
   }
+  // Background work starts only after a quiet period, so a burst of browser
+  // requests (several pages or projects opened together) never shares the
+  // processor with a page check or a migration that started between them.
+  const quietMs=()=>activeForegroundRequests>0?0:Date.now()-lastForegroundProjectRequestAt;
   const backgroundSweep=()=>{
     if(closing||releasePreparation.state==='preparing')return;
-    if(activeForegroundRequests>0||Date.now()-lastForegroundProjectRequestAt<1000)return;
+    // A pre-started worker is replaced once no request has been served for a
+    // moment, so loading code never competes with the pages being opened.
+    const quiet=quietMs();
+    if(quiet<300)return;
     if(standbyWorkers.length<standbyTarget&&standbyWorkers.every(entry=>entry.ready))spawnStandbyWorker();
+    if(quiet<2500)return;
     const budget=Math.max(1,Math.min(3,maxWorkers-1));
     for(const [id,version] of [...pageChecks]){
       if(activePageChecks>=budget)break;
       if(catalog.get(id)?.metadata?.version!==version){pageChecks.delete(id);continue;}
       void runPageCheck(id,version);
     }
-    if(activePageChecks>0)return;
+    if(activePageChecks>0||quiet<3000)return;
     for(const entry of recentFirst([...catalog.values()])){
       if(programmePreparing.size>=budget)break;
       const id=entry.projectId;
@@ -666,6 +678,8 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     }
   };
   const backgroundTimer=setInterval(backgroundSweep,500);backgroundTimer.unref();
+  // The pre-started workers are part of server start (program code only, no project).
+  for(let index=0;index<standbyTarget;index++)spawnStandbyWorker();
   // Background page warm-up can be turned off (CMENG_BACKGROUND_WARMUP=0), for
   // example by a benchmark that must time genuinely cold pages. Saved
   // programme-result migration and the complete page check still run.

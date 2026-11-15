@@ -108,6 +108,17 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
     await new Promise(resolve=>setTimeout(resolve,250));
   }
   const programmeResultsPreparationMs=performance.now()-programmeStart;
+  // Server readiness before each timed step: the pre-started workers (program
+  // code only; no project, no calculation) are loaded, as on an idle server.
+  const serverReady=async()=>{
+    for(const pollStart=performance.now();;){
+      const health=await (await fetch(base+'/health')).json();
+      if(!health.standbyWorkers||health.standbyWorkers.ready>=health.standbyWorkers.target)return;
+      if(performance.now()-pollStart>60000)throw new Error('Pre-started workers not ready within 60 s');
+      await new Promise(resolve=>setTimeout(resolve,250));
+    }
+  };
+  await serverReady();
   const preparationMs=performance.now()-started;const cold=performance.now();
   const routeTimings={};let routeStart=performance.now();
   const shell=await fetch(base+'/');assert.equal(shell.status,200);await shell.text();routeTimings.shellMs=performance.now()-routeStart;
@@ -132,6 +143,7 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
   sampleMemory();const memoryBeforeUploadBytes=peakRssBytes;const sampler=setInterval(sampleMemory,20);
   let uploadResponseMs,uploadToReadyMs,firstDashboardMs;
   try{
+    await serverReady();
     const uploadStart=performance.now();
     const response=await fetch(base+'/api/projects/'+uploadProject+'/schedule/uploads',{method:'POST',headers:{'content-type':'text/plain','x-source-filename':'misleading-baseline-1990.xer','x-upload-intent':'replace_current_basis','x-schedule-role':'update'},body:lines.join('\n')});
     assert.equal(response.status,201,await response.text());uploadResponseMs=performance.now()-uploadStart;
@@ -142,6 +154,7 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
   }finally{clearInterval(sampler);}
   // Four genuinely cold management calculations, requested concurrently.
   // Warm-view speed must not make an unprepared project appear compliant.
+  await serverReady();
   const coldShapesStart=performance.now();
   const coldShapeRows=await Promise.all(accountabilityProjectIds.map(async (id,index)=>{
     const started=performance.now();
@@ -176,9 +189,10 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
   const diagnosisProfileEvents=profileLines.filter(line=>line.includes('"event":"project_diagnosis_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const lookaheadProfileEvents=profileLines.filter(line=>line.includes('"event":"lookahead_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const dashboardAnswerEvents=profileLines.filter(line=>line.includes('"event":"dashboard_answer_profile"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
+  const workerReadyEvents=profileLines.filter(line=>line.includes('"event":"project_worker_ready"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const programmePreparedEvents=profileLines.filter(line=>line.includes('"event":"programme_results_prepared"')).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
   const coldBreakdownEvents=profileLines.filter(line=>['independent_change_stage_profile','lookahead_cold_breakdown','delivery_cold_profile','quantity_mapping_profile','independent_cpm_profile','management_visual_profile','workfront_breakdown_profile'].some(event=>line.includes('"event":"'+event+'"'))).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);
-  const result={scope:'Fresh server, actual HTTP upload, first calculated dashboard and four concurrent Accountability projects',activityCount:20000,programmeResultsPreparationMs,programmePreparedEvents,dashboardAnswerEvents,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},coldProjectShapes:{profiles:coldShapeRows,wallMs:coldShapesWallMs,maxProjectMs:coldShapesMaxMs,passed:coldShapesPassed},accountabilityConcurrency:{projectCount:accountabilityProjectIds.length,activityCountPerProject:5000,wallMs:accountabilityWallMs,maxProjectMs:accountabilityMaxMs,rows:accountabilityConcurrent,passed:accountabilityPassed},profileEvents,managementProfileEvents,resolvedModuleProfileEvents,bundleProfileEvents,diagnosisProfileEvents,lookaheadProfileEvents,coldBreakdownEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS&&accountabilityPassed&&coldShapesPassed};
+  const result={scope:'Fresh server, actual HTTP upload, first calculated dashboard and four concurrent Accountability projects',activityCount:20000,programmeResultsPreparationMs,programmePreparedEvents,dashboardAnswerEvents,workerReadyEvents,priorColdGate:{activityCount:12500,revisionCount:3,preparationMs,coldRequestMs,routeTimings},coldProjectShapes:{profiles:coldShapeRows,wallMs:coldShapesWallMs,maxProjectMs:coldShapesMaxMs,passed:coldShapesPassed},accountabilityConcurrency:{projectCount:accountabilityProjectIds.length,activityCountPerProject:5000,wallMs:accountabilityWallMs,maxProjectMs:accountabilityMaxMs,rows:accountabilityConcurrent,passed:accountabilityPassed},profileEvents,managementProfileEvents,resolvedModuleProfileEvents,bundleProfileEvents,diagnosisProfileEvents,lookaheadProfileEvents,coldBreakdownEvents,uploadResponseMs,uploadToReadyMs,firstDashboardMs,memoryBeforeUploadBytes,peakRssBytes,peakRssMiB:peakRssBytes===null?null:peakRssBytes/1024/1024,targetMs:COLD_DASHBOARD_TARGET_MS,passed:coldRequestMs<=COLD_DASHBOARD_TARGET_MS&&uploadToReadyMs<=COLD_DASHBOARD_TARGET_MS&&firstDashboardMs<=COLD_DASHBOARD_TARGET_MS&&accountabilityPassed&&coldShapesPassed};
   console.log(JSON.stringify(result));if(process.env.CMENG_LATENCY_RESULT)writeFileSync(process.env.CMENG_LATENCY_RESULT,JSON.stringify(result,null,2));
   assert.ok(result.passed,'Cold workflow, upload-to-ready, first-dashboard or four-project Accountability target exceeded');
  }finally{
