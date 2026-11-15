@@ -702,6 +702,20 @@ test('Delay programme context presents unresolved counts and complete zero witho
  delete context.pressuredMilestoneCount;delete context.knownPressuredMilestoneCount;render();assert.equal(kpis.find(r=>r[0]==='Pressured milestones')[1],'Not established');
 });
 
+test('M4: with only the baseline supplied, the delay context measures lateness from the first update',()=>{
+ // DMCC-UPD2 #10 and the 15 Nov matrix: no baseline dates means lateness is not measured yet, not a request
+ // for 25,629 baseline dates; the zero-float milestones are the critical milestones.
+ const context:any={projectCompletionMovementDays:null,delayedActivityCount:null,knownDelayedActivityCount:0,unresolvedDelayedActivityCount:25629,negativeFloatActivityCount:0,knownNegativeFloatActivityCount:0,pressuredMilestoneCount:null,knownPressuredMilestoneCount:52,unresolvedPressuredMilestoneCount:2059,milestonePopulationState:'established',revisionCount:1,windowCount:0,pressureRows:[]};
+ const programmeState={programmeCount:1,progressRecorded:false,baselineOnly:true,statement:'Only the baseline programme is supplied. Progress and programme movement can be measured after the first update.'};
+ let kpis:any[]=[];
+ const html=String(runInNewContext(functions(['renderDelayProgrammeContext'])+';renderDelayProgrammeContext(data)',{...common,data:{projectFacts:{schedule:{programmeState}},delayEotEvidenceChain:{programmeContext:context}},planningKpis:(rows:any[])=>{kpis=rows;return '';}}));
+ const milestones=kpis.find(r=>r[0]==='Critical milestones');
+ assert.ok(milestones,'named critical milestones');assert.equal(milestones[1],'52');assert.equal(milestones[4],'');
+ const delayed=kpis.find(r=>r[0]==='Delayed open execution activities');
+ assert.equal(delayed[1],'Not measured yet');assert.equal(delayed[4],programmeState.statement);
+ assert.ok(!kpis.some(r=>r[0]==='Pressured milestones'));assert.doesNotMatch(html,/Pressured milestones/);
+});
+
 test('location review shows source candidates and saved mappings without asserting automatic assignment',()=>{
  const nodes:Record<string,{innerHTML:string;textContent:string}>={};
  const review={wbsCandidates:[{wbsId:'W-A',location:'North wing',path:'Project / North wing',activityCount:240}],assetCandidates:[{location:'FM plant',assetCount:120,basis:'Reported source location'}],decision:{choice:'confirm_wbs_locations',reference:'LOCATION-CHECK',locationAssignments:[{wbsId:'W-A',location:'FM plant'}]}};

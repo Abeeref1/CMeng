@@ -126,7 +126,7 @@ for P in projects:
         # 4 baseline-only state
         if baseline_only:
             for rx in (r'percentage points? (?:behind|ahead)', r'\b(?:behind|ahead of) (?:the )?(?:baseline )?plan\b', r'matches baseline plan', r'Recovery candidates exist',
-                       r'Systematic revision shift', r'(\S+\.xer) → \1', r'slipped by', r'Variance · pp',
+                       r'Systematic revision shift', r'(\S+\.xer) → \1', r'slipped by', r'Variance · pp', r'Pressured milestones', r'activit(?:y|ies) needs? a baseline',
                        r'(?:Schedule (?:activity )?progress|Schedule snapshot)(?::| \|)? 0(?:\.0+)? ?%', r'(?:finish-date movement|Largest movement)(?::| \|)?[^\n|]{0,30}?(?:\| )?0 days\b',
                        r'Actual labou?r hours[^\n]{0,40}?\b0 h\b', r'Variance[^\n]{0,30}?\b0(?:\.0+)? (?:pp|percentage points)\b'):
                 flat = re.sub(r'\s*\n\s*', ' | ', full)
