@@ -18,7 +18,7 @@ import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,renameSync,rmSync,statSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 
-export type ProgrammeResultKind='independent-forecast'|'schedule-analysis'|'revision-comparison'|'near-critical'|'scope-classification'|'quantity-mapping'|'activity-analytics'|'progress-scurve'|'progress-breakdown';
+export type ProgrammeResultKind='independent-forecast'|'schedule-analysis'|'revision-comparison'|'near-critical'|'scope-classification'|'quantity-mapping'|'activity-analytics'|'progress-scurve'|'progress-breakdown'|'revision-trend'|'schedule-change-report';
 type Stat={memory:number;disk:number;computed:number;readMs:number;computeMs:number;savedBytes:number};
 const stats=new Map<string,Stat>();
 const memory=new Map<string,unknown>();

@@ -104,11 +104,23 @@ export function linkReviewIsCurrent(state:ProjectRuntimeState,review:LinkCandida
  * be a phase model, not the control schedule). Same fingerprints as the dataset.
  */
 export function boqActivityReviewChecker(state:ProjectRuntimeState,model:CanonicalScheduleModel,quantityItems:any[]){
- const projectId=state.projectId,wbs=new Map(model.wbs.map(x=>[x.wbsId,x.name]));
- const sourceFp=new Map(quantityItems.map(row=>[row.quantityItemId,linkEntityFingerprint('boq_activity',boqItemLinkEntity(row,projectId))]));
- const targetFp=new Map(model.activities.map(a=>[a.activityId,linkEntityFingerprint('boq_activity',activityLinkEntity(a,wbs.get(a.wbsId??''),model.sourceRevisionId,projectId))]));
+ const projectId=state.projectId;
+ // M14: fingerprints are taken only for the records a review names (most
+ // projects hold few or no BOQ-activity reviews); the same value, once each.
+ let wbs:Map<string,string|null>|undefined,items:Map<string,any>|undefined,activities:Map<string,CanonicalScheduleModel['activities'][number]>|undefined;
+ const sourceFp=new Map<string,string|undefined>(),targetFp=new Map<string,string|undefined>();
+ const sourceOf=(id:string)=>{
+  if(!sourceFp.has(id)){items??=new Map(quantityItems.map(row=>[row.quantityItemId,row]));const row=items.get(id);
+   sourceFp.set(id,row===undefined?undefined:linkEntityFingerprint('boq_activity',boqItemLinkEntity(row,projectId)));}
+  return sourceFp.get(id);
+ };
+ const targetOf=(id:string)=>{
+  if(!targetFp.has(id)){wbs??=new Map(model.wbs.map(x=>[x.wbsId,x.name]));activities??=new Map(model.activities.map(a=>[a.activityId,a]));const a=activities.get(id);
+   targetFp.set(id,a===undefined?undefined:linkEntityFingerprint('boq_activity',activityLinkEntity(a,wbs.get(a.wbsId??''),model.sourceRevisionId,projectId)));}
+  return targetFp.get(id);
+ };
  return (review:LinkCandidate)=>{
-  const s=sourceFp.get(review.sourceId),t=targetFp.get(review.targetId);
+  const s=sourceOf(review.sourceId),t=targetOf(review.targetId);
   if(!s||!t)return false;
   if(review.sourceFingerprint&&review.targetFingerprint)return s===review.sourceFingerprint&&t===review.targetFingerprint;
   return true; // saved before fingerprints: both records still exist (BOQ scope links carry no unit or area on the activity)

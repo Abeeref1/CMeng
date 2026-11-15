@@ -490,6 +490,19 @@ function savedProgressBreakdown(model:CanonicalScheduleModel,input:Parameters<ty
     ()=>buildProgressBreakdownProjection(model,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
 }
 
+/** Mechanism 14: the revision trend of these exact revisions (contents, order, configuration). */
+function savedRevisionTrend(revisions:ScheduleRevision[],input:Parameters<typeof buildRevisionTrendProjection>[1]){
+  const {generatedAt:_stamp,precomputedAnalyses:_analyses,precomputedComparisons:_comparisons,onRevisionAnalytics:_a,onComparison:_c,...rest}=input as any;
+  return savedProgrammeResult('revision-trend',[...revisions.flatMap(revision=>revisionContent(revision)),programmeKeyMaterial(rest)],
+    ()=>buildRevisionTrendProjection(revisions,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+}
+/** Mechanism 14: the change report of one exact pair of revisions. */
+function savedScheduleChangeReport(from:ScheduleRevision,to:ScheduleRevision,input:Parameters<typeof buildScheduleChangeReportProjection>[2]){
+  const {generatedAt:_stamp,precomputedComparison:_comparison,precomputedChangeCategories:_categories,precomputedAnalyses:_analyses,...rest}=input;
+  return savedProgrammeResult('schedule-change-report',[...revisionContent(from),...revisionContent(to),programmeKeyMaterial(rest)],
+    ()=>buildScheduleChangeReportProjection(from,to,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+}
+
 function applyGovernedWindowMovementMetrics(
   state: ProjectRuntimeState,
   projection: ReturnType<typeof buildWindowsAnalysisProjection>,
@@ -1688,7 +1701,7 @@ function buildBundle(
     });
   }
   const revisionTrend =
-    buildRevisionTrendProjection(
+    savedRevisionTrend(
       ordered.map(
         (item) =>
           item.revision,
@@ -1758,7 +1771,7 @@ function buildBundle(
       current.revision;
 
     const changeProjection =
-      buildScheduleChangeReportProjection(
+      savedScheduleChangeReport(
         before,
         after,
         {
