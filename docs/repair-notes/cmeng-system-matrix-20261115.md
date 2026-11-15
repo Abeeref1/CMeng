@@ -45,12 +45,17 @@ Regressions found and fixed:
 | Live ca738611 (before) | 1,160 | 419 |
 | Live 6486faa0 | 1,160 | 13 |
 | Live 28058619 | 1,160 | 0 before the delay wording check was added; 4 after (fixed next) |
+| Live a91a9e78 (final) | 1,160 | 0 |
+| Fresh projects, 6 programme kinds incl. adopted baseline, a91a9e78 | 348 | 0 |
 | Fresh projects, 5 programme kinds, 28058619 | 290 | 0 |
 | Fresh adopted baseline, 28058619 | 58 | 0 |
 
 Calendar rule on live 6486faa0: exactly the 5 projects with no readable
 calendar lost the CMeng date; no other project's forecast changed.
 DMCC P6 parity: 25,629 activities, 0 finish, start or float differences.
+DMCC review checks on a91a9e78: 27 of 27 pass. Warm page open on live
+a91a9e78: median 2.5 s, 95th percentile 3.2 s, slowest 7.3 s (1,160 pages).
+CI on a91a9e78: regression 2,692 pass, 0 fail.
 Data: 20 projects and 472 documents before and after; no loss.
 
 ## Not fixed
