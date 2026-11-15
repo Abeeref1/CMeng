@@ -132,8 +132,13 @@ test('schedule source progress stays submitted and is never its own independent 
    assert.match(item.independent.note,/does not independently verify/);
  }
  model.activities[0]!.percentComplete=0;state.version++;
- let item=(moduleForProject(state.projectId,'progress-report').data as any).challenge.items.find((i:any)=>i.metric==='progress_percent');assert.equal(item.submitted.value,0);assert.equal(item.submitted.state,'submitted');
- model.activities[0]!.percentComplete=null;state.version++;
+ // M4/M5 (matrix 15 Nov 2026): a programme that records no progress has no measured
+ // progress. 0% on every activity is not a measurement, so it is not shown as 0%.
+ let item=(moduleForProject(state.projectId,'progress-report').data as any).challenge.items.find((i:any)=>i.metric==='progress_percent');assert.equal(item.submitted.value,null);
+ // A real 0% beside recorded progress stays a zero in the weighting.
+ model.activities.push({...model.activities[0]!,activityId:'WORK-2',nativeId:'2',status:'in_progress',actualStartIso:'2031-04-01',percentComplete:50});state.version++;
+ item=(moduleForProject(state.projectId,'progress-report').data as any).challenge.items.find((i:any)=>i.metric==='progress_percent');assert.equal(item.submitted.value,25);assert.equal(item.submitted.state,'submitted');
+ model.activities.pop();model.activities[0]!.percentComplete=null;state.version++;
  item=(moduleForProject(state.projectId,'progress-report').data as any).challenge.items.find((i:any)=>i.metric==='progress_percent');assert.equal(item.submitted.value,null);assert.equal(item.independent.value,null);
 });
 

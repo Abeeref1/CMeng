@@ -35,7 +35,7 @@ async function openPage(page,url){
         const vis=[];const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;
         while((n=w.nextNode())){const p=n.parentElement;if(!p||!p.checkVisibility()||p.closest('script,style'))continue;const b=p.getBoundingClientRect();if(b.top<top+900){const t=n.textContent.replace(/\s+/g,' ').trim();if(t)vis.push(t);}}
         const header=(document.querySelector('.workspace-head, header, #projectStatus')?.innerText||'').replace(/\s+/g,' ').slice(0,600);
-        const shown=root.innerText;const total=root.querySelectorAll('details').length;const visibleClosed=[...root.querySelectorAll('details')].filter(d=>!d.open&&d.offsetParent!==null).length;
+        const shown=root.innerText;const total=root.querySelectorAll('details').length;const visibleClosed=[...root.querySelectorAll('details')].filter(d=>!d.open&&d.offsetParent!==null&&!d.parentElement.closest('details:not([open])')).length;
         for(const d of root.querySelectorAll('details'))d.open=true;
         const full=root.innerText;
         return {firstScreen:vis.join(' | '),shownText:shown,fullText:full,header,closedSections:total,visibleClosedAtLoad:visibleClosed,tables:root.querySelectorAll('table').length,charts:root.querySelectorAll('svg,canvas').length};
