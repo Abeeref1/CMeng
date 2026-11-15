@@ -108,13 +108,18 @@ const accountabilityProjectIds=coldProfiles.map((shape,projectIndex)=>{
     await new Promise(resolve=>setTimeout(resolve,250));
   }
   const programmeResultsPreparationMs=performance.now()-programmeStart;
-  // Server readiness before each timed step: the pre-started workers (program
-  // code only; no project, no calculation) are loaded, as on an idle server.
+  // Each timed step starts on a ready, idle server: the pre-started workers
+  // (program code only; no project, no calculation) are loaded, and no
+  // background work for other projects (a page check of a Dashboard answered
+  // in an earlier step, a programme migration) is running or waiting. The
+  // timed projects' own Dashboards are never requested or checked before.
   const serverReady=async()=>{
     for(const pollStart=performance.now();;){
       const health=await (await fetch(base+'/health')).json();
-      if(!health.standbyWorkers||health.standbyWorkers.ready>=health.standbyWorkers.target)return;
-      if(performance.now()-pollStart>60000)throw new Error('Pre-started workers not ready within 60 s');
+      const pool=!health.standbyWorkers||health.standbyWorkers.ready>=health.standbyWorkers.target;
+      const work=health.backgroundWork??{};
+      if(pool&&!work.pageChecksRunning&&!work.pageChecksWaiting&&!work.programmeMigrationsRunning)return;
+      if(performance.now()-pollStart>120000)throw new Error('Server not ready and idle within 120 s: '+JSON.stringify({pool:health.standbyWorkers,work}));
       await new Promise(resolve=>setTimeout(resolve,250));
     }
   };
