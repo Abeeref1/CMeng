@@ -25,9 +25,14 @@ jobs:
         run: |
           set +e
           nproc
-          for round in 1 2 3 4; do
-            for young in 256; do
-              CMENG_WORKER_YOUNG_GENERATION_MB=$young CMENG_LATENCY_RESULT=/tmp/lat-$young-$round.json node scripts/release-latency.cjs > /tmp/lat-$young-$round.log 2>&1
-              node -e "const d=require('/tmp/lat-$young-$round.json');console.log('young $young round $round passed',d.passed,'cold',Math.round(d.priorColdGate.coldRequestMs),'upload',Math.round(d.uploadToReadyMs),'first',Math.round(d.firstDashboardMs),'shapes',d.coldProjectShapes.profiles.map(r=>Math.round(r.durationMs)).join(' '),'answers',d.dashboardAnswerEvents.map(e=>Math.round(e.totalMs)).join(' '),'workers',d.workerReadyEvents.slice(-4).map(e=>e.ms).join(' '))"
+          for round in 1 2 3; do
+            for config in default pool2 stgc; do
+              case $config in
+                default) export NODE_OPTIONS= ; export CMENG_V8_FLAGS= ;;
+                pool2) export NODE_OPTIONS=--v8-pool-size=2 ; export CMENG_V8_FLAGS= ;;
+                stgc) export NODE_OPTIONS= ; export CMENG_V8_FLAGS=--single-threaded-gc ;;
+              esac
+              CMENG_LATENCY_RESULT=/tmp/lat-$config-$round.json node scripts/release-latency.cjs > /tmp/lat-$config-$round.log 2>&1
+              NODE_OPTIONS= node -e "const d=require('/tmp/lat-$config-$round.json');console.log('config $config round $round passed',d.passed,'cold',Math.round(d.priorColdGate.coldRequestMs),'upload',Math.round(d.uploadToReadyMs),'first',Math.round(d.firstDashboardMs),'shapes',d.coldProjectShapes.profiles.map(r=>Math.round(r.durationMs)).join(' '),'answers',d.dashboardAnswerEvents.map(e=>Math.round(e.totalMs)).join(' '),'workers',d.workerReadyEvents.slice(-4).map(e=>e.ms).join(' '))"
             done
           done
