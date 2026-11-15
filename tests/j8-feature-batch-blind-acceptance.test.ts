@@ -1,3 +1,4 @@
+import {dashboardScreenView} from '../packages/runtime-api/src/dashboard-view';
 import {apiOwnerText} from '../packages/runtime-api/src/action-priority';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -625,10 +626,17 @@ for(const batch of pageBatches){
           // that identical result. Comparing the entire unpaged export to a
           // 25-row page is logically wrong and encouraged invented counts.
           const fullResult=jsonReport.body?.result;
-          const projected=pageProjectResponse(fullResult,pagePath(project.projectId,page)) as any;
-          assert.deepEqual(projected?.data,result.body?.data,batch.id+' JSON report canonical screen projection drift '+project.projectId+' / '+page.key);
-          assert.equal(fullResult?.status,result.body?.status,batch.id+' JSON report status drift '+project.projectId+' / '+page.key);
-          for(const table of result.body?.responsePaging?.tables??[]){
+          // M14: the Dashboard screen answers before its complete page check and
+          // sends the parts the Dashboard shows (dashboard-view.ts). A Dashboard
+          // report always carries the complete check, so the checked screen is
+          // compared with the report through that same screen view.
+          const dashboard=page.key==='master-dashboard';
+          const screen=dashboard&&result.body?.data?.pageCheck?.state!=='complete'?await request(base,pagePath(project.projectId,page)):result;
+          if(dashboard)assert.equal(screen.body?.data?.pageCheck?.state,'complete',batch.id+' Dashboard after its page check '+project.projectId);
+          const projected=pageProjectResponse(dashboard?dashboardScreenView(fullResult):fullResult,pagePath(project.projectId,page)) as any;
+          assert.deepEqual(projected?.data,screen.body?.data,batch.id+' JSON report canonical screen projection drift '+project.projectId+' / '+page.key);
+          assert.equal(fullResult?.status,screen.body?.status,batch.id+' JSON report status drift '+project.projectId+' / '+page.key);
+          for(const table of screen.body?.responsePaging?.tables??[]){
             const original=jsonPointer(fullResult,table.pointer);
             if(table.kind==='array'){
               assert.ok(Array.isArray(original),batch.id+' paged table is absent in full report '+table.pointer);
