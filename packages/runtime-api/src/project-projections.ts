@@ -738,10 +738,21 @@ function reportingContractTime(state:ProjectRuntimeState){
  * the first time any page, check or list reads it, and gives the same result.
  */
 class LazyModuleMap extends Map<string,ModuleRuntimeResult>{
-  private readonly pending=new Map<string,()=>ModuleRuntimeResult>();
-  setLazy(key:string,calculate:()=>ModuleRuntimeResult){super.set(key,undefined as unknown as ModuleRuntimeResult);this.pending.set(key,calculate);return this;}
-  private settle(key:string){const calculate=this.pending.get(key);if(calculate){this.pending.delete(key);super.set(key,calculate());}}
+  private readonly pending=new Map<string,{calculate:()=>ModuleRuntimeResult;steps:Array<(result:ModuleRuntimeResult)=>ModuleRuntimeResult>}>();
+  setLazy(key:string,calculate:()=>ModuleRuntimeResult){super.set(key,undefined as unknown as ModuleRuntimeResult);this.pending.set(key,{calculate,steps:[]});return this;}
+  // Each later step sees the page as the previous step left it, in the map,
+  // exactly as when every page is calculated at once.
+  private settle(key:string){
+    const entry=this.pending.get(key);if(!entry)return;
+    this.pending.delete(key);
+    super.set(key,entry.calculate());
+    for(const step of entry.steps)super.set(key,step(super.get(key)!));
+  }
   private settleAll(){for(const key of [...this.pending.keys()])this.settle(key);}
+  /** Keys registered for calculation on demand and not calculated yet. */
+  pendingKeys(){return [...this.pending.keys()];}
+  /** Apply a later step (such as the page challenge) to a page when it is calculated. */
+  wrapPending(key:string,step:(result:ModuleRuntimeResult)=>ModuleRuntimeResult){this.pending.get(key)?.steps.push(step);}
   override get(key:string){this.settle(key);return super.get(key);}
   override set(key:string,value:ModuleRuntimeResult){this.pending.delete(key);return super.set(key,value);}
   override delete(key:string){this.pending.delete(key);return super.delete(key);}
@@ -3353,7 +3364,11 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
     modules,
   });
 
-  for (const [key, result] of modules) modules.set(key, checkProjectionIntegrity(result, model, scheduleAnalysisConfig, delayModel, key==='milestones'?milestoneReviewForProjection(state,model):undefined));
+  // Every page gets its integrity check; a page calculated on demand gets it when calculated.
+  const integrityChecked=(key:string,result:ModuleRuntimeResult)=>checkProjectionIntegrity(result, model, scheduleAnalysisConfig, delayModel, key==='milestones'?milestoneReviewForProjection(state,model):undefined);
+  const onDemandPages=new Set(modules.pendingKeys());
+  for(const key of onDemandPages)modules.wrapPending(key,result=>integrityChecked(key,result));
+  for (const key of [...modules.keys()]) if(!onDemandPages.has(key)) modules.set(key, integrityChecked(key, modules.get(key)!));
 
   measureBundle('universal_challenges_and_integrity');
   const latestBoardPublicationRecord =

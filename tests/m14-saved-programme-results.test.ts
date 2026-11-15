@@ -314,3 +314,15 @@ test('M14-7 the Dashboard screen sends what the Dashboard shows and keeps every 
   const server=readFileSync(join(process.cwd(),'packages/runtime-api/src/server.ts'),'utf8');
   assert.match(server,/resolveModuleKey\(key\)==='master-dashboard'\?dashboardScreenView\(publicModuleResult\(result,key\)\)/,'only the Dashboard screen route is shaped');
 });
+
+test('M14-8 a page calculated on demand gets the same integrity check and challenge as when every page is calculated at once',()=>{
+  const {loadCertifiedDemoProject}=require('../packages/runtime-api/src/demo-project');
+  const state=loadCertifiedDemoProject('M14-ON-DEMAND-PAGE-'+(++serial));
+  dashboard(state.projectId);
+  const page:any=moduleForProject(state.projectId,'variance-trends');
+  const points=(page.data?.points??page.data?.rows??[]).filter((p:any)=>typeof p?.projectCompletionVarianceDays==='number');
+  assert.ok(points.length>0,'the demo programme has a finish movement to challenge');
+  const item=page.data.challenge.items.find((i:any)=>i.metricKey==='schedule_variance_days'||/finish-date movement/i.test(i.label??i.metric??''))??page.data.challenge.items[0];
+  assert.equal(item.independent.state,'calculated','the challenge reads the page being calculated, not an empty slot');
+  assert.ok(page.data.systemEvidenceContract?.checks?.length>0,'the integrity check ran on the page');
+});

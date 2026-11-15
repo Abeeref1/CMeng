@@ -746,8 +746,10 @@ function metricsFor(
       modules,
       "revision-trend",
     );
+  // Read only by its own page's challenge: a page calculated on demand
+  // (Variance Trends) is not calculated for the challenges of other pages.
   const variance =
-    dataOf(
+    ()=>dataOf(
       modules,
       "variance-trends",
     );
@@ -1198,7 +1200,7 @@ function metricsFor(
     case "variance-trends": {
       const latest =
         latestPoint(
-          variance,
+          variance(),
         );
       return [
         spec(
@@ -1941,12 +1943,10 @@ export function applyUniversalModuleChallenges(
       ctx.state,
     );
 
-  for (
-    const [
-      key,
-      result,
-    ] of ctx.modules.entries()
-  ) {
+  const challenged=(
+    key:string,
+    result:ModuleRuntimeResult,
+  )=>{
     const metrics =
       metricsFor(
         key,
@@ -1968,13 +1968,27 @@ export function applyUniversalModuleChallenges(
             : []),
         ],
       });
-
-    ctx.modules.set(
-      key,
-      attach(
+    return attach(
         result,
         challenge,
-      ),
+      );
+  };
+  // M14: a page registered for calculation on demand gets the same challenge
+  // when it is calculated; every other page is challenged now.
+  const lazy=ctx.modules as Map<string,ModuleRuntimeResult>&{
+    pendingKeys?:()=>string[];
+    wrapPending?:(key:string,wrap:(result:ModuleRuntimeResult)=>ModuleRuntimeResult)=>void;
+  };
+  const pending=new Set(lazy.pendingKeys?.()??[]);
+  for(const key of pending)lazy.wrapPending!(key,result=>challenged(key,result));
+  for (
+    const key of
+      [...ctx.modules.keys()]
+  ) {
+    if(pending.has(key))continue;
+    ctx.modules.set(
+      key,
+      challenged(key,ctx.modules.get(key)!),
     );
   }
 }
