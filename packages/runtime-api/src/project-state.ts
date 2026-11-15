@@ -1629,16 +1629,27 @@ export class RuntimeProjectStore {
         );
       }
 
+      // M14: the content before migration is compared only when a migration
+      // ran. It is then taken from the stored text, read again and rebuilt the
+      // same way, so an ordinary load (no migration) does not hash the whole
+      // project on every project open.
+      let storedAgain:RuntimeStateSnapshot|undefined;
       for (
-        const serialized of
-          parsed.projects
+        const [projectIndex,serialized] of
+          parsed.projects.entries()
       ) {
         const state =
           hydrateProject(
             serialized,
           );
         if(restoreSourcePaths(state,this.dataDir))restoredStateChanged=true;
-        const contentBeforeMigration=projectContentFingerprint(state);
+        const contentBeforeMigration=()=>{
+          storedAgain??=readSnapshotJson<RuntimeStateSnapshot>(this.stateFile);
+          const same=storedAgain.projects[projectIndex];
+          const stored=hydrateProject(same&&(same as {projectId?:string}).projectId===(serialized as {projectId?:string}).projectId?same:storedAgain.projects.find(row=>(row as {projectId?:string}).projectId===(serialized as {projectId?:string}).projectId)!);
+          restoreSourcePaths(stored,this.dataDir);
+          return projectContentFingerprint(stored);
+        };
         const migrated = migrateTypedEvidenceFamilies(state, applyEvidenceBasis);
         const calendarReadRefreshed=refreshStoredXerCalendars(state);
         // R3: stored documents get the shared whole-source reading state once.
@@ -1844,7 +1855,7 @@ export class RuntimeProjectStore {
           // SW-52: the marker upgrade is saved, but a migration that leaves
           // the content unchanged keeps the version, the board publications
           // and the rerun receipt (previously every marker upgrade bumped it).
-          if(projectContentFingerprint(state)!==contentBeforeMigration){
+          if(projectContentFingerprint(state)!==contentBeforeMigration()){
             state.version += 1;
             this.staleFinalizedBoardPublications(state);
             state.lastRerunReceipt = null;
