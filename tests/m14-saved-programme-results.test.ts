@@ -140,7 +140,11 @@ test('M14-4 a programme revision change recalculates only the results whose inpu
     dashboard(projectId);
     const changed=programmeResultStats();
     assert.equal(changed['independent-forecast']!.computed,1,'only the new revision CPM is calculated');
-    assert.ok(changed['independent-forecast']!.disk>=1,'unchanged revisions keep their saved CPM');
+    // Unchanged revisions keep their saved CPM results (their forecast snapshot
+    // and windows view are read; their full CPM is not needed at all).
+    const savedCpmReads=(changed['independent-forecast']?.disk??0)+(changed['forecast-snapshot']?.disk??0)+(changed['forecast-summary']?.disk??0);
+    assert.ok(savedCpmReads>=1,'unchanged revisions keep their saved CPM results');
+    for(const kind of ['forecast-snapshot','forecast-summary'])assert.ok((changed[kind]?.computed??0)<=1,kind+' is made only for the new revision');
     assert.equal(changed['revision-comparison']!.computed,1,'only the new adjacent comparison');
     assert.ok(changed['revision-comparison']!.disk>=1,'the unchanged comparison is reused');
   }finally{setProgrammeResultsDirectory(undefined);rmSync(results,{recursive:true,force:true});}

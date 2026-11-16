@@ -777,9 +777,6 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
 }
 
 if(require.main===module){
-  // Optional engine settings for the project workers (for example garbage
-  // collection threads). Read once at start, before any worker exists.
-  for(const flag of (process.env.CMENG_V8_FLAGS??'').split(/\s+/).filter(Boolean))require('node:v8').setFlagsFromString(flag);
   const root=process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim()||process.env.CMENG_DATA_DIR?.trim()||join(process.cwd(),'.cmeng-runtime');
   void createProjectGateway(root).then(gateway=>{
     const port=Number(process.env.PORT??3000),host=process.env.HOST??'0.0.0.0';

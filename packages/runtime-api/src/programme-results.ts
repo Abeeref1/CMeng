@@ -18,7 +18,7 @@ import {createHash} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,readdirSync,renameSync,rmSync,statSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 
-export type ProgrammeResultKind='independent-forecast'|'schedule-analysis'|'revision-comparison'|'near-critical'|'scope-classification'|'quantity-mapping'|'activity-analytics'|'progress-scurve'|'progress-breakdown'|'revision-trend'|'schedule-change-report';
+export type ProgrammeResultKind='independent-forecast'|'schedule-analysis'|'revision-comparison'|'near-critical'|'scope-classification'|'quantity-mapping'|'activity-analytics'|'progress-scurve'|'progress-breakdown'|'revision-trend'|'schedule-change-report'|'forecast-summary'|'forecast-snapshot';
 type Stat={memory:number;disk:number;computed:number;readMs:number;computeMs:number;savedBytes:number};
 const stats=new Map<string,Stat>();
 const memory=new Map<string,unknown>();
@@ -97,8 +97,10 @@ export function contentFingerprint(value:unknown):string{
   const fingerprint=createHash('sha256').update(canonicalText(value)).digest('hex');
   fingerprints.set(value,fingerprint);return fingerprint;
 }
-export function programmeResultKey(kind:ProgrammeResultKind,inputs:readonly unknown[]){
-  const hash=createHash('sha256').update(programmeCodeFingerprint()).update('\0').update(kind);
+/** The whole-application calculation fingerprint, for results whose code is spread across the runtime. */
+export function releaseCodeFingerprint(){return calculationReleaseKey();}
+export function programmeResultKey(kind:ProgrammeResultKind,inputs:readonly unknown[],code=programmeCodeFingerprint()){
+  const hash=createHash('sha256').update(code).update('\0').update(kind);
   for(const input of inputs)hash.update('\0').update(contentFingerprint(input));
   return hash.digest('hex');
 }
@@ -123,9 +125,10 @@ const fileName=(kind:string,key:string)=>kind+'-'+key+'.json';
  * so a saved result is identical to what an on-demand calculation returns.
  */
 export function savedProgrammeResult<T>(kind:ProgrammeResultKind,inputs:readonly unknown[],compute:()=>T,restamp?:(value:T)=>T,
-  options:{fresh?:boolean}={}):T{
+  options:{fresh?:boolean;wholeRelease?:boolean}={}):T{
   // fresh: the caller adds to the returned result, so each call gets its own copy (never a shared in-memory one).
-  const key=programmeResultKey(kind,inputs);
+  // wholeRelease: the result's code spans the runtime, so any calculation change recalculates it.
+  const key=programmeResultKey(kind,inputs,options.wholeRelease?releaseCodeFingerprint():programmeCodeFingerprint());
   touchedKeys.add(fileName(kind,key));
   // A shared result is identified by its own key when it is an input to another saved result.
   const known=(value:T)=>{if(!options.fresh&&value&&typeof value==='object')fingerprints.set(value as object,'result:'+kind+':'+key);return value;};

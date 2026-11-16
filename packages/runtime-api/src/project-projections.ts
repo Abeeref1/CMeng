@@ -17,7 +17,7 @@ import {summarizeControlledBaselineCompletion} from './controlled-baseline-compl
 import {buildForecastReconciliationGate} from './forecast-control';
 import {attachMilestonePopulation} from './milestone-population';
 import {attachLookaheadResourceLinks,registerResourceIdentityProvider} from './lookahead-resource-linkage';
-import {cachedIndependentForecast,independentForecastCache} from './forecast-cache';
+import {cachedIndependentForecast,independentForecastCache,savedForecastSummary} from './forecast-cache';
 import {actionRecordKey,prioritizeActions,consolidateScheduleChains,pmcRoleOwner,groupActionsByOwnerRegister} from './action-priority';
 import {completionPosition} from './completion-position';
 import {contractTimeDates} from './contract-time-reader';
@@ -1849,16 +1849,10 @@ function buildBundle(
   markIndependent('schedule_change_report');
   if(bundleProfile)process.stdout.write(JSON.stringify({event:'independent_change_stage_profile',projectId:state.projectId,stages:independentStageTimings,totalMs:independentStageTimings.reduce((n,p)=>n+p.ms,0)})+'\n');
   measureBundle('independent_forecast_and_change');
+  // Each revision's forecast snapshot is saved for its exact programme content
+  // (the current revision's CPM is in memory already; earlier ones are not read).
   const forecastSnapshots =
-    ordered.map((stored) =>
-      forecastSnapshotFromProjection(
-cachedIndependentForecast(stored.revision.model,generatedAt),
-        "forecast-" +
-          stored.revision
-            .revisionId,
-        stored.revision.model,
-      ),
-    );
+    ordered.map((stored) =>revisionForecastSnapshot(stored.revision,generatedAt));
 
   modules.set(
     "forecast-history",
@@ -2097,7 +2091,8 @@ cachedIndependentForecast(stored.revision.model,generatedAt),
           producerVersion:
             versions.windows,
           precomputedComparisons:revisionComparisons,
-          forecastResolver: revision => cachedIndependentForecast(revision.model,generatedAt),
+          // The windows read finish dates, assumptions and critical/driving IDs of each revision's CPM.
+          forecastResolver: revision => savedForecastSummary(revision.model,generatedAt) as unknown as ReturnType<typeof cachedIndependentForecast>,
         },
       ),
     );
@@ -5408,12 +5403,10 @@ function claimsFastContext(
             "windows-fast-v3",
           ...(bundleCache.get(state.projectId)?.version===state.version
             ? {precomputedComparisons:bundleCache.get(state.projectId)!.revisionComparisons??new Map()}:{}),
+          // The windows read finish dates, assumptions and critical/driving IDs of each revision's CPM.
           forecastResolver:
             (revision) =>
-              cachedIndependentForecast(
-                revision.model,
-                generatedAt,
-              ),
+              savedForecastSummary(revision.model,generatedAt) as unknown as ReturnType<typeof cachedIndependentForecast>,
         },
       ),
     );
@@ -6300,25 +6293,7 @@ function buildSpecialistModuleFast(
   ) {
     const snapshots =
       ordered.map(
-        (stored) => {
-          const cachedForecast =
-            independentForecastCache.get(
-              stored.revision
-                .model,
-            );
-          return forecastSnapshotFromProjection(
-            cachedForecast ??
-              cachedIndependentForecast(
-                stored.revision
-                  .model,
-                generatedAt,
-              ),
-            "forecast-" +
-              stored.revision
-                .revisionId,
-            stored.revision.model,
-          );
-        },
+        (stored) => revisionForecastSnapshot(stored.revision,generatedAt),
       );
     const projection =
       buildForecastHistoryProjection(
@@ -8059,6 +8034,25 @@ function resolveDashboardModules(state:ProjectRuntimeState):Map<string,ModuleRun
 function readSavedPageCheck(state:ProjectRuntimeState){return savedPageCheck(state.projectId,state.version,projectSourceStamp(state)) as (SavedPageCheck&{readiness:any;consistency:any;issueAssessment:any;actions:any;factsActions:any})|null;}
 
 /** P0-B: history and the live forecast share one rule: a calculable network finish is recorded with its qualifications. */
+/**
+ * Mechanism 14: one revision's forecast snapshot, saved for its exact
+ * programme content (Forecast History in the bundle and on its own page read
+ * the same one). An earlier revision's complete CPM is not read for it.
+ */
+function revisionForecastSnapshot(revision:ScheduleRevision,generatedAt:string){
+  const snapshotId="forecast-"+revision.revisionId;
+  // A CPM already in memory gives its snapshot directly, exactly as before.
+  const inMemory=independentForecastCache.get(revision.model);
+  if(inMemory){
+    const direct=forecastSnapshotFromProjection(inMemory,snapshotId,revision.model);
+    // Saved too, so a later open does not need this revision's CPM for it.
+    savedProgrammeResult('forecast-snapshot',[revision.model,snapshotId],()=>direct,undefined,{fresh:true,wholeRelease:true});
+    return direct;
+  }
+  return savedProgrammeResult('forecast-snapshot',[revision.model,snapshotId],
+    ()=>forecastSnapshotFromProjection(cachedIndependentForecast(revision.model,generatedAt),snapshotId,revision.model),
+    saved=>({...saved,generatedAt}),{fresh:true,wholeRelease:true});
+}
 export function forecastSnapshotFromProjection(forecast:Parameters<typeof rawForecastSnapshot>[0],snapshotId:string,model:Parameters<typeof buildForecastReconciliationGate>[0]['model']){
   const gate=buildForecastReconciliationGate({forecast,model,requiredFinishIso:null});
   return {...rawForecastSnapshot(forecast,snapshotId),

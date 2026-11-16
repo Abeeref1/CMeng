@@ -43,3 +43,25 @@ export function cachedIndependentForecast(
     computed,forecastMs:performance.now()-started})+'\n');
   return projection;
 }
+
+/**
+ * Mechanism 14: the parts of one revision's CPM that the windows analysis
+ * reads (finish dates, assumptions, completeness, critical and driving
+ * activity IDs), saved for the exact programme content. An earlier revision's
+ * complete CPM is then not read just to compare windows.
+ */
+export function savedForecastSummary(
+  model:ProjectRuntimeState["schedules"][number]["revision"]["model"],
+  generatedAt:string,
+){
+  const full=independentForecastCache.get(model);
+  const summary=(forecast:ReturnType<typeof buildIndependentForecastProjection>)=>({
+    sourceForecastCompletionIso:forecast.sourceForecastCompletionIso,
+    independentForecastCompletionIso:forecast.independentForecastCompletionIso,
+    assumptions:forecast.assumptions,complete:forecast.complete,
+    criticalActivityIds:forecast.criticalActivityIds,
+    drivingNetwork:forecast.drivingNetwork?{activityIds:forecast.drivingNetwork.activityIds}:null,
+  });
+  // Saved also when the CPM is in memory, so a later open finds it.
+  return savedProgrammeResult('forecast-summary',[model,FORECAST_OPTIONS],()=>summary(full??cachedIndependentForecast(model,generatedAt)),undefined,{fresh:true});
+}
