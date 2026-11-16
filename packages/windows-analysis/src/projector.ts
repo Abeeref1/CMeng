@@ -140,6 +140,19 @@ function coverage(
   );
 }
 
+/** The parts of one adjacent revision comparison that a schedule window uses. */
+export type WindowComparisonView={
+  activityMovement:ReturnType<typeof activityFinishMovementStats>;
+  addedActivityCount:number;removedActivityCount:number;modifiedActivityCount:number;
+  addedRelationshipCount:number;removedRelationshipCount:number;
+};
+export function windowComparisonView(comparison:ReturnType<typeof compareScheduleRevisions>):WindowComparisonView{
+  return {activityMovement:activityFinishMovementStats(comparison),
+    addedActivityCount:comparison.addedActivityIds.length,removedActivityCount:comparison.removedActivityIds.length,
+    modifiedActivityCount:comparison.modifiedActivityIds.length,addedRelationshipCount:comparison.addedRelationships.length,
+    removedRelationshipCount:comparison.removedRelationships.length};
+}
+
 function activityFinishMovementStats(
   comparison: ReturnType<typeof compareScheduleRevisions>,
 ): {
@@ -385,6 +398,9 @@ export function buildWindowsAnalysisProjection(
     // Reuse only comparisons supplied for these exact revision objects in the
     // same immutable calculation batch. Standalone calls still calculate fresh.
     precomputedComparisons?: ReadonlyMap<ScheduleRevision, ReadonlyMap<ScheduleRevision, ReturnType<typeof compareScheduleRevisions>>>;
+    // The parts of an adjacent comparison a window uses (see windowComparisonView),
+    // for callers that keep them; the full comparison is then not needed.
+    comparisonView?: (from: ScheduleRevision, to: ScheduleRevision) => WindowComparisonView | undefined;
     forecastResolver?: (
       revision: ScheduleRevision,
     ) => IndependentForecastProjection;
@@ -407,12 +423,11 @@ export function buildWindowsAnalysisProjection(
   ) {
     const from = ordered[index - 1]!;
     const to = ordered[index]!;
-    const comparison =
-      input.precomputedComparisons?.get(from)?.get(to) ?? compareScheduleRevisions(from, to);
+    const view =
+      input.comparisonView?.(from, to) ??
+      windowComparisonView(input.precomputedComparisons?.get(from)?.get(to) ?? compareScheduleRevisions(from, to));
     const activityMovement =
-      activityFinishMovementStats(
-        comparison,
-      );
+      view.activityMovement;
 
     const fromForecast =
       input.forecastResolver
@@ -775,15 +790,15 @@ export function buildWindowsAnalysisProjection(
           : null,
 
       addedActivityCount:
-        comparison.addedActivityIds.length,
+        view.addedActivityCount,
       removedActivityCount:
-        comparison.removedActivityIds.length,
+        view.removedActivityCount,
       modifiedActivityCount:
-        comparison.modifiedActivityIds.length,
+        view.modifiedActivityCount,
       addedRelationshipCount:
-        comparison.addedRelationships.length,
+        view.addedRelationshipCount,
       removedRelationshipCount:
-        comparison.removedRelationships.length,
+        view.removedRelationshipCount,
 
       criticalSetsCalculated: fromForecast.complete === true && toForecast.complete === true,
       enteredCriticalActivityIds:

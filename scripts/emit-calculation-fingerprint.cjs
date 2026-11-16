@@ -52,6 +52,7 @@ const programmeEntries=[
  'packages/progress-breakdown/src/index.ts',
  'packages/revision-trend/src/index.ts',
  'packages/schedule-change-report/src/index.ts',
+ 'packages/windows-analysis/src/index.ts',
 ];
 function resolveImport(fromFile,spec){
  const base=path.join(path.dirname(fromFile),spec);

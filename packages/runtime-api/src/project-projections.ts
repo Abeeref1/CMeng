@@ -191,6 +191,7 @@ import {
 } from "../../variance-trends/src";
 import {
   buildWindowsAnalysisProjection,
+  windowComparisonView,
 } from "../../windows-analysis/src";
 import {
   buildBoardReadyReport,
@@ -485,7 +486,9 @@ function savedProgressScurve(model:CanonicalScheduleModel,input:Parameters<typeo
   return {...saved.projection,generatedAt:input.generatedAt};
 }
 function savedProgressBreakdown(model:CanonicalScheduleModel,input:Parameters<typeof buildProgressBreakdownProjection>[1]){
-  const {generatedAt:_stamp,baselineModel,previousModel,scopeClassification,...rest}=input;
+  // The shared plan positions are a function of the programme and baseline
+  // models (both in the key), so they are not hashed a second time.
+  const {generatedAt:_stamp,baselineModel,previousModel,scopeClassification,sharedPlanPositions:_positions,...rest}=input;
   return savedProgrammeResult('progress-breakdown',[model,baselineModel??null,previousModel??null,scopeClassification??null,programmeKeyMaterial(rest)],
     ()=>buildProgressBreakdownProjection(model,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
 }
@@ -497,10 +500,35 @@ function savedRevisionTrend(revisions:ScheduleRevision[],input:Parameters<typeof
     ()=>buildRevisionTrendProjection(revisions,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
 }
 /** Mechanism 14: the change report of one exact pair of revisions. */
-function savedScheduleChangeReport(from:ScheduleRevision,to:ScheduleRevision,input:Parameters<typeof buildScheduleChangeReportProjection>[2]){
-  const {generatedAt:_stamp,precomputedComparison:_comparison,precomputedChangeCategories:_categories,precomputedAnalyses:_analyses,...rest}=input;
+function savedScheduleChangeReport(from:ScheduleRevision,to:ScheduleRevision,input:{generatedAt:string;producerVersion:string},
+  precomputed:()=>Omit<Parameters<typeof buildScheduleChangeReportProjection>[2],'generatedAt'|'producerVersion'>){
+  const {generatedAt:_stamp,...rest}=input;
   return savedProgrammeResult('schedule-change-report',[...revisionContent(from),...revisionContent(to),programmeKeyMaterial(rest)],
-    ()=>buildScheduleChangeReportProjection(from,to,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+    ()=>buildScheduleChangeReportProjection(from,to,{...input,...precomputed()}),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+}
+/** Mechanism 14: the parts of one adjacent comparison a schedule window uses, saved for the exact pair. */
+function savedWindowComparisonView(from:ScheduleRevision,to:ScheduleRevision){
+  return savedProgrammeResult('window-comparison',[...revisionContent(from),...revisionContent(to)],
+    ()=>windowComparisonView(savedRevisionComparison(from,to)),undefined,{fresh:true});
+}
+/**
+ * Adjacent revision comparisons of one calculation, read from their saved
+ * results when a calculation first asks for one. Other pairs are absent, as
+ * before, so their consumers calculate them.
+ */
+type RevisionComparison=ReturnType<typeof compareScheduleRevisions>;
+class SavedAdjacentPair extends Map<ScheduleRevision,RevisionComparison>{
+  constructor(private readonly from:ScheduleRevision,private readonly to:ScheduleRevision){super();}
+  override get(key:ScheduleRevision){if(key===this.to&&!super.has(key))super.set(key,savedRevisionComparison(this.from,this.to));return super.get(key);}
+  override has(key:ScheduleRevision){return key===this.to||super.has(key);}
+}
+class SavedAdjacentComparisons extends Map<ScheduleRevision,Map<ScheduleRevision,RevisionComparison>>{
+  constructor(private readonly adjacent:ReadonlyMap<ScheduleRevision,ScheduleRevision>){super();}
+  override get(from:ScheduleRevision){
+    let pairs=super.get(from);
+    if(!pairs){const to=this.adjacent.get(from);if(!to)return undefined;pairs=new SavedAdjacentPair(from,to);super.set(from,pairs);}
+    return pairs;
+  }
 }
 
 function applyGovernedWindowMovementMetrics(
@@ -1688,18 +1716,19 @@ function buildBundle(
   // The current-revision analysis was already calculated for Schedule Analytics
   // using this exact model and configuration. Do not analyze it twice.
   const revisionAnalyses=new Map<typeof model,ReturnType<typeof analyzeSchedule>>([[model,scheduleAnalyticsRaw.result]]);
-  const revisionComparisons=new Map<typeof current.revision,Map<typeof current.revision,ReturnType<typeof compareScheduleRevisions>>>();
   // Mechanism 14: each revision's analysis and each adjacent revision
   // comparison is read from the saved result for that exact content, so the
-  // trend, variance and change pages share one calculation per revision.
+  // trend, variance and change pages share one calculation per revision. A
+  // comparison (several megabytes) is read only when a calculation asks for it.
+  const adjacentRevisions=new Map<ScheduleRevision,ScheduleRevision>();
   {
     const trendOrder=orderScheduleRevisionsChronologically(ordered.map(item=>item.revision));
     trendOrder.forEach((revision,index)=>{
       if(!revisionAnalyses.has(revision.model))revisionAnalyses.set(revision.model,savedScheduleAnalysis(revision.model,scheduleAnalysisConfig));
-      const previous=index>0?trendOrder[index-1]!:null;
-      if(previous){const comparisons=revisionComparisons.get(previous)??new Map();comparisons.set(revision,savedRevisionComparison(previous,revision));revisionComparisons.set(previous,comparisons);}
+      if(index>0)adjacentRevisions.set(trendOrder[index-1]!,revision);
     });
   }
+  const revisionComparisons=new SavedAdjacentComparisons(adjacentRevisions);
   const revisionTrend =
     savedRevisionTrend(
       ordered.map(
@@ -1778,6 +1807,9 @@ function buildBundle(
           generatedAt,
           producerVersion:
             versions.change,
+        },
+        // Only a calculation of the report reads these.
+        ()=>({
           ...(revisionComparisons.get(before)?.get(after)?{precomputedComparison:revisionComparisons.get(before)!.get(after)!}:{}),
           // Revision Trend already evaluated this exact adjacent source pair.
           // Do not reuse a classification for an older/future current revision.
@@ -1789,7 +1821,7 @@ function buildBundle(
           // Completion date bases come from original activity dates and status;
           // this local evidence map never survives source/version changes.
           precomputedAnalyses:revisionAnalyses,
-        },
+        }),
       );
     modules.set(
       "schedule-change-report",
@@ -2091,6 +2123,7 @@ function buildBundle(
           producerVersion:
             versions.windows,
           precomputedComparisons:revisionComparisons,
+          comparisonView: savedWindowComparisonView,
           // The windows read finish dates, assumptions and critical/driving IDs of each revision's CPM.
           forecastResolver: revision => savedForecastSummary(revision.model,generatedAt) as unknown as ReturnType<typeof cachedIndependentForecast>,
         },
@@ -5403,6 +5436,7 @@ function claimsFastContext(
             "windows-fast-v3",
           ...(bundleCache.get(state.projectId)?.version===state.version
             ? {precomputedComparisons:bundleCache.get(state.projectId)!.revisionComparisons??new Map()}:{}),
+          comparisonView: savedWindowComparisonView,
           // The windows read finish dates, assumptions and critical/driving IDs of each revision's CPM.
           forecastResolver:
             (revision) =>
