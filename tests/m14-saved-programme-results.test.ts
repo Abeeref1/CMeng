@@ -207,6 +207,19 @@ test('M14-6a the upload/migration path saves the results the Dashboard then read
   }finally{setProgrammeResultsDirectory(undefined);rmSync(results,{recursive:true,force:true});}
 });
 
+test('M14-6d a project with no programme is prepared once: its version is current with no results to save',()=>{
+  const results=folder('no-programme');
+  setProgrammeResultsDirectory(results);
+  try{
+    const {projectId,state}=project(0);
+    const prepared=prepareProgrammeResults(projectId)!;
+    assert.equal(prepared.projectVersion,state.version);
+    const manifest=readProgrammeManifest(results);
+    assert.ok(programmeManifestCurrent(manifest,state.version,results),'the migration does not retry this version');
+    assert.equal(manifest!.files.length,0);
+  }finally{setProgrammeResultsDirectory(undefined);rmSync(results,{recursive:true,force:true});}
+});
+
 test('M14-6b the release speed test waits for the real migration and keeps every timed Dashboard cold',()=>{
   const script=readFileSync(join(process.cwd(),'scripts/release-latency.cjs'),'utf8');
   assert.match(script,/CMENG_BACKGROUND_WARMUP:'0'/,'no background page warm-up in the timed server');

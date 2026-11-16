@@ -612,16 +612,22 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const version=catalog.get(id)?.metadata?.version;
     if(version===undefined||programmePreparing.has(id)||programmeResultsCurrent(id))return;
     programmePreparing.add(id);
+    let prepared=false;
     try{
       await work(id,async port=>{
         if(catalog.get(id)?.metadata?.version!==version||(updating.get(id)??0)>0)return;
+        prepared=true;
         const response=await fetch('http://127.0.0.1:'+port+'/internal/programme-results/'+encodeURIComponent(id)+'/prepare',
           {method:'POST',headers:{'x-cmeng-external-worker-key':externalWorkerKey},signal:AbortSignal.timeout(240000)});
         const body=await response.json().catch(()=>null);
         if(!response.ok)throw new Error('PROGRAMME_RESULTS_PREPARE_'+response.status);
         console.log(JSON.stringify({event:'programme_results_prepared',projectId:id,...body}));
       });
-      programmeFailures.delete(id);
+      // A preparation that leaves the version not current waits like a failure,
+      // so the background never repeats it in a loop.
+      confirmedProgrammeVersion.delete(id);
+      if(!prepared||programmeResultsCurrent(id))programmeFailures.delete(id);
+      else{programmeFailures.set(id,Date.now());console.warn('[programme-results] '+id+': prepared but not current');}
     }catch(error){programmeFailures.set(id,Date.now());console.warn('[programme-results] '+id+': '+String(error));}
     finally{
       programmePreparing.delete(id);

@@ -881,6 +881,9 @@ function buildBundle(
       state.projectId,
       bundle,
     );
+    // Mechanism 14: a project with no programme has no programme results to
+    // save; its version is still prepared, so the migration does not retry it.
+    recordProgrammeResultsPrepared(state,false);
     return bundle;
   }
 
