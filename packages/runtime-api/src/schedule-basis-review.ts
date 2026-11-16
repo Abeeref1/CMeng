@@ -2,7 +2,7 @@ import {isProgressActivity,calendarWorkingDayHours,type CanonicalScheduleModel} 
 import {calculateCpm} from '../../schedule-cpm/src';
 import {resolveRevisionActivityCorrespondence} from '../../schedule-revision-core/src';
 import type {IndependentForecastProjection} from '../../independent-forecast/src';
-import {savedProgrammeResult} from './programme-results';
+import {programmeKeyMaterial,savedProgrammeResult} from './programme-results';
 
 const days=(from:string|null,to:string|null)=>from&&to?(Date.parse(to.slice(0,10))-Date.parse(from.slice(0,10)))/86400000:null;
 const range=(values:Array<number|null>)=>{const known=values.filter((v):v is number=>v!==null&&Number.isFinite(v));return {min:known.length?known.reduce((a,b)=>Math.min(a,b),Infinity):null,max:known.length?known.reduce((a,b)=>Math.max(a,b),-Infinity):null,knownCount:known.length};};
@@ -16,7 +16,10 @@ export function scheduleBasisReview(model:CanonicalScheduleModel,forecast:Indepe
   const key=contractFinish??'',old=byContract.get(key);if(old)return old;
   // Mechanism 14: saved for the exact programme, its CPM and the governing date
   // (the calendar what-if runs a full CPM of its own).
-  const value=savedProgrammeResult('schedule-basis-review',[model,forecast,contractFinish],()=>calculateReview(model,forecast,contractFinish),undefined,{fresh:true});
+  // The key holds only the CPM fields the review reads.
+  const cpm=programmeKeyMaterial({durationBasis:forecast.durationBasis,completion:forecast.independentForecastCompletionIso,
+    finishes:forecast.activities.map(a=>[a.activityId,a.independentEarlyFinishIso??null])});
+  const value=savedProgrammeResult('schedule-basis-review',[model,cpm,contractFinish],()=>calculateReview(model,forecast,contractFinish),undefined,{fresh:true});
   byContract.set(key,value);return value;
 }
 function calculateReview(model:CanonicalScheduleModel,forecast:IndependentForecastProjection,contractFinish:string|null){
