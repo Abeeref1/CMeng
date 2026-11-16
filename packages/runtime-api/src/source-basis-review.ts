@@ -18,23 +18,32 @@ function calculateQuantityReview(state:ProjectRuntimeState){
   const units=[...new Set(items.map(i=>i.unit??'Unit not stated'))].map(unit=>{const rows=items.filter(i=>(i.unit??'Unit not stated')===unit),known=rows.filter(r=>r.contractQuantity!==null);return {unit,itemCount:rows.length,knownQuantityCount:known.length,quantity:rows.length===1?known[0]?.contractQuantity??null:null};});
   const forecast=sourceProductivityForecastEvidence(state);
   const forecastUnits=[...new Set(forecast.rows.map(r=>r.unit??'Unit not stated'))].map(unit=>{const rows=forecast.rows.filter(r=>(r.unit??'Unit not stated')===unit),known=rows.filter(r=>r.remainingQuantity!==null);return {unit,rowCount:rows.length,remainingQuantity:rows.length===1?known[0]?.remainingQuantity??null:null};});
-  const drivers=forecast.rows.filter(r=>forecast.driverWorkPackageIds.includes(r.workPackageId)).map(r=>{
-    const values=forecast.rows.filter(v=>v.unit===r.unit&&v.remainingQuantity!==null).map(v=>v.remainingQuantity!).sort((a,b)=>a-b);
+  // Known remaining quantities per unit, in row order, sorted once per unit.
+  const remainingByUnit=new Map<unknown,number[]>();
+  for(const v of forecast.rows){if(v.remainingQuantity===null)continue;const list=remainingByUnit.get(v.unit)??[];list.push(v.remainingQuantity);remainingByUnit.set(v.unit,list);}
+  for(const list of remainingByUnit.values())list.sort((a,b)=>a-b);
+  const driverIds=new Set(forecast.driverWorkPackageIds);
+  const drivers=forecast.rows.filter(r=>driverIds.has(r.workPackageId)).map(r=>{
+    const values=remainingByUnit.get(r.unit)??[];
     const n=values.length,median=n?(values[Math.floor((n-1)/2)]!+values[Math.floor(n/2)]!)/2:null;
     return {...r,unitMedianRemaining:median,remainingToUnitMedian:r.remainingQuantity!==null&&median&&median>0?r.remainingQuantity/median:null};
   });
   // Number resemblance is only a diagnostic: derive the schedule package token
   // from source activity names. Do not join IF rows to a WBS by ordinal position.
+  const activitiesByWbs=new Map<unknown,NonNullable<typeof model>['activities'][number][]>();
+  for(const a of model?.activities??[]){const list=activitiesByWbs.get(a.wbsId)??[];list.push(a);activitiesByWbs.set(a.wbsId,list);}
   const schedulePackages=(model?.wbs??[]).filter(w=>!parents.has(w.wbsId)).map(w=>{
-    const tokens=[...new Set((model?.activities??[]).filter(a=>a.wbsId===w.wbsId).flatMap(a=>[...(a.name??'').matchAll(/\bpackage\s+0*(\d+)\b/gi)].map(m=>Number(m[1]))))];
+    const tokens=[...new Set((activitiesByWbs.get(w.wbsId)??[]).flatMap(a=>[...(a.name??'').matchAll(/\bpackage\s+0*(\d+)\b/gi)].map(m=>Number(m[1]))))];
     return {wbsId:w.wbsId,name:w.name,number:tokens.length===1?tokens[0]:null};
   });
+  const packagesByNumber=new Map<number,typeof schedulePackages>();
+  for(const w of schedulePackages){if(w.number===null||w.number===undefined)continue;const list=packagesByNumber.get(w.number)??[];list.push(w);packagesByNumber.set(w.number,list);}
   const numberReview=forecast.rows.map(r=>{const digits=/^(?:[A-Za-z]+[-_ ]*)?0*(\d+)$/.exec(r.workPackageId),number=digits?Number(digits[1]):null;
-    const candidates=number!==null?schedulePackages.filter(w=>w.number===number):[];
+    const candidates=number!==null?(packagesByNumber.get(number)??[]).slice():[];
     return {workPackageId:r.workPackageId,sourceDiscipline:r.discipline,schedulePackages:candidates,disciplineMatches:candidates.length===1&&!!r.discipline&&phrase(candidates[0]!.name??'',r.discipline)};});
   return {itemCount:items.length,sections,unitTotals:units,uniqueSectionSuggestionCount:sections.filter(s=>s.suggestions.length===1).length,
     forecast:{completionIso:forecast.completionIso,state:forecast.state,workPackageCount:forecast.workPackageCount,driverCount:drivers.length,drivers,units:forecastUnits,
-      explicitActivityLinkCount:forecast.rows.filter(r=>r.linkedActivityId&&model?.activities.some(a=>a.activityId===r.linkedActivityId)).length,
+      explicitActivityLinkCount:(()=>{const ids=new Set(model?.activities.map(a=>a.activityId)??[]);return forecast.rows.filter(r=>r.linkedActivityId&&ids.has(r.linkedActivityId)).length;})(),
       sameNumberReviewedCount:numberReview.filter(r=>r.schedulePackages.length===1).length,sameNumberDisciplineMatches:numberReview.filter(r=>r.disciplineMatches).length,numberReview},
     interpretation:'Review the suggested section matches before linking BOQ items to activities. Keep each item quantity separate, including items that share a unit. Package numbers alone do not prove a match. Provide a table linking productivity work packages, programme activities and BOQ items, and explain unusually large remaining quantities.'};
 }

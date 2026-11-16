@@ -506,6 +506,18 @@ function savedScheduleChangeReport(from:ScheduleRevision,to:ScheduleRevision,inp
   return savedProgrammeResult('schedule-change-report',[...revisionContent(from),...revisionContent(to),programmeKeyMaterial(rest)],
     ()=>buildScheduleChangeReportProjection(from,to,{...input,...precomputed()}),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
 }
+/** Mechanism 14: the labour-hour curve, saved for the exact resource and programme content. */
+function savedManhourScurve(resources:Parameters<typeof buildManhourScurveProjection>[0],model:CanonicalScheduleModel,input:Parameters<typeof buildManhourScurveProjection>[2]){
+  const {generatedAt:_stamp,...rest}=input;
+  return savedProgrammeResult('manhour-scurve',[resources,model,programmeKeyMaterial(rest)],
+    ()=>buildManhourScurveProjection(resources,model,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+}
+/** Mechanism 14: resource loading by period, saved for the exact resource and programme content. */
+function savedResourceUtilization(resources:Parameters<typeof buildResourceUtilizationProjection>[0],model:CanonicalScheduleModel,input:Parameters<typeof buildResourceUtilizationProjection>[2]){
+  const {generatedAt:_stamp,...rest}=input;
+  return savedProgrammeResult('resource-utilization',[resources,model,programmeKeyMaterial(rest)],
+    ()=>buildResourceUtilizationProjection(resources,model,input),saved=>({...saved,generatedAt:input.generatedAt}),{fresh:true});
+}
 /** Mechanism 14: the parts of one adjacent comparison a schedule window uses, saved for the exact pair. */
 function savedWindowComparisonView(from:ScheduleRevision,to:ScheduleRevision){
   return savedProgrammeResult('window-comparison',[...revisionContent(from),...revisionContent(to)],
@@ -1934,8 +1946,9 @@ function buildBundle(
   if (
     usableResources
   ) {
+    // Mechanism 14: both are saved for the exact resource and programme content.
     resourceUtilization =
-      buildResourceUtilizationProjection(
+      savedResourceUtilization(
         usableResources,
         model,
         {
@@ -1945,7 +1958,7 @@ function buildBundle(
         },
       );
     manhourScurve =
-      buildManhourScurveProjection(
+      savedManhourScurve(
         usableResources,
         model,
         {
@@ -3776,6 +3789,13 @@ function buildBundle(
     state.projectId,
     bundle,
   );
+  // Mechanism 14: the package and calendar basis review of the current
+  // programme is a shared revision result (Milestones, Forecast, Near-Critical
+  // and Schedule Analytics read it), so it is saved with the others.
+  {
+    const control=projectControlSchedule(state)?.revision.model;
+    if(control)scheduleBasisReview(control,cachedIndependentForecast(control,calculationSnapshotTime(state)),contractTimeDates(state).governingCompletionIso);
+  }
   // Mechanism 14: every programme result of this project version is now saved.
   recordProgrammeResultsPrepared(state,false);
   return bundle;
@@ -6181,7 +6201,7 @@ function buildSpecialistModuleFast(
       "resource-utilization"
     ) {
       const projection =
-        buildResourceUtilizationProjection(
+        savedResourceUtilization(
           resources,
           model,
           {
@@ -6212,7 +6232,7 @@ function buildSpecialistModuleFast(
       );
     } else {
       const projection =
-        buildManhourScurveProjection(
+        savedManhourScurve(
           resources,
           model,
           {

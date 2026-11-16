@@ -15,7 +15,18 @@ function normalized(values:(string|null|undefined)[]):string {
   return values.filter(Boolean).join(' ').toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
 }
 
+// One classification per resource record. The fields it reads are compared on
+// every call, so a changed record is classified again.
+const classified=new WeakMap<object,{fields:readonly unknown[];value:ResourceBusinessClass}>();
 export function resourceBusinessClass(resource:ResourceSemanticInput):ResourceBusinessClass {
+  const fields=[resource.resourceType,resource.name,resource.shortName,resource.unitName,resource.unitAbbreviation,resource.priceTimeUnit];
+  const old=classified.get(resource);
+  if(old&&old.fields.every((value,index)=>value===fields[index]))return old.value;
+  const value=classifyResource(resource);
+  classified.set(resource,{fields,value});
+  return value;
+}
+function classifyResource(resource:ResourceSemanticInput):ResourceBusinessClass {
   const unitText=normalized([resource.unitName,resource.unitAbbreviation,resource.priceTimeUnit]);
   const nameText=normalized([resource.name,resource.shortName]);
   const strongWeight=/^(?:physical\s*)?weight(?:age)?(?:\s*progress)?$|^progress\s*weight$/;

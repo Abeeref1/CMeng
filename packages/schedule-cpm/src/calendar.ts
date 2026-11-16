@@ -99,8 +99,10 @@ function intervalsForRawDate(
   finish: string;
   minutes: number;
 }> {
+  // The date key is computed once per lookup, not once per listed exception.
+  const day = isoDay(dateMs);
   const exception = calendar.exceptions?.find(
-    (item) => item.isoDate === isoDay(dateMs),
+    (item) => item.isoDate === day,
   );
 
   if (exception) {
@@ -108,9 +110,10 @@ function intervalsForRawDate(
     return exception.workIntervals;
   }
 
+  const weekday = dayIndex(dateMs);
   return (
     calendar.weeklyWorkIntervals?.find(
-      (item) => item.dayIndex === dayIndex(dateMs),
+      (item) => item.dayIndex === weekday,
     )?.intervals ?? []
   );
 }
