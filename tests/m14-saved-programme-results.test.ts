@@ -1,4 +1,4 @@
-import {moduleRegistry} from '../packages/runtime-api/src/registry';
+import {moduleRegistry,pageDataRoute} from '../packages/runtime-api/src/registry';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,readdirSync,statSync,writeFileSync,rmSync} from 'node:fs';
@@ -293,6 +293,15 @@ test('M14-3/6 gateway: migration saves programme results, the Dashboard answers 
     assert.ok(Array.isArray(polled.data.actions));
     assert.deepEqual(polled.data.metrics,firstBody.data.metrics,'the same project values before and after the check');
     assert.ok(await reads.get(calculationRelease(),version,route),'the checked Dashboard is kept for this version');
+    // Every page made from the same complete check is kept from that one calculation.
+    // Under the exact routes the browser opens (Actions Required is /management/actions-required).
+    const sibling=['command-center','master-control-programme','source-quality'].map(key=>'/api/projects/'+id+pageDataRoute(moduleRegistry.find(page=>page.key===key)!));
+    for(let attempt=0;attempt<600;attempt++){
+      const kept=await Promise.all(sibling.map(path=>reads.get(calculationRelease(),version,path)));
+      if(kept.every(Boolean))break;
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    for(const path of sibling)assert.ok(await reads.get(calculationRelease(),version,path),'kept from the complete check: '+path);
     const again=await fetch(base+route);
     assert.equal(again.headers.get('x-cmeng-page-check'),null);
     assert.equal((await again.json() as any).data.pageCheck.state,'complete');

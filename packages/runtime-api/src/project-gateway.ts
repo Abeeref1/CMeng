@@ -128,8 +128,12 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
     const lane=lanes.get(id);
     if(lane)lane.unpublished={version,served:pathname};
   }
+  // Mechanism 14: every page made from the complete page check (Command Center,
+  // Master Control Programme and Actions Required as well as the owner pages)
+  // is kept from the one finished calculation, so no first visit repeats it.
   const ownerRoutes=(id:string)=>{const prefix='/api/projects/'+encodeURIComponent(id);
-    return [prefix+pageRoute('cross-domain-accountability'),prefix+pageRoute('master-dashboard'),prefix+'/director-position',prefix+'/management-surfaces',prefix+'/management/cross-domain-accountability'];};
+    return [prefix+pageRoute('cross-domain-accountability'),prefix+pageRoute('master-dashboard'),prefix+'/director-position',prefix+'/management-surfaces',prefix+'/management/cross-domain-accountability',
+      prefix+pageRoute('command-center'),prefix+pageRoute('master-control-programme'),prefix+pageRoute('source-quality')];};
   // A recycled worker otherwise discards the finished calculation, and the next
   // Accountability or Dashboard request repeats the entire analysis. Each page
   // is fetched for this exact version while the worker still holds the finished
@@ -308,7 +312,9 @@ export async function createProjectGateway(root:string,options:{maxWorkers?:numb
         await work(id,async port=>{
           if(closing||(updating.get(id)??0)>0||catalog.get(id)?.metadata?.version!==version||
             Date.now()-lastForegroundProjectRequestAt<3000)return;
-          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(20000),
+          // Background work: a large project's complete page check may take longer
+          // than a page open, and an aborted check would be repeated by the next visit.
+          const page=await fetch('http://127.0.0.1:'+port+route,{signal:AbortSignal.timeout(120000),
             headers:route.endsWith(pageRoute('master-dashboard'))?{'x-cmeng-page-check':'run'}:{}});
           if(page.headers.get('x-cmeng-page-check')==='pending'){await page.arrayBuffer().catch(()=>{});return;}
           if(!page.ok)return;
